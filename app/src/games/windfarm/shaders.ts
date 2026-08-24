@@ -1,8 +1,10 @@
 // GLSL sources for the stable-fluids solver (semi-Lagrangian advection,
 // Jacobi pressure projection, vorticity confinement). Tuned for looks, not
-// accuracy: no-slip walls and outflow boundaries are simply not enforced.
+// accuracy: the edges are outflow-only (enforced in the constrain pass), not
+// proper no-slip walls.
 
 export const MAX_OBSTACLES = 16;
+export const MAX_TURBINES = 16;
 
 export const vertexSrc = `#version 300 es
 precision highp float;
@@ -129,7 +131,7 @@ void main() {
 }
 `;
 
-/** Wind inflow at the left edge + zero velocity inside obstacles. */
+/** Wind inflow at the left edge, outflow-only walls, zero velocity inside obstacles. */
 export const constrainSrc = `${header}
 uniform sampler2D uVelocity;
 uniform float uAspect;
@@ -137,6 +139,9 @@ uniform int uCount;
 uniform vec3 uObstacles[${MAX_OBSTACLES}];
 uniform float uWind;
 uniform float uDt;
+uniform vec2 uTexel;
+uniform int uTurbineCount;
+uniform vec3 uTurbines[${MAX_TURBINES}];
 void main() {
   vec2 velocity = texture(uVelocity, vUv).xy;
   if (uWind > 0.0) {
@@ -146,6 +151,24 @@ void main() {
     float inflow = smoothstep(0.06, 0.0, vUv.x);
     velocity = mix(velocity, vec2(uWind, 0.0), min(1.0, uDt * (0.6 + inflow * 10.0)));
   }
+  // Edges are open outflow: an edge texel must never hold inward velocity.
+  // Advection clamps its backtrace at the walls, so an edge texel with inward
+  // velocity samples itself and re-injects that velocity every frame — and the
+  // divergence stencil clamps too, so the pressure solve can't see the jet. A
+  // burst rebounding off a wall would otherwise seed a runaway inflow. The
+  // left edge stays open for the deliberate wind inflow.
+  if (vUv.x < uTexel.x && uWind <= 0.0) velocity.x = min(velocity.x, 0.0);
+  if (vUv.x > 1.0 - uTexel.x) velocity.x = max(velocity.x, 0.0);
+  if (vUv.y < uTexel.y) velocity.y = min(velocity.y, 0.0);
+  if (vUv.y > 1.0 - uTexel.y) velocity.y = max(velocity.y, 0.0);
+  // Turbines are porous drag disks (tall ellipses), not solid obstacles: they
+  // slow the flow passing through, leaving a momentum-deficit wake downstream.
+  for (int i = 0; i < ${MAX_TURBINES}; i++) {
+    if (i >= uTurbineCount) break;
+    vec2 t = vUv - uTurbines[i].xy;
+    t.x *= uAspect * 2.5;
+    if (length(t) < uTurbines[i].z) velocity *= max(0.0, 1.0 - 8.0 * uDt);
+  }
   for (int i = 0; i < ${MAX_OBSTACLES}; i++) {
     if (i >= uCount) break;
     vec2 d = vUv - uObstacles[i].xy;
@@ -153,6 +176,19 @@ void main() {
     if (length(d) < uObstacles[i].z) velocity = vec2(0.0);
   }
   frag = vec4(velocity, 0.0, 1.0);
+}
+`;
+
+/**
+ * Samples velocity at up to MAX_TURBINES uv points into an Nx1 target, so the
+ * game layer can read local wind speeds back with a single tiny readPixels.
+ */
+export const probeSrc = `${header}
+uniform sampler2D uVelocity;
+uniform vec2 uPoints[${MAX_TURBINES}];
+void main() {
+  vec2 v = texture(uVelocity, uPoints[int(gl_FragCoord.x)]).xy;
+  frag = vec4(v, 0.0, 1.0);
 }
 `;
 

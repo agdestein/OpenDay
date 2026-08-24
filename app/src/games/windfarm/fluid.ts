@@ -4,6 +4,7 @@
 // semi-Lagrangian advection. Everything is tuned for looks, not accuracy.
 import {
   MAX_OBSTACLES,
+  MAX_TURBINES,
   advectionSrc,
   clearSrc,
   constrainSrc,
@@ -12,6 +13,7 @@ import {
   divergenceSrc,
   gradientSubtractSrc,
   pressureSrc,
+  probeSrc,
   splatSrc,
   vertexSrc,
   vorticitySrc,
@@ -19,6 +21,13 @@ import {
 
 /** Obstacle in uv coordinates; radius is a fraction of the screen height. */
 export interface Obstacle {
+  x: number;
+  y: number;
+  r: number;
+}
+
+/** Turbine drag disk in uv coordinates; radius is a fraction of the screen height. */
+export interface TurbineDisk {
   x: number;
   y: number;
   r: number;
@@ -109,6 +118,7 @@ export class FluidSolver {
     | 'pressure'
     | 'gradientSubtract'
     | 'constrain'
+    | 'probe'
     | 'display',
     Program
   >;
@@ -117,8 +127,13 @@ export class FluidSolver {
   private pressure!: DoubleTarget;
   private curl!: Target;
   private divergence!: Target;
+  private probeTarget!: Target;
+  private probePoints = new Float32Array(MAX_TURBINES * 2);
+  private probePixels = new Float32Array(MAX_TURBINES * 4);
   private obstacleData = new Float32Array(MAX_OBSTACLES * 3);
   private obstacleCount = 0;
+  private turbineData = new Float32Array(MAX_TURBINES * 3);
+  private turbineCount = 0;
   private pressureIterations = 24;
 
   constructor(private canvas: HTMLCanvasElement) {
@@ -154,6 +169,7 @@ export class FluidSolver {
       pressure: new Program(gl, vertex, pressureSrc),
       gradientSubtract: new Program(gl, vertex, gradientSubtractSrc),
       constrain: new Program(gl, vertex, constrainSrc),
+      probe: new Program(gl, vertex, probeSrc),
       display: new Program(gl, vertex, displaySrc),
     };
     gl.deleteShader(vertex);
@@ -163,6 +179,8 @@ export class FluidSolver {
     this.dye = this.createDouble(DYE_W, DYE_H, gl.RGBA16F, gl.RGBA);
     this.curl = this.createTarget(SIM_W, SIM_H, gl.R16F, gl.RED);
     this.divergence = this.createTarget(SIM_W, SIM_H, gl.R16F, gl.RED);
+    // RGBA32F so readPixels(RGBA, FLOAT) is guaranteed; never sampled, so NEAREST.
+    this.probeTarget = this.createTarget(MAX_TURBINES, 1, gl.RGBA32F, gl.RGBA, gl.FLOAT, gl.NEAREST);
   }
 
   setObstacles(obstacles: Obstacle[]): void {
@@ -172,6 +190,42 @@ export class FluidSolver {
       this.obstacleData[i * 3 + 1] = obstacles[i].y;
       this.obstacleData[i * 3 + 2] = obstacles[i].r;
     }
+  }
+
+  setTurbines(turbines: TurbineDisk[]): void {
+    this.turbineCount = Math.min(turbines.length, MAX_TURBINES);
+    for (let i = 0; i < this.turbineCount; i++) {
+      this.turbineData[i * 3] = turbines[i].x;
+      this.turbineData[i * 3 + 1] = turbines[i].y;
+      this.turbineData[i * 3 + 2] = turbines[i].r;
+    }
+  }
+
+  /**
+   * Read back the velocity (grid cells/sec) at up to MAX_TURBINES uv points,
+   * as [vx0, vy0, vx1, vy1, ...]. One GPU pass + one tiny synchronous
+   * readPixels; call sparingly (a few times per second is fine).
+   */
+  sampleVelocities(points: { x: number; y: number }[]): Float32Array {
+    const gl = this.gl;
+    const n = Math.min(points.length, MAX_TURBINES);
+    const out = new Float32Array(n * 2);
+    if (n === 0) return out;
+    for (let i = 0; i < n; i++) {
+      this.probePoints[i * 2] = points[i].x;
+      this.probePoints[i * 2 + 1] = points[i].y;
+    }
+    const p = this.programs.probe;
+    p.bind();
+    gl.uniform2fv(p.loc('uPoints[0]'), this.probePoints);
+    this.bindTexture(p.loc('uVelocity'), this.velocity.read.tex, 0);
+    this.blit(this.probeTarget);
+    gl.readPixels(0, 0, n, 1, gl.RGBA, gl.FLOAT, this.probePixels);
+    for (let i = 0; i < n; i++) {
+      out[i * 2] = this.probePixels[i * 4];
+      out[i * 2 + 1] = this.probePixels[i * 4 + 1];
+    }
+    return out;
   }
 
   /** Add momentum (grid cells/sec) around uv point (x, y). */
@@ -207,11 +261,14 @@ export class FluidSolver {
     // Wind inflow and obstacles, applied before projection so the pressure
     // solve routes the flow around the obstacles.
     p.constrain.bind();
+    gl.uniform2f(p.constrain.loc('uTexel'), texel[0], texel[1]);
     gl.uniform1f(p.constrain.loc('uAspect'), this.aspect());
     gl.uniform1i(p.constrain.loc('uCount'), this.obstacleCount);
     gl.uniform3fv(p.constrain.loc('uObstacles[0]'), this.obstacleData);
     gl.uniform1f(p.constrain.loc('uWind'), this.wind);
     gl.uniform1f(p.constrain.loc('uDt'), dt);
+    gl.uniform1i(p.constrain.loc('uTurbineCount'), this.turbineCount);
+    gl.uniform3fv(p.constrain.loc('uTurbines[0]'), this.turbineData);
     this.bindTexture(p.constrain.loc('uVelocity'), this.velocity.read.tex, 0);
     this.blit(this.velocity.write);
     this.swap(this.velocity);
@@ -343,16 +400,23 @@ export class FluidSolver {
     gl.uniform1i(loc, unit);
   }
 
-  private createTarget(w: number, h: number, internalFormat: number, format: number): Target {
+  private createTarget(
+    w: number,
+    h: number,
+    internalFormat: number,
+    format: number,
+    type: number = this.gl.HALF_FLOAT,
+    filter: number = this.gl.LINEAR,
+  ): Target {
     const gl = this.gl;
     const tex = gl.createTexture()!;
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, tex);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.texImage2D(gl.TEXTURE_2D, 0, internalFormat, w, h, 0, format, gl.HALF_FLOAT, null);
+    gl.texImage2D(gl.TEXTURE_2D, 0, internalFormat, w, h, 0, format, type, null);
     const fbo = gl.createFramebuffer()!;
     const target = { fbo, tex, w, h };
     this.clearTarget(target);
