@@ -295,7 +295,8 @@ body {
   font-size: 1.05rem;
   opacity: 0.85;
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
-  pointer-events: none;
+  /* Beats the `.game-overlay > *` auto, so this strip never eats canvas clicks. */
+  pointer-events: none !important;
 }
 
 /* ---------- Score flow (end of round) ---------- */
