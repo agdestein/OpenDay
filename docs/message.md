@@ -40,7 +40,9 @@ impressive.
   - Epidemic game → our group has actually worked on simulating epidemic spread.
   - Dike game → the storm-surge computations after the 1953 flood were pioneered at
     the Mathematisch Centrum, CWI's predecessor. *(Verify the exact historical wording
-    before printing it.)*
+    before printing it.)* Also: our group worked with Deltares on estimating dike
+    failure probabilities — building dikes is costly, so you only reinforce where
+    failure is actually possible, which is precisely the budget trade-off in the game.
 - Parents who are engaged re-explain the demo to their kids on the way home and tell
   other parents. Design for the over-the-shoulder viewer too: big visuals, readable
   from two meters.

@@ -52,7 +52,11 @@ Shallow-water equations on a stylized map of the Dutch coast.
 - **Depth (game mode):** limited sand budget, escalating storms, score = dry land ×
   people protected. Real place names make it personal ("protect grandma in Zeeland").
 - **Science line:** "After the 1953 flood, CWI's predecessor helped compute the storm
-  surges behind the Delta Works." *(Verify wording before use.)*
+  surges behind the Delta Works." *(Verify wording before use.)* And a direct group
+  connection: we did a project with Deltares on estimating dike failure probabilities
+  in the Netherlands — building dikes is costly, so you only want to reinforce where
+  existing structures might actually fail. The game's limited-budget mechanic mirrors
+  exactly that trade-off.
 - **Effort:** medium (height-field shallow-water solver is simple and stable; needs map
   art). The strongest story hook of the list, very Dutch.
 
