@@ -1,14 +1,16 @@
-// Phase 1: the fluid playground (toy mode). Phase 2 adds the wind-farm game
-// mode on top of this solver, hence the directory name.
+// The fluid playground (Phase 1 toy mode) plus the wind-farm challenge
+// (Phase 2 game mode) on top of the same solver.
 import type { ArcadeGame, GameHost, GameInstance } from '../../shell/types';
 import { FluidSolver, type Obstacle } from './fluid';
+import { Challenge, type ChallengeNext } from './game';
 
 const SPLAT_FORCE = 6000; // uv-space pointer delta -> velocity (cells/sec)
 const DYE_RADIUS = 0.0025;
 const OBSTACLE_RADIUS = 0.07; // fraction of screen height
 const MAX_PLACED_OBSTACLES = 12;
 const WIND_SPEED = 60; // cells/sec; sim is 256 cells wide
-const STREAK_COUNT = 6;
+const TOY_STREAKS = 6;
+const CHALLENGE_STREAKS = 9;
 
 type Mode = 'stir' | 'blocks';
 
@@ -22,6 +24,7 @@ function hsvToRgb(h: number, s: number, v: number): [number, number, number] {
 
 class FluidInstance implements GameInstance {
   private solver: FluidSolver | null = null;
+  private challenge: Challenge | null = null;
   private mode: Mode = 'stir';
   private windOn = false;
   private obstacles: Obstacle[] = [];
@@ -33,10 +36,16 @@ class FluidInstance implements GameInstance {
   private pointerDown = false;
   private last = { x: 0, y: 0 };
   private buttons: Partial<Record<Mode | 'wind', HTMLButtonElement>> = {};
+  private toyBar!: HTMLElement;
+  private challengeBar!: HTMLElement;
 
   private onContextMenu = (e: Event) => e.preventDefault();
   private onPointerDown = (e: PointerEvent) => {
     const { x, y } = this.toUv(e);
+    if (this.challenge) {
+      this.challenge.onPointerDown(x, y);
+      return;
+    }
     if (e.button === 2 || this.mode === 'blocks') {
       this.toggleObstacle(x, y);
       return;
@@ -45,7 +54,7 @@ class FluidInstance implements GameInstance {
     this.last = { x, y };
   };
   private onPointerMove = (e: PointerEvent) => {
-    if (!this.pointerDown || !this.solver) return;
+    if (!this.pointerDown || !this.solver || this.challenge) return;
     const { x, y } = this.toUv(e);
     let dx = x - this.last.x;
     let dy = y - this.last.y;
@@ -96,11 +105,17 @@ class FluidInstance implements GameInstance {
   frame(dt: number): void {
     const solver = this.solver;
     if (!solver) return;
-    this.time += dt;
 
-    solver.wind = this.windOn ? WIND_SPEED : 0;
-    if (this.windOn) this.injectStreaks(dt);
-    solver.step(dt);
+    solver.wind = this.windOn || this.challenge ? WIND_SPEED : 0;
+    const steps = this.challenge?.fastForward && !this.downgraded ? 2 : 1;
+    for (let i = 0; i < steps; i++) {
+      this.time += dt;
+      if (solver.wind > 0) {
+        this.injectStreaks(dt, this.challenge ? CHALLENGE_STREAKS : TOY_STREAKS);
+      }
+      solver.step(dt);
+      this.challenge?.tick(dt);
+    }
     solver.render();
 
     // One-time quality reduction if this machine can't hold ~50 fps.
@@ -117,15 +132,48 @@ class FluidInstance implements GameInstance {
     canvas.removeEventListener('pointerdown', this.onPointerDown);
     canvas.removeEventListener('pointermove', this.onPointerMove);
     window.removeEventListener('pointerup', this.onPointerUp);
+    this.challenge?.destroy();
+    this.challenge = null;
     this.solver?.destroy();
     this.solver = null;
   }
 
+  // ---- challenge mode ----
+
+  private startChallenge(computer: boolean): void {
+    if (!this.solver) return;
+    this.challenge?.destroy();
+    // A fair, clean start: no leftover obstacles, dye, or momentum.
+    this.obstacles = [];
+    this.solver.setObstacles([]);
+    this.solver.reset();
+    this.pointerDown = false;
+    this.challenge = new Challenge(this.host, this.solver, computer, (next) =>
+      this.endChallenge(next),
+    );
+    this.setChallengeUi(true);
+  }
+
+  private endChallenge(next: ChallengeNext): void {
+    this.challenge?.destroy();
+    this.challenge = null;
+    this.setChallengeUi(false);
+    if (next === 'human') this.startChallenge(false);
+    else if (next === 'cpu') this.startChallenge(true);
+  }
+
+  private setChallengeUi(on: boolean): void {
+    this.toyBar.classList.toggle('hidden', on);
+    this.challengeBar.classList.toggle('hidden', !on);
+  }
+
+  // ---- toy mode ----
+
   /** Colored ribbons entering with the wind, so the flow field is visible. */
-  private injectStreaks(dt: number): void {
-    for (let i = 0; i < STREAK_COUNT; i++) {
-      const y = 0.12 + (0.76 * i) / (STREAK_COUNT - 1);
-      const [r, g, b] = hsvToRgb((i / STREAK_COUNT + this.time * 0.02) % 1, 0.7, 1);
+  private injectStreaks(dt: number, count: number): void {
+    for (let i = 0; i < count; i++) {
+      const y = 0.12 + (0.76 * i) / (count - 1);
+      const [r, g, b] = hsvToRgb((i / count + this.time * 0.02) % 1, 0.7, 1);
       const gain = 4 * dt;
       this.solver!.splatDye(0.01, y, r * gain, g * gain, b * gain, 0.0004);
     }
@@ -154,10 +202,12 @@ class FluidInstance implements GameInstance {
   }
 
   private buildToolbar(): void {
-    const toolbar = document.createElement('div');
-    toolbar.className = 'game-toolbar';
-
-    const add = (emoji: string, label: string, onClick: () => void): HTMLButtonElement => {
+    const add = (
+      toolbar: HTMLElement,
+      emoji: string,
+      label: string,
+      onClick: () => void,
+    ): HTMLButtonElement => {
       const button = document.createElement('button');
       button.className = 'tool-button';
       const icon = document.createElement('span');
@@ -172,20 +222,28 @@ class FluidInstance implements GameInstance {
       return button;
     };
 
-    this.buttons.stir = add('🌀', 'Stir', () => this.setMode('stir'));
-    this.buttons.blocks = add('🪨', 'Blocks', () => this.setMode('blocks'));
-    this.buttons.wind = add('🌬️', 'Wind', () => {
+    this.toyBar = document.createElement('div');
+    this.toyBar.className = 'game-toolbar';
+    this.buttons.stir = add(this.toyBar, '🌀', 'Stir', () => this.setMode('stir'));
+    this.buttons.blocks = add(this.toyBar, '🪨', 'Blocks', () => this.setMode('blocks'));
+    this.buttons.wind = add(this.toyBar, '🌬️', 'Wind', () => {
       this.windOn = !this.windOn;
       this.buttons.wind!.classList.toggle('active', this.windOn);
     });
-    add('🧹', 'Clear', () => {
+    add(this.toyBar, '🧹', 'Clear', () => {
       this.obstacles = [];
       this.solver!.setObstacles(this.obstacles);
       this.solver!.reset();
     });
+    add(this.toyBar, '⚡', 'Wind farm', () => this.startChallenge(false));
+    add(this.toyBar, '🤖', 'Computer', () => this.startChallenge(true));
+
+    this.challengeBar = document.createElement('div');
+    this.challengeBar.className = 'game-toolbar hidden';
+    add(this.challengeBar, '⏹', 'Stop', () => this.challenge?.abort());
 
     this.setMode('stir');
-    this.host.overlay.appendChild(toolbar);
+    this.host.overlay.append(this.toyBar, this.challengeBar);
   }
 
   private setMode(mode: Mode): void {
@@ -199,7 +257,7 @@ export const windfarm: ArcadeGame = {
   id: 'windfarm',
   title: 'Swirl Lab',
   scienceLine:
-    'This smoke follows the Navier–Stokes equations — the same ones we solve to design wind farms and forecast the weather.',
+    'Real fluid dynamics: turbine wakes steal wind and cost wind farms real money — simulating flows like this is our group’s daily work.',
   tileEmoji: '🌀',
   create: (host) => new FluidInstance(host),
 };

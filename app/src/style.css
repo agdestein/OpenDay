@@ -201,6 +201,235 @@ body {
   max-width: 30rem;
 }
 
+.hidden {
+  display: none !important;
+}
+
+/* ---------- Wind farm challenge ---------- */
+
+.challenge-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.turbine {
+  position: absolute;
+  width: 9vh;
+  height: 9vh;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  animation: turbine-pop 0.25s ease-out;
+  transition: opacity 0.3s ease;
+}
+
+@keyframes turbine-pop {
+  from {
+    transform: translate(-50%, -50%) scale(0.3);
+  }
+}
+
+.turbine svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.turbine-ring {
+  fill: none;
+  stroke: rgba(238, 242, 255, 0.35);
+  stroke-width: 2;
+  stroke-dasharray: 4 7;
+}
+
+.turbine-blade {
+  fill: #e8edf7;
+}
+
+.turbine-hub {
+  fill: #aebadb;
+}
+
+.turbine-power {
+  position: absolute;
+  top: calc(100% + 0.1rem);
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 1.8vh;
+  font-weight: 800;
+  white-space: nowrap;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
+}
+
+.challenge-hud {
+  position: absolute;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 1.75rem;
+  padding: 0.55rem 1.4rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(11, 16, 32, 0.65);
+  font-size: 1.35rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.hud-time.urgent {
+  color: #fb7185;
+  animation: pulse 0.6s ease-in-out infinite;
+}
+
+.challenge-hint {
+  position: absolute;
+  bottom: 6rem;
+  width: 100%;
+  text-align: center;
+  font-size: 1.05rem;
+  opacity: 0.85;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
+  pointer-events: none;
+}
+
+/* ---------- Score flow (end of round) ---------- */
+
+.score-flow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 15;
+  min-width: 24rem;
+  max-width: 90%;
+  padding: 1.75rem 2.5rem;
+  border-radius: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(5, 8, 20, 0.92);
+  text-align: center;
+  pointer-events: auto;
+}
+
+.score-flow h2 {
+  font-size: 1.9rem;
+  font-weight: 900;
+}
+
+.score-flow-score {
+  margin-top: 0.4rem;
+  font-size: 2.5rem;
+  font-weight: 900;
+  color: #7dd3fc;
+}
+
+.score-flow-prompt {
+  margin-top: 1rem;
+  opacity: 0.85;
+}
+
+.initial-slots {
+  margin-top: 0.75rem;
+}
+
+.initial-slots span {
+  display: inline-block;
+  width: 3rem;
+  margin: 0 0.4rem;
+  border-bottom: 3px solid #7dd3fc;
+  font-size: 2.3rem;
+  font-weight: 900;
+}
+
+.letter-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.35rem;
+  margin-top: 1rem;
+}
+
+.letter-grid button {
+  padding: 0.45rem 0;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.07);
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.letter-grid button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.letter-grid button.ok {
+  grid-column: span 2;
+  background: #7dd3fc;
+  color: #0b1020;
+}
+
+.letter-grid button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.score-board-title {
+  margin-top: 1.1rem;
+  font-weight: 800;
+  opacity: 0.85;
+}
+
+.score-board {
+  list-style: none;
+  margin: 0.6rem auto 0;
+  max-width: 18rem;
+  padding: 0;
+}
+
+.score-board li {
+  display: grid;
+  grid-template-columns: 2.4rem 1fr auto;
+  gap: 0.6rem;
+  padding: 0.15rem 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  text-align: left;
+}
+
+.score-board li span:last-child {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.score-board li.me {
+  color: #7dd3fc;
+}
+
+.score-flow-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  margin-top: 1.3rem;
+  flex-wrap: wrap;
+}
+
+.arcade-button {
+  padding: 0.6rem 1.1rem;
+  border-radius: 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.09);
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.arcade-button:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
 /* ---------- Shared overlays ---------- */
 
 .title-card {
