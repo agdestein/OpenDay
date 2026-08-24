@@ -1,0 +1,212 @@
+:root {
+  color-scheme: dark;
+}
+
+* {
+  margin: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  background: #0b1020;
+  color: #eef2ff;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.screen {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.game-screen canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+/* ---------- Menu ---------- */
+
+.menu-screen {
+  background: radial-gradient(ellipse at 50% 30%, #17203f 0%, #0b1020 70%);
+}
+
+.menu-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.menu-content {
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  padding: 2rem;
+  text-align: center;
+}
+
+.menu-content h1 {
+  font-size: clamp(2.5rem, 6vw, 4.5rem);
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  background: linear-gradient(90deg, #7dd3fc, #c084fc, #fb7185);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.menu-subtitle {
+  font-size: clamp(1.1rem, 2.5vw, 1.6rem);
+  opacity: 0.85;
+}
+
+.tile-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  justify-content: center;
+  margin-top: 1rem;
+  max-width: 70rem;
+}
+
+.tile {
+  width: 15rem;
+  padding: 1.5rem 1rem;
+  border-radius: 1.25rem;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  transition:
+    transform 0.15s ease,
+    background 0.15s ease;
+}
+
+.tile:hover,
+.tile:focus-visible {
+  transform: scale(1.06);
+  background: rgba(255, 255, 255, 0.13);
+}
+
+.tile-emoji {
+  font-size: 3.5rem;
+  line-height: 1;
+}
+
+.tile-title {
+  font-size: 1.3rem;
+  font-weight: 800;
+}
+
+.tile-science {
+  font-size: 0.8rem;
+  line-height: 1.35;
+  opacity: 0.65;
+}
+
+.menu-footer {
+  position: absolute;
+  bottom: 1rem;
+  width: 100%;
+  text-align: center;
+  font-size: 0.85rem;
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+/* ---------- Shared overlays ---------- */
+
+.title-card {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 2rem;
+  text-align: center;
+  background: rgba(5, 8, 20, 0.88);
+  cursor: pointer;
+}
+
+.title-card-emoji {
+  font-size: 5rem;
+  line-height: 1;
+}
+
+.title-card h2 {
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  font-weight: 900;
+}
+
+.science-line {
+  max-width: 40rem;
+  font-size: 1.05rem;
+  line-height: 1.5;
+  opacity: 0.75;
+}
+
+.start-hint {
+  margin-top: 1rem;
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: #7dd3fc;
+  animation: pulse 1.3s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.corner-button {
+  position: absolute;
+  z-index: 30;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(11, 16, 32, 0.6);
+  color: #eef2ff;
+  font-size: 1.4rem;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.corner-button:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.back-button {
+  top: 1rem;
+  left: 1rem;
+}
+
+.fullscreen-button {
+  bottom: 1rem;
+  right: 1rem;
+}
