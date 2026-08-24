@@ -42,10 +42,29 @@ Planned first games (see [docs/plan.md](docs/plan.md) for the full implementatio
    worked on epidemic simulation).
 3. **Save the Netherlands** — build dikes against a storm surge, on a budget.
 
+## Running the app
+
+Requires Node.js.
+
+```sh
+cd app
+npm install
+npm run dev       # development server with live reload
+npm run build     # static production build in app/dist
+npm run preview   # serve the production build
+```
+
+Useful at the stand:
+
+- Add `?games=bounce,orbits` (comma-separated game ids) to the URL to limit which
+  games a machine shows, so each computer showcases a different subset.
+- Press `F` (or the corner button) for fullscreen; `Esc` returns to the menu.
+- A game with no input for 90 seconds resets to the menu automatically.
+
 ## Repository layout
 
 - `README.md` — this file, the entry point.
 - `docs/message.md` — goals: what the stand should achieve and communicate.
 - `docs/ideas.md` — catalog of game ideas (built, planned, and future).
 - `docs/plan.md` — architecture and phased implementation plan.
-- `app/` — the arcade web app (created in the first implementation phase).
+- `app/` — the arcade web app (Vite + TypeScript; games live in `app/src/games/`).
