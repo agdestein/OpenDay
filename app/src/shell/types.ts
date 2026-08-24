@@ -2,6 +2,12 @@
 export interface GameHost {
   /** Full-screen canvas; the shell resizes its backing store on window resize. */
   canvas: HTMLCanvasElement;
+  /**
+   * DOM layer on top of the canvas for game UI (toolbars, messages). The layer
+   * itself ignores pointer events; its children receive them. Discarded with
+   * the screen, so games need not clean it up.
+   */
+  overlay: HTMLElement;
   /** Device pixel ratio of the backing store (world coordinates are CSS pixels). */
   readonly dpr: number;
   /** Leave the game and return to the menu. */

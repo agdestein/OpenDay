@@ -31,6 +31,9 @@ export class Shell {
     element.className = 'screen game-screen';
     const canvas = document.createElement('canvas');
     element.appendChild(canvas);
+    const overlay = document.createElement('div');
+    overlay.className = 'game-overlay';
+    element.appendChild(overlay);
 
     let dpr = window.devicePixelRatio || 1;
     const resize = () => {
@@ -42,6 +45,7 @@ export class Shell {
 
     const instance: GameInstance = game.create({
       canvas,
+      overlay,
       get dpr() {
         return dpr;
       },

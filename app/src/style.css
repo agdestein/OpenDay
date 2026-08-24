@@ -135,6 +135,72 @@ body {
   pointer-events: none;
 }
 
+/* ---------- Game overlay UI ---------- */
+
+.game-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.game-overlay > * {
+  pointer-events: auto;
+}
+
+.game-toolbar {
+  position: absolute;
+  bottom: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 0.75rem;
+}
+
+.tool-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.5rem 1rem;
+  border-radius: 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(11, 16, 32, 0.6);
+  color: #eef2ff;
+  font: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.tool-button:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.tool-button.active {
+  background: rgba(125, 211, 252, 0.25);
+  border-color: #7dd3fc;
+}
+
+.tool-emoji {
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.tool-label {
+  font-size: 0.7rem;
+  opacity: 0.8;
+}
+
+.game-message {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 1.3rem;
+  text-align: center;
+  max-width: 30rem;
+}
+
 /* ---------- Shared overlays ---------- */
 
 .title-card {
