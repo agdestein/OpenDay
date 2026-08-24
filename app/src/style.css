@@ -176,6 +176,11 @@ body {
   background: rgba(255, 255, 255, 0.15);
 }
 
+.tool-button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
 .tool-button.active {
   background: rgba(125, 211, 252, 0.25);
   border-color: #7dd3fc;
