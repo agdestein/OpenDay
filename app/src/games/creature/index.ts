@@ -208,7 +208,7 @@ const TEXT: Localized<CreatureText> = {
       go: 'AF!',
     },
     delve: {
-      heading: '🔬 De wetenschap van Creature Lab',
+      heading: '🔬 De wetenschap van het Beestenlab',
       chapter0: {
         title: 'Een beestje is stippen en veren',
         p1: 'Alles wat je ziet is gesimuleerde natuurkunde. Elke stip is een klein gewicht dat zwaartekracht en wrijving voelt. Grijze stokken zijn botten: die houden altijd dezelfde lengte. Rode stokken zijn spieren: veren die ritmisch kunnen uitrekken en samentrekken.',
@@ -280,7 +280,7 @@ const TEXT: Localized<CreatureText> = {
       go: 'KJØR!',
     },
     delve: {
-      heading: '🔬 Vitenskapen bak Creature Lab',
+      heading: '🔬 Vitenskapen bak Skapningslab',
       chapter0: {
         title: 'En skapning er prikker og fjærer',
         p1: 'Alt du ser er simulert fysikk. Hver prikk er en liten masse som kjenner tyngdekraft og friksjon. Grå pinner er bein: de holder alltid samme lengde. Røde pinner er muskler: fjærer som rytmisk kan strekke seg og trekke seg sammen.',

@@ -110,7 +110,7 @@ const TEXT: Localized<{
   },
   nl: {
     dragHint: 'Sleep en laat los om een planeet te lanceren — langer slepen = sneller!',
-    delveHeading: '🔬 De wetenschap van Gravity Doodle',
+    delveHeading: '🔬 De wetenschap van Zwaartekracht-doodle',
     outcomeLabel: {
       orbit: 'mooie baan!',
       far: '🌠 een enorme baan — lang weg',
@@ -148,7 +148,7 @@ const TEXT: Localized<{
   },
   no: {
     dragHint: 'Dra og slipp for å skyte opp en planet — lengre drag = raskere!',
-    delveHeading: '🔬 Vitenskapen bak Gravity Doodle',
+    delveHeading: '🔬 Vitenskapen bak Tyngdekraft-doodle',
     outcomeLabel: {
       orbit: 'fin bane!',
       far: '🌠 en enorm bane — borte lenge',
