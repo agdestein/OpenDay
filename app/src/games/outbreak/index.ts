@@ -18,9 +18,12 @@ import {
   type DelveToggleHandle,
 } from '../../shell/delve';
 import { outbreakDelve, type OutbreakDelve } from './delve';
+import { pick, fmtNumber, type Localized } from '../../lib/i18n';
+
+type RoundId = 'sniffles' | 'flashFlu' | 'megaMeasles';
 
 interface Round {
-  name: string;
+  id: RoundId;
   stars: string;
   rate: number;
   vaccines: number;
@@ -31,10 +34,263 @@ interface Round {
 // vaccines + soap + school closure, round 1 saves ~460/500 vs ~230 doing
 // nothing; round 3 sweeps almost everyone without smart play.
 const ROUNDS: Round[] = [
-  { name: 'The Sniffles 🤧', stars: '★☆☆', rate: 0.2, vaccines: 2, soaps: 1 },
-  { name: 'Flash Flu 🥵', stars: '★★☆', rate: 0.35, vaccines: 2, soaps: 1 },
-  { name: 'Mega Measles 🔴', stars: '★★★', rate: 0.55, vaccines: 1, soaps: 1 },
+  { id: 'sniffles', stars: '★☆☆', rate: 0.2, vaccines: 2, soaps: 1 },
+  { id: 'flashFlu', stars: '★★☆', rate: 0.35, vaccines: 2, soaps: 1 },
+  { id: 'megaMeasles', stars: '★★★', rate: 0.55, vaccines: 1, soaps: 1 },
 ];
+
+const TEXT: Localized<{
+  clickToStart: string;
+  vaccinateHint: string;
+  roundOf: (round: number, total: number) => string;
+  hudRound: (round: number, total: number, saved: number) => string;
+  roundNames: Record<RoundId, string>;
+  roundBlurb: (stars: string, vaccines: number, soaps: number) => string;
+  go: string;
+  roundOver: (name: string) => string;
+  savedOf: (saved: number, total: number) => string;
+  greatContainment: string;
+  ouchContainment: string;
+  nextRound: string;
+  allRoundsSurvived: string;
+  peopleSaved: (n: number) => string;
+  playAgain: string;
+  freePlay: string;
+  toolInfect: string;
+  toolVaccinate: string;
+  toolSoap: string;
+  closeSchool: string;
+  openSchool: string;
+  reset: string;
+  challenge: string;
+  stop: string;
+  vaccinateCount: (n: number) => string;
+  soapCount: (n: number) => string;
+  schoolClosed: string;
+  scienceHeading: string;
+  stateSusceptible: string;
+  stateSusceptibleDesc: string;
+  stateInfected: string;
+  stateInfectedDesc: string;
+  stateRecovered: string;
+  stateRecoveredDesc: string;
+  stateVaccinated: string;
+  stateVaccinatedDesc: string;
+  meetsSick: string;
+  chanceBeta: string;
+  getsBetter: string;
+  rateGamma: string;
+  liveClickToInfect: string;
+  patientZero: string;
+  generation: (k: number) => string;
+  fizzlesZero: string;
+  spreadTakesOff: string;
+  spreadFizzles: string;
+  spreadKnifeEdge: string;
+  spreadingPower: (power: string, verdict: string) => string;
+  hospitalCapacity: string;
+  doNothing: string;
+  soapClosedVaccines: string;
+  sickOverTime: string;
+  noOutbreakYet: string;
+  closeScienceInfect: string;
+  cityEpidemicLive: string;
+  epidemicCurveLine1: string;
+  epidemicCurveLine2: string;
+}> = {
+  en: {
+    clickToStart: 'Click anywhere to start an outbreak! 🦠',
+    vaccinateHint: 'Someone is about to get sick — act fast! Click a neighborhood to vaccinate it.',
+    roundOf: (round, total) => `Round ${round} of ${total}`,
+    hudRound: (round, total, saved) => `  |  Round ${round}/${total} · saved so far: ${saved}`,
+    roundNames: {
+      sniffles: 'The Sniffles 🤧',
+      flashFlu: 'Flash Flu 🥵',
+      megaMeasles: 'Mega Measles 🔴',
+    },
+    roundBlurb: (stars, vaccines, soaps) =>
+      `Contagiousness: ${stars}. Your tools: ${'💉'.repeat(vaccines)} vaccine${vaccines > 1 ? 's' : ''} for a neighborhood, ${'🧼'.repeat(soaps)} soap station, and you may close the school 🏫. Save as many people as you can!`,
+    go: '▶ GO!',
+    roundOver: (name) => `${name} is over!`,
+    savedOf: (saved, total) => `You saved ${saved} of ${total}`,
+    greatContainment: 'Great containment! The next disease spreads faster…',
+    ouchContainment: 'Ouch — the next one spreads faster. Vaccinate early!',
+    nextRound: '▶ Next round',
+    allRoundsSurvived: '🏆 All rounds survived!',
+    peopleSaved: (n) => `${fmtNumber(n)} people saved`,
+    playAgain: '🔁 Play again',
+    freePlay: '🦠 Free play',
+    toolInfect: 'Infect',
+    toolVaccinate: 'Vaccinate',
+    toolSoap: 'Soap',
+    closeSchool: 'Close school',
+    openSchool: 'Open school',
+    reset: 'Reset',
+    challenge: 'Challenge',
+    stop: 'Stop',
+    vaccinateCount: (n) => `Vaccinate ×${n}`,
+    soapCount: (n) => `Soap ×${n}`,
+    schoolClosed: 'School closed',
+    scienceHeading: '🔬 The science of Outbreak!',
+    stateSusceptible: 'Susceptible',
+    stateSusceptibleDesc: 'healthy — could still catch it',
+    stateInfected: 'Infected',
+    stateInfectedDesc: 'sick and contagious',
+    stateRecovered: 'Recovered',
+    stateRecoveredDesc: 'had it, now immune',
+    stateVaccinated: 'Vaccinated',
+    stateVaccinatedDesc: 'protected without getting sick',
+    meetsSick: 'meets someone sick',
+    chanceBeta: '(chance β)',
+    getsBetter: 'gets better',
+    rateGamma: '(rate γ)',
+    liveClickToInfect: '👆 live — click inside to infect someone',
+    patientZero: 'patient zero',
+    generation: (k) => `generation ${k}`,
+    fizzlesZero: '0 💨',
+    spreadTakesOff: '🔥 this one takes off',
+    spreadFizzles: '💨 this one fizzles out',
+    spreadKnifeEdge: '⚖️ on a knife’s edge',
+    spreadingPower: (power, verdict) => `spreading power ≈ ${power} — ${verdict}`,
+    hospitalCapacity: '🏥 what hospitals can handle',
+    doNothing: 'do nothing',
+    soapClosedVaccines: 'soap + closed school + vaccines',
+    sickOverTime: 'sick people over time →',
+    noOutbreakYet: 'no outbreak yet —',
+    closeScienceInfect: 'close the science and infect someone!',
+    cityEpidemicLive: 'your city’s epidemic curve — live',
+    epidemicCurveLine1: 'the epidemic curve',
+    epidemicCurveLine2: 'will draw itself here',
+  },
+  nl: {
+    clickToStart: 'Klik ergens om een uitbraak te starten! 🦠',
+    vaccinateHint: 'Er wordt zo iemand ziek — snel! Klik op een wijk om die te vaccineren.',
+    roundOf: (round, total) => `Ronde ${round} van ${total}`,
+    hudRound: (round, total, saved) => `  |  Ronde ${round}/${total} · tot nu toe gered: ${saved}`,
+    roundNames: {
+      sniffles: 'De Snotneus 🤧',
+      flashFlu: 'Flitsgriep 🥵',
+      megaMeasles: 'Mega Mazelen 🔴',
+    },
+    roundBlurb: (stars, vaccines, soaps) =>
+      `Besmettelijkheid: ${stars}. Jouw hulpmiddelen: ${'💉'.repeat(vaccines)} vaccin${vaccines > 1 ? 's' : ''} voor een wijk, ${'🧼'.repeat(soaps)} zeepstation, en je mag de school 🏫 sluiten. Red zoveel mogelijk mensen!`,
+    go: '▶ START!',
+    roundOver: (name) => `${name} is voorbij!`,
+    savedOf: (saved, total) => `Je hebt ${saved} van de ${total} gered`,
+    greatContainment: 'Geweldig ingedamd! De volgende ziekte verspreidt zich sneller…',
+    ouchContainment: 'Au — de volgende verspreidt zich sneller. Vaccineer op tijd!',
+    nextRound: '▶ Volgende ronde',
+    allRoundsSurvived: '🏆 Alle rondes overleefd!',
+    peopleSaved: (n) => `${fmtNumber(n)} mensen gered`,
+    playAgain: '🔁 Opnieuw spelen',
+    freePlay: '🦠 Vrij spelen',
+    toolInfect: 'Besmetten',
+    toolVaccinate: 'Vaccineren',
+    toolSoap: 'Zeep',
+    closeSchool: 'School sluiten',
+    openSchool: 'School openen',
+    reset: 'Reset',
+    challenge: 'Uitdaging',
+    stop: 'Stop',
+    vaccinateCount: (n) => `Vaccineren ×${n}`,
+    soapCount: (n) => `Zeep ×${n}`,
+    schoolClosed: 'School gesloten',
+    scienceHeading: '🔬 De wetenschap van Uitbraak!',
+    stateSusceptible: 'Vatbaar',
+    stateSusceptibleDesc: 'gezond — kan het nog krijgen',
+    stateInfected: 'Besmet',
+    stateInfectedDesc: 'ziek en besmettelijk',
+    stateRecovered: 'Hersteld',
+    stateRecoveredDesc: 'heeft het gehad, nu immuun',
+    stateVaccinated: 'Gevaccineerd',
+    stateVaccinatedDesc: 'beschermd zonder ziek te worden',
+    meetsSick: 'ontmoet iemand die ziek is',
+    chanceBeta: '(kans β)',
+    getsBetter: 'wordt beter',
+    rateGamma: '(snelheid γ)',
+    liveClickToInfect: '👆 live — klik erin om iemand te besmetten',
+    patientZero: 'patiënt nul',
+    generation: (k) => `generatie ${k}`,
+    fizzlesZero: '0 💨',
+    spreadTakesOff: '🔥 deze slaat aan',
+    spreadFizzles: '💨 deze dooft vanzelf uit',
+    spreadKnifeEdge: '⚖️ op het scherp van de snede',
+    spreadingPower: (power, verdict) => `verspreidingskracht ≈ ${power} — ${verdict}`,
+    hospitalCapacity: '🏥 wat ziekenhuizen aankunnen',
+    doNothing: 'niets doen',
+    soapClosedVaccines: 'zeep + gesloten school + vaccins',
+    sickOverTime: 'zieke mensen door de tijd →',
+    noOutbreakYet: 'nog geen uitbraak —',
+    closeScienceInfect: 'sluit de wetenschap en besmet iemand!',
+    cityEpidemicLive: 'de epidemiecurve van jouw stad — live',
+    epidemicCurveLine1: 'de epidemiecurve',
+    epidemicCurveLine2: 'tekent zichzelf hier',
+  },
+  no: {
+    clickToStart: 'Klikk hvor som helst for å starte et utbrudd! 🦠',
+    vaccinateHint: 'Snart blir noen syke — vær rask! Klikk på et nabolag for å vaksinere det.',
+    roundOf: (round, total) => `Runde ${round} av ${total}`,
+    hudRound: (round, total, saved) => `  |  Runde ${round}/${total} · reddet så langt: ${saved}`,
+    roundNames: {
+      sniffles: 'Snørrsnue 🤧',
+      flashFlu: 'Lynrask influensa 🥵',
+      megaMeasles: 'Mega Meslinger 🔴',
+    },
+    roundBlurb: (stars, vaccines, soaps) =>
+      `Smittsomhet: ${stars}. Verktøyene dine: ${'💉'.repeat(vaccines)} vaksine${vaccines > 1 ? 'r' : ''} til et nabolag, ${'🧼'.repeat(soaps)} såpestasjon, og du kan stenge skolen 🏫. Redd så mange du kan!`,
+    go: '▶ KJØR!',
+    roundOver: (name) => `${name} er over!`,
+    savedOf: (saved, total) => `Du reddet ${saved} av ${total}`,
+    greatContainment: 'Strålende innsats! Neste sykdom sprer seg raskere…',
+    ouchContainment: 'Au — den neste sprer seg raskere. Vaksiner tidlig!',
+    nextRound: '▶ Neste runde',
+    allRoundsSurvived: '🏆 Alle rundene overlevd!',
+    peopleSaved: (n) => `${fmtNumber(n)} personer reddet`,
+    playAgain: '🔁 Spill igjen',
+    freePlay: '🦠 Fri lek',
+    toolInfect: 'Smitt',
+    toolVaccinate: 'Vaksiner',
+    toolSoap: 'Såpe',
+    closeSchool: 'Steng skolen',
+    openSchool: 'Åpne skolen',
+    reset: 'Nullstill',
+    challenge: 'Utfordring',
+    stop: 'Stopp',
+    vaccinateCount: (n) => `Vaksiner ×${n}`,
+    soapCount: (n) => `Såpe ×${n}`,
+    schoolClosed: 'Skolen stengt',
+    scienceHeading: '🔬 Vitenskapen bak Utbrudd!',
+    stateSusceptible: 'Mottakelig',
+    stateSusceptibleDesc: 'frisk — kan fortsatt bli smittet',
+    stateInfected: 'Smittet',
+    stateInfectedDesc: 'syk og smittsom',
+    stateRecovered: 'Immun',
+    stateRecoveredDesc: 'har hatt sykdommen, nå immun',
+    stateVaccinated: 'Vaksinert',
+    stateVaccinatedDesc: 'beskyttet uten å bli syk',
+    meetsSick: 'møter noen som er syk',
+    chanceBeta: '(sjanse β)',
+    getsBetter: 'blir frisk',
+    rateGamma: '(hastighet γ)',
+    liveClickToInfect: '👆 live — klikk inni for å smitte noen',
+    patientZero: 'pasient null',
+    generation: (k) => `generasjon ${k}`,
+    fizzlesZero: '0 💨',
+    spreadTakesOff: '🔥 denne tar av',
+    spreadFizzles: '💨 denne dør ut av seg selv',
+    spreadKnifeEdge: '⚖️ på vippepunktet',
+    spreadingPower: (power, verdict) => `spredningskraft ≈ ${power} — ${verdict}`,
+    hospitalCapacity: '🏥 det sykehusene tåler',
+    doNothing: 'gjøre ingenting',
+    soapClosedVaccines: 'såpe + stengt skole + vaksiner',
+    sickOverTime: 'syke mennesker over tid →',
+    noOutbreakYet: 'ingen utbrudd ennå —',
+    closeScienceInfect: 'lukk vitenskapen og smitt noen!',
+    cityEpidemicLive: 'byens epidemikurve — live',
+    epidemicCurveLine1: 'epidemikurven',
+    epidemicCurveLine2: 'tegner seg selv her',
+  },
+};
 
 /** Toy-mode contagiousness: showy for the 30-second crowd. */
 const TOY_RATE = 0.3;
@@ -104,7 +360,7 @@ class OutbreakInstance implements GameInstance {
     this.buildUi();
     this.host.canvas.addEventListener('pointerdown', this.onPointerDown);
     this.setTool('infect');
-    this.hint.textContent = 'Click anywhere to start an outbreak! 🦠';
+    this.hint.textContent = pick(TEXT).clickToStart;
   }
 
   frame(dt: number): void {
@@ -140,7 +396,7 @@ class OutbreakInstance implements GameInstance {
     if (this.delve) return;
     this.delveContent = outbreakDelve(this.sim);
     this.delve = delvePanel({
-      heading: '🔬 The science of Outbreak!',
+      heading: pick(TEXT).scienceHeading,
       chapters: this.delveContent.chapters,
       onChapter: () => {},
       onExit: () => this.closeDelve(),
@@ -207,25 +463,25 @@ class OutbreakInstance implements GameInstance {
     this.hint.textContent = '';
 
     this.showCard((card) => {
+      const T = pick(TEXT);
       const heading = document.createElement('h2');
-      heading.textContent = `Round ${this.round + 1} of ${ROUNDS.length}`;
+      heading.textContent = T.roundOf(this.round + 1, ROUNDS.length);
       const name = document.createElement('div');
       name.className = 'score-flow-score';
-      name.textContent = config.name;
+      name.textContent = T.roundNames[config.id];
       const blurb = document.createElement('p');
       blurb.className = 'score-flow-prompt';
-      blurb.textContent = `Contagiousness: ${config.stars}. Your tools: ${'💉'.repeat(config.vaccines)} vaccine${config.vaccines > 1 ? 's' : ''} for a neighborhood, ${'🧼'.repeat(config.soaps)} soap station, and you may close the school 🏫. Save as many people as you can!`;
+      blurb.textContent = T.roundBlurb(config.stars, config.vaccines, config.soaps);
       const actions = document.createElement('div');
       actions.className = 'score-flow-actions';
       const go = document.createElement('button');
       go.className = 'arcade-button';
-      go.textContent = '▶ GO!';
+      go.textContent = T.go;
       go.addEventListener('click', () => {
         this.card?.remove();
         this.card = null;
         this.phase = 'running';
-        this.hint.textContent =
-          'Someone is about to get sick — act fast! Click a neighborhood to vaccinate it.';
+        this.hint.textContent = pick(TEXT).vaccinateHint;
       });
       actions.appendChild(go);
       card.append(heading, name, blurb, actions);
@@ -259,22 +515,20 @@ class OutbreakInstance implements GameInstance {
     }
     this.summaryTimer = 4.5;
     this.showCard((card) => {
+      const T = pick(TEXT);
       const heading = document.createElement('h2');
-      heading.textContent = `${ROUNDS[this.round].name} is over!`;
+      heading.textContent = T.roundOver(T.roundNames[ROUNDS[this.round].id]);
       const score = document.createElement('div');
       score.className = 'score-flow-score';
-      score.textContent = `You saved ${saved} of ${AGENT_COUNT}`;
+      score.textContent = T.savedOf(saved, AGENT_COUNT);
       const note = document.createElement('p');
       note.className = 'score-flow-prompt';
-      note.textContent =
-        saved > AGENT_COUNT * 0.7
-          ? 'Great containment! The next disease spreads faster…'
-          : 'Ouch — the next one spreads faster. Vaccinate early!';
+      note.textContent = saved > AGENT_COUNT * 0.7 ? T.greatContainment : T.ouchContainment;
       const actions = document.createElement('div');
       actions.className = 'score-flow-actions';
       const next = document.createElement('button');
       next.className = 'arcade-button';
-      next.textContent = '▶ Next round';
+      next.textContent = T.nextRound;
       next.addEventListener('click', () => this.nextRound());
       actions.appendChild(next);
       card.append(heading, score, note, actions);
@@ -291,14 +545,15 @@ class OutbreakInstance implements GameInstance {
     this.card?.remove();
     this.card = null;
     this.flow?.dispose();
+    const T = pick(TEXT);
     this.flow = scoreFlow({
       gameId: 'outbreak',
-      heading: '🏆 All rounds survived!',
+      heading: T.allRoundsSurvived,
       score: this.totalSaved,
-      scoreLabel: `${this.totalSaved.toLocaleString()} people saved`,
+      scoreLabel: T.peopleSaved(this.totalSaved),
       actions: [
-        { label: '🔁 Play again', onClick: () => this.startGame() },
-        { label: '🦠 Free play', onClick: () => this.exitToToy() },
+        { label: T.playAgain, onClick: () => this.startGame() },
+        { label: T.freePlay, onClick: () => this.exitToToy() },
       ],
     });
     this.host.overlay.appendChild(this.flow.element);
@@ -319,7 +574,7 @@ class OutbreakInstance implements GameInstance {
     this.toggle.element.classList.remove('hidden');
     this.setTool('infect');
     this.syncToySchoolButton();
-    this.hint.textContent = 'Click anywhere to start an outbreak! 🦠';
+    this.hint.textContent = pick(TEXT).clickToStart;
   }
 
   // ---- input ----
@@ -397,37 +652,38 @@ class OutbreakInstance implements GameInstance {
       return button;
     };
 
+    const T = pick(TEXT);
     this.toyBar = document.createElement('div');
     this.toyBar.className = 'game-toolbar';
-    add(this.toyBar, 'infect', '🦠', 'Infect', () => this.setTool('infect'));
-    add(this.toyBar, 'toyVaccine', '💉', 'Vaccinate', () => this.setTool('vaccine'));
-    add(this.toyBar, 'toySoap', '🧼', 'Soap', () => this.setTool('soap'));
-    add(this.toyBar, 'school', '🏫', 'Close school', () => {
+    add(this.toyBar, 'infect', '🦠', T.toolInfect, () => this.setTool('infect'));
+    add(this.toyBar, 'toyVaccine', '💉', T.toolVaccinate, () => this.setTool('vaccine'));
+    add(this.toyBar, 'toySoap', '🧼', T.toolSoap, () => this.setTool('soap'));
+    add(this.toyBar, 'school', '🏫', T.closeSchool, () => {
       if (this.sim.schoolOpen) this.sim.closeSchool();
       else this.sim.schoolOpen = true;
       this.syncToySchoolButton();
     });
-    add(this.toyBar, 'reset', '🧹', 'Reset', () => {
+    add(this.toyBar, 'reset', '🧹', T.reset, () => {
       this.sim.reset();
       this.sim.infectionRate = TOY_RATE;
       this.history = [];
       this.ripples = [];
       this.syncToySchoolButton();
     });
-    add(this.toyBar, 'challenge', '😷', 'Challenge', () => this.startGame());
+    add(this.toyBar, 'challenge', '😷', T.challenge, () => this.startGame());
 
     this.gameBar = document.createElement('div');
     this.gameBar.className = 'game-toolbar hidden';
-    add(this.gameBar, 'gameVaccine', '💉', 'Vaccinate', () => this.setTool('vaccine'));
-    add(this.gameBar, 'gameSoap', '🧼', 'Soap', () => this.setTool('soap'));
-    add(this.gameBar, 'gameSchool', '🏫', 'Close school', () => {
+    add(this.gameBar, 'gameVaccine', '💉', T.toolVaccinate, () => this.setTool('vaccine'));
+    add(this.gameBar, 'gameSoap', '🧼', T.toolSoap, () => this.setTool('soap'));
+    add(this.gameBar, 'gameSchool', '🏫', T.closeSchool, () => {
       if (!this.schoolActionUsed && this.phase === 'running') {
         this.schoolActionUsed = true;
         this.sim.closeSchool();
         this.updateGameButtons();
       }
     });
-    add(this.gameBar, 'stop', '⏹', 'Stop', () => this.exitToToy());
+    add(this.gameBar, 'stop', '⏹', T.stop, () => this.exitToToy());
 
     this.hud = document.createElement('div');
     this.hud.className = 'challenge-hud';
@@ -452,22 +708,24 @@ class OutbreakInstance implements GameInstance {
   }
 
   private syncToySchoolButton(): void {
+    const T = pick(TEXT);
     const label = this.buttons.school.querySelector('.tool-label')!;
-    label.textContent = this.sim.schoolOpen ? 'Close school' : 'Open school';
+    label.textContent = this.sim.schoolOpen ? T.closeSchool : T.openSchool;
     this.buttons.school.classList.toggle('active', !this.sim.schoolOpen);
   }
 
   private updateGameButtons(): void {
+    const T = pick(TEXT);
     const vaccine = this.buttons.gameVaccine;
-    vaccine.querySelector('.tool-label')!.textContent = `Vaccinate ×${this.vaccinesLeft}`;
+    vaccine.querySelector('.tool-label')!.textContent = T.vaccinateCount(this.vaccinesLeft);
     vaccine.disabled = this.vaccinesLeft === 0;
     const soap = this.buttons.gameSoap;
-    soap.querySelector('.tool-label')!.textContent = `Soap ×${this.soapsLeft}`;
+    soap.querySelector('.tool-label')!.textContent = T.soapCount(this.soapsLeft);
     soap.disabled = this.soapsLeft === 0;
     const school = this.buttons.gameSchool;
     school.querySelector('.tool-label')!.textContent = this.schoolActionUsed
-      ? 'School closed'
-      : 'Close school';
+      ? T.schoolClosed
+      : T.closeSchool;
     school.disabled = this.schoolActionUsed;
     this.setTool(this.tool === 'soap' && this.soapsLeft > 0 ? 'soap' : 'vaccine');
   }
@@ -485,7 +743,7 @@ class OutbreakInstance implements GameInstance {
     this.hudCounts.textContent = `🙂 ${c.s}   🤒 ${c.i}   💪 ${c.r}${c.vaccinated ? `   💉 ${c.vaccinated}` : ''}`;
     this.hudGame.textContent =
       this.mode === 'game'
-        ? `  |  Round ${this.round + 1}/${ROUNDS.length} · saved so far: ${this.totalSaved}`
+        ? pick(TEXT).hudRound(this.round + 1, ROUNDS.length, this.totalSaved)
         : '';
   }
 
@@ -539,18 +797,25 @@ class OutbreakInstance implements GameInstance {
 
   /** Chapter 1: the four SIR states as big labeled dots with live counts. */
   private drawDelveStates(ctx: CanvasRenderingContext2D, x0: number, x1: number, h: number): void {
+    const T = pick(TEXT);
     const c = this.sim.counts;
-    const rows: { color: string; name: string; desc: string; count: number }[] = [
-      { color: COLOR.s, name: 'Susceptible', desc: 'healthy — could still catch it', count: c.s },
-      { color: COLOR.i, name: 'Infected', desc: 'sick and contagious', count: c.i },
-      { color: COLOR.r, name: 'Recovered', desc: 'had it, now immune', count: c.r },
-      { color: COLOR.v, name: 'Vaccinated', desc: 'protected without getting sick', count: c.vaccinated },
+    const rows: { key: string; color: string; name: string; desc: string; count: number }[] = [
+      { key: 's', color: COLOR.s, name: T.stateSusceptible, desc: T.stateSusceptibleDesc, count: c.s },
+      { key: 'i', color: COLOR.i, name: T.stateInfected, desc: T.stateInfectedDesc, count: c.i },
+      { key: 'r', color: COLOR.r, name: T.stateRecovered, desc: T.stateRecoveredDesc, count: c.r },
+      {
+        key: 'v',
+        color: COLOR.v,
+        name: T.stateVaccinated,
+        desc: T.stateVaccinatedDesc,
+        count: c.vaccinated,
+      },
     ];
     const rowH = 86;
     const top = h / 2 - rowH * 2.4;
     rows.forEach((row, i) => {
       const y = top + i * rowH + rowH / 2;
-      if (row.name === 'Infected') {
+      if (row.key === 'i') {
         ctx.fillStyle = 'rgba(251, 95, 117, 0.12)';
         ctx.beginPath();
         ctx.arc(x0 + 44, y, 30 * (1 + 0.18 * Math.sin(this.time * 4)), 0, Math.PI * 2);
@@ -602,10 +867,10 @@ class OutbreakInstance implements GameInstance {
     ctx.fillText('→', cx + gap / 2, flowY + 7);
     ctx.font = '13px system-ui, sans-serif';
     ctx.fillStyle = 'rgba(238, 242, 255, 0.55)';
-    ctx.fillText('meets someone sick', cx - gap / 2, flowY + 40);
-    ctx.fillText('(chance β)', cx - gap / 2, flowY + 56);
-    ctx.fillText('gets better', cx + gap / 2, flowY + 40);
-    ctx.fillText('(rate γ)', cx + gap / 2, flowY + 56);
+    ctx.fillText(T.meetsSick, cx - gap / 2, flowY + 40);
+    ctx.fillText(T.chanceBeta, cx - gap / 2, flowY + 56);
+    ctx.fillText(T.getsBetter, cx + gap / 2, flowY + 40);
+    ctx.fillText(T.rateGamma, cx + gap / 2, flowY + 56);
   }
 
   /** Chapter 2: the real city, live and clickable, scaled into the demo area. */
@@ -637,11 +902,12 @@ class OutbreakInstance implements GameInstance {
     ctx.fillStyle = 'rgba(238, 242, 255, 0.75)';
     ctx.font = 'bold 20px system-ui, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('👆 live — click inside to infect someone', (x0 + x1) / 2, h - 56);
+    ctx.fillText(pick(TEXT).liveClickToInfect, (x0 + x1) / 2, h - 56);
   }
 
   /** Chapter 3: the R0 infection tree for the current slider settings. */
   private drawDelveTree(ctx: CanvasRenderingContext2D, x0: number, x1: number, h: number): void {
+    const T = pick(TEXT);
     const power = this.sim.infectionRate * this.sim.recoverTime;
     const R = Math.max(0, Math.min(4, power));
     const gens: number[] = [1];
@@ -688,25 +954,26 @@ class OutbreakInstance implements GameInstance {
       ctx.textAlign = 'center';
       const capped = k > 0 && Math.round(R ** k) > 36;
       ctx.fillText(
-        gens[k] === 0 ? '0 💨' : `${capped ? '≈' : ''}${Math.round(R ** k)}`,
+        gens[k] === 0 ? T.fizzlesZero : `${capped ? '≈' : ''}${Math.round(R ** k)}`,
         x,
         cy + spread / 2 + 52,
       );
       ctx.font = '14px system-ui, sans-serif';
       ctx.fillStyle = 'rgba(238, 242, 255, 0.5)';
-      ctx.fillText(k === 0 ? 'patient zero' : `generation ${k}`, x, cy + spread / 2 + 76);
+      ctx.fillText(k === 0 ? T.patientZero : T.generation(k), x, cy + spread / 2 + 76);
     }
 
     ctx.font = 'bold 22px system-ui, sans-serif';
     ctx.fillStyle = 'rgba(238, 242, 255, 0.9)';
     ctx.textAlign = 'center';
     const verdict =
-      power >= 1.3 ? '🔥 this one takes off' : power <= 0.8 ? '💨 this one fizzles out' : '⚖️ on a knife’s edge';
-    ctx.fillText(`spreading power ≈ ${power.toFixed(1)} — ${verdict}`, (x0 + x1) / 2, 54);
+      power >= 1.3 ? T.spreadTakesOff : power <= 0.8 ? T.spreadFizzles : T.spreadKnifeEdge;
+    ctx.fillText(T.spreadingPower(power.toFixed(1), verdict), (x0 + x1) / 2, 54);
   }
 
   /** Chapter 4: two live-computed SIR curves — do nothing vs use your tools. */
   private drawDelveCurves(ctx: CanvasRenderingContext2D, x0: number, x1: number, h: number): void {
+    const T = pick(TEXT);
     const solve = (beta: number, gamma: number, s0: number): number[] => {
       let s = s0 * AGENT_COUNT;
       let i = 3;
@@ -765,20 +1032,20 @@ class OutbreakInstance implements GameInstance {
     ctx.fillStyle = 'rgba(238, 242, 255, 0.7)';
     ctx.font = '15px system-ui, sans-serif';
     ctx.textAlign = 'left';
-    ctx.fillText('🏥 what hospitals can handle', x0 + 8, capY - 8);
+    ctx.fillText(T.hospitalCapacity, x0 + 8, capY - 8);
 
     const wildPeakT = wild.indexOf(peak);
     ctx.fillStyle = COLOR.i;
     ctx.font = 'bold 18px system-ui, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('do nothing', xAt(wildPeakT), yAt(peak) - 14);
+    ctx.fillText(T.doNothing, xAt(wildPeakT), yAt(peak) - 14);
     const tamedPeak = Math.max(...tamed);
     ctx.fillStyle = COLOR.v;
-    ctx.fillText('soap + closed school + vaccines', xAt(tamed.indexOf(tamedPeak)), yAt(tamedPeak) - 14);
+    ctx.fillText(T.soapClosedVaccines, xAt(tamed.indexOf(tamedPeak)), yAt(tamedPeak) - 14);
 
     ctx.fillStyle = 'rgba(238, 242, 255, 0.6)';
     ctx.font = '16px system-ui, sans-serif';
-    ctx.fillText('sick people over time →', (x0 + x1) / 2, plotY1 + 34);
+    ctx.fillText(T.sickOverTime, (x0 + x1) / 2, plotY1 + 34);
   }
 
   /** Chapter 5: the city's own epidemic curve so far, drawn big. */
@@ -789,13 +1056,14 @@ class OutbreakInstance implements GameInstance {
     ctx.beginPath();
     ctx.roundRect(x0 - 16, y0 - 16, x1 - x0 + 32, y1 - y0 + 32, 16);
     ctx.fill();
+    const T = pick(TEXT);
     const n = this.history.length;
     ctx.textAlign = 'center';
     if (n < 2) {
       ctx.fillStyle = 'rgba(238, 242, 255, 0.5)';
       ctx.font = '20px system-ui, sans-serif';
-      ctx.fillText('no outbreak yet —', (x0 + x1) / 2, (y0 + y1) / 2 - 16);
-      ctx.fillText('close the science and infect someone!', (x0 + x1) / 2, (y0 + y1) / 2 + 16);
+      ctx.fillText(T.noOutbreakYet, (x0 + x1) / 2, (y0 + y1) / 2 - 16);
+      ctx.fillText(T.closeScienceInfect, (x0 + x1) / 2, (y0 + y1) / 2 + 16);
       return;
     }
     const H = y1 - y0;
@@ -816,7 +1084,7 @@ class OutbreakInstance implements GameInstance {
     band((k) => rTop[k], new Array<number>(n).fill(y0), 'rgba(157, 184, 216, 0.25)');
     ctx.fillStyle = 'rgba(238, 242, 255, 0.75)';
     ctx.font = 'bold 20px system-ui, sans-serif';
-    ctx.fillText('your city’s epidemic curve — live', (x0 + x1) / 2, y0 - 32);
+    ctx.fillText(T.cityEpidemicLive, (x0 + x1) / 2, y0 - 32);
   }
 
   private drawCity(ctx: CanvasRenderingContext2D): void {
@@ -954,12 +1222,13 @@ class OutbreakInstance implements GameInstance {
 
     const n = this.history.length;
     if (n < 2) {
+      const T = pick(TEXT);
       ctx.fillStyle = 'rgba(238, 242, 255, 0.45)';
       ctx.font = '24px system-ui, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('the epidemic curve', (X0 + X1) / 2, (Y0 + Y1) / 2 - 18);
-      ctx.fillText('will draw itself here', (X0 + X1) / 2, (Y0 + Y1) / 2 + 18);
+      ctx.fillText(T.epidemicCurveLine1, (X0 + X1) / 2, (Y0 + Y1) / 2 - 18);
+      ctx.fillText(T.epidemicCurveLine2, (X0 + X1) / 2, (Y0 + Y1) / 2 + 18);
       return;
     }
     const H = Y1 - Y0;
@@ -989,9 +1258,12 @@ class OutbreakInstance implements GameInstance {
 
 export const outbreak: ArcadeGame = {
   id: 'outbreak',
-  title: 'Outbreak!',
-  scienceLine:
-    'Our group has worked on simulating real epidemics — models like this (much bigger) help decide vaccinations and school closures in actual health policy.',
+  title: { en: 'Outbreak!', nl: 'Uitbraak!', no: 'Utbrudd!' },
+  scienceLine: {
+    en: 'Our group has worked on simulating real epidemics — models like this (much bigger) help decide vaccinations and school closures in actual health policy.',
+    nl: 'Onze groep werkt aan het simuleren van echte epidemieën — modellen zoals dit (veel groter) helpen bij besluiten over vaccinaties en schoolsluitingen in het echte gezondheidsbeleid.',
+    no: 'Gruppen vår har jobbet med å simulere ekte epidemier — modeller som denne (mye større) hjelper med å bestemme vaksinering og skolestenging i ekte helsepolitikk.',
+  },
   tileEmoji: '🦠',
   create: (host) => new OutbreakInstance(host),
 };
