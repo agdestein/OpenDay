@@ -11,7 +11,13 @@ import {
   INFECTION_RADIUS,
   OutbreakSim,
 } from './sim';
-import { createDelve, type DelveHandle } from './delve';
+import {
+  delvePanel,
+  delveToggle,
+  type DelveHandle,
+  type DelveToggleHandle,
+} from '../../shell/delve';
+import { outbreakDelve, type OutbreakDelve } from './delve';
 
 interface Round {
   name: string;
@@ -74,10 +80,18 @@ class OutbreakInstance implements GameInstance {
   private hint!: HTMLElement;
   private card: HTMLElement | null = null;
   private flow: ScoreFlowHandle | null = null;
-  private delve!: DelveHandle;
+  private delve: DelveHandle | null = null;
+  private delveContent: OutbreakDelve | null = null;
+  private toggle!: DelveToggleHandle;
+  /** Transform of the mini city drawn in delve chapter 2, for click-to-infect. */
+  private delveCity: { scale: number; ox: number; oy: number } | null = null;
   private buttons: Record<string, HTMLButtonElement> = {};
 
   private onPointerDown = (e: PointerEvent) => {
+    if (this.delve) {
+      if (this.delve.chapter === 1) this.delveCityClick(e);
+      return;
+    }
     const { x, y } = this.toVirtual(e);
     if (this.mode === 'toy') this.toyClick(x, y);
     else if (this.phase === 'running') this.gameClick(x, y);
@@ -109,14 +123,56 @@ class OutbreakInstance implements GameInstance {
       }
     }
     this.updateHud();
-    this.delve.update();
+    this.delveContent?.update();
     this.draw();
   }
 
   destroy(): void {
     this.host.canvas.removeEventListener('pointerdown', this.onPointerDown);
     this.flow?.dispose();
+    this.delve?.dispose();
     this.card?.remove();
+  }
+
+  // ---- delve layer ----
+
+  private openDelve(): void {
+    if (this.delve) return;
+    this.delveContent = outbreakDelve(this.sim);
+    this.delve = delvePanel({
+      heading: '🔬 The science of Outbreak!',
+      chapters: this.delveContent.chapters,
+      onChapter: () => {},
+      onExit: () => this.closeDelve(),
+    });
+    this.host.overlay.appendChild(this.delve.element);
+    this.toggle.setOpen(true);
+    this.toyBar.classList.add('hidden');
+    this.hud.classList.add('hidden');
+    this.hint.classList.add('hidden');
+  }
+
+  private closeDelve(): void {
+    if (!this.delve) return;
+    this.delve.dispose();
+    this.delve = null;
+    this.delveContent = null;
+    this.delveCity = null;
+    this.toggle.setOpen(false);
+    this.toyBar.classList.remove('hidden');
+    this.hud.classList.remove('hidden');
+    this.hint.classList.remove('hidden');
+  }
+
+  /** Clicks on the live mini city in delve chapter 2 infect, like in toy mode. */
+  private delveCityClick(e: PointerEvent): void {
+    if (!this.delveCity) return;
+    const rect = this.host.canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left - this.delveCity.ox) / this.delveCity.scale;
+    const y = (e.clientY - rect.top - this.delveCity.oy) / this.delveCity.scale;
+    if (x < 0 || x > CITY_W || y < 0 || y > CITY_H) return;
+    const agent = this.sim.infectNearest(x, y);
+    if (agent) this.ripples.push({ x: agent.x, y: agent.y, t: 0, color: COLOR.i });
   }
 
   // ---- game flow ----
@@ -127,9 +183,10 @@ class OutbreakInstance implements GameInstance {
     this.mode = 'game';
     this.round = 0;
     this.totalSaved = 0;
+    this.closeDelve();
     this.toyBar.classList.add('hidden');
     this.gameBar.classList.remove('hidden');
-    this.delve.setMode('game');
+    this.toggle.element.classList.add('hidden');
     this.showIntro();
   }
 
@@ -259,7 +316,7 @@ class OutbreakInstance implements GameInstance {
     this.ripples = [];
     this.gameBar.classList.add('hidden');
     this.toyBar.classList.remove('hidden');
-    this.delve.setMode('toy');
+    this.toggle.element.classList.remove('hidden');
     this.setTool('infect');
     this.syncToySchoolButton();
     this.hint.textContent = 'Click anywhere to start an outbreak! 🦠';
@@ -381,15 +438,8 @@ class OutbreakInstance implements GameInstance {
     this.hint = document.createElement('p');
     this.hint.className = 'challenge-hint';
 
-    this.delve = createDelve(this.sim);
-    this.host.overlay.append(
-      this.toyBar,
-      this.gameBar,
-      this.hud,
-      this.hint,
-      this.delve.toggle,
-      this.delve.panel,
-    );
+    this.toggle = delveToggle(() => (this.delve ? this.closeDelve() : this.openDelve()));
+    this.host.overlay.append(this.toyBar, this.gameBar, this.hud, this.hint, this.toggle.element);
   }
 
   private setTool(tool: Tool): void {
@@ -459,12 +509,314 @@ class OutbreakInstance implements GameInstance {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.fillStyle = '#0b1020';
     ctx.fillRect(0, 0, w, h);
-    ctx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * ox, dpr * oy);
 
+    if (this.delve) {
+      this.drawDelve(ctx, w, h);
+      return;
+    }
+
+    ctx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * ox, dpr * oy);
     this.drawCity(ctx);
     this.drawAgents(ctx);
     this.drawRipples(ctx);
     this.drawCurve(ctx);
+  }
+
+  // ---- delve illustrations (one per chapter, beside the shared panel) ----
+
+  private drawDelve(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+    const panelW = Math.min(500, w * 0.46);
+    const x0 = panelW + 30;
+    const x1 = w - 30;
+    this.delveCity = null;
+    const chapter = this.delve?.chapter ?? 0;
+    if (chapter === 0) this.drawDelveStates(ctx, x0, x1, h);
+    else if (chapter === 1) this.drawDelveMiniCity(ctx, x0, x1, h);
+    else if (chapter === 2) this.drawDelveTree(ctx, x0, x1, h);
+    else if (chapter === 3) this.drawDelveCurves(ctx, x0, x1, h);
+    else this.drawDelveHistory(ctx, x0, x1, h);
+  }
+
+  /** Chapter 1: the four SIR states as big labeled dots with live counts. */
+  private drawDelveStates(ctx: CanvasRenderingContext2D, x0: number, x1: number, h: number): void {
+    const c = this.sim.counts;
+    const rows: { color: string; name: string; desc: string; count: number }[] = [
+      { color: COLOR.s, name: 'Susceptible', desc: 'healthy — could still catch it', count: c.s },
+      { color: COLOR.i, name: 'Infected', desc: 'sick and contagious', count: c.i },
+      { color: COLOR.r, name: 'Recovered', desc: 'had it, now immune', count: c.r },
+      { color: COLOR.v, name: 'Vaccinated', desc: 'protected without getting sick', count: c.vaccinated },
+    ];
+    const rowH = 86;
+    const top = h / 2 - rowH * 2.4;
+    rows.forEach((row, i) => {
+      const y = top + i * rowH + rowH / 2;
+      if (row.name === 'Infected') {
+        ctx.fillStyle = 'rgba(251, 95, 117, 0.12)';
+        ctx.beginPath();
+        ctx.arc(x0 + 44, y, 30 * (1 + 0.18 * Math.sin(this.time * 4)), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = row.color;
+      ctx.beginPath();
+      ctx.arc(x0 + 44, y, 20, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(238, 242, 255, 0.95)';
+      ctx.font = 'bold 24px system-ui, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText(row.name, x0 + 88, y - 4);
+      ctx.fillStyle = 'rgba(238, 242, 255, 0.6)';
+      ctx.font = '16px system-ui, sans-serif';
+      ctx.fillText(row.desc, x0 + 88, y + 20);
+      ctx.fillStyle = row.color;
+      ctx.font = 'bold 38px system-ui, sans-serif';
+      ctx.textAlign = 'right';
+      ctx.fillText(String(row.count), x1 - 16, y + 12);
+    });
+
+    // S -> I -> R flow underneath.
+    const flowY = top + rows.length * rowH + 64;
+    const cx = (x0 + x1) / 2;
+    const chips: { color: string; letter: string }[] = [
+      { color: COLOR.s, letter: 'S' },
+      { color: COLOR.i, letter: 'I' },
+      { color: COLOR.r, letter: 'R' },
+    ];
+    const gap = 150;
+    chips.forEach((chip, i) => {
+      const x = cx + (i - 1) * gap;
+      ctx.fillStyle = chip.color;
+      ctx.beginPath();
+      ctx.arc(x, flowY, 24, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#0b1020';
+      ctx.font = 'bold 24px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(chip.letter, x, flowY + 1);
+      ctx.textBaseline = 'alphabetic';
+    });
+    ctx.fillStyle = 'rgba(238, 242, 255, 0.7)';
+    ctx.font = '22px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('→', cx - gap / 2, flowY + 7);
+    ctx.fillText('→', cx + gap / 2, flowY + 7);
+    ctx.font = '13px system-ui, sans-serif';
+    ctx.fillStyle = 'rgba(238, 242, 255, 0.55)';
+    ctx.fillText('meets someone sick', cx - gap / 2, flowY + 40);
+    ctx.fillText('(chance β)', cx - gap / 2, flowY + 56);
+    ctx.fillText('gets better', cx + gap / 2, flowY + 40);
+    ctx.fillText('(rate γ)', cx + gap / 2, flowY + 56);
+  }
+
+  /** Chapter 2: the real city, live and clickable, scaled into the demo area. */
+  private drawDelveMiniCity(
+    ctx: CanvasRenderingContext2D,
+    x0: number,
+    x1: number,
+    h: number,
+  ): void {
+    const dpr = this.host.dpr;
+    const availW = x1 - x0;
+    const availH = h - 150;
+    const scale = Math.min(availW / CITY_W, availH / CITY_H);
+    const ox = x0 + (availW - CITY_W * scale) / 2;
+    const oy = 50 + (availH - CITY_H * scale) / 2;
+    this.delveCity = { scale, ox, oy };
+
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(ox - 8, oy - 8, CITY_W * scale + 16, CITY_H * scale + 16);
+
+    ctx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * ox, dpr * oy);
+    this.drawCity(ctx);
+    this.drawAgents(ctx);
+    this.drawRipples(ctx);
+    this.drawCurve(ctx);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    ctx.fillStyle = 'rgba(238, 242, 255, 0.75)';
+    ctx.font = 'bold 20px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('👆 live — click inside to infect someone', (x0 + x1) / 2, h - 56);
+  }
+
+  /** Chapter 3: the R0 infection tree for the current slider settings. */
+  private drawDelveTree(ctx: CanvasRenderingContext2D, x0: number, x1: number, h: number): void {
+    const power = this.sim.infectionRate * this.sim.recoverTime;
+    const R = Math.max(0, Math.min(4, power));
+    const gens: number[] = [1];
+    for (let k = 1; k <= 3; k++) gens.push(Math.min(36, Math.round(R ** k)));
+    const colX = (k: number) => x0 + 70 + ((x1 - x0 - 140) * k) / 3;
+    const cy = h * 0.42;
+    const spread = h * 0.52;
+    const dotY = (k: number, j: number): number => {
+      const n = gens[k];
+      return n <= 1 ? cy : cy - spread / 2 + (spread * j) / (n - 1);
+    };
+
+    // Links first, then dots on top.
+    ctx.strokeStyle = 'rgba(251, 95, 117, 0.22)';
+    ctx.lineWidth = 1.5;
+    for (let k = 1; k <= 3; k++) {
+      if (gens[k] === 0 || gens[k - 1] === 0) break;
+      ctx.beginPath();
+      for (let j = 0; j < gens[k]; j++) {
+        const parent = Math.min(gens[k - 1] - 1, Math.floor((j * gens[k - 1]) / gens[k]));
+        ctx.moveTo(colX(k - 1), dotY(k - 1, parent));
+        ctx.lineTo(colX(k), dotY(k, j));
+      }
+      ctx.stroke();
+    }
+    const active = Math.floor(this.time * 1.4) % 4;
+    for (let k = 0; k <= 3; k++) {
+      const x = colX(k);
+      for (let j = 0; j < gens[k]; j++) {
+        const y = dotY(k, j);
+        if (k === active) {
+          ctx.fillStyle = 'rgba(251, 95, 117, 0.18)';
+          ctx.beginPath();
+          ctx.arc(x, y, 15, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.fillStyle = COLOR.i;
+        ctx.beginPath();
+        ctx.arc(x, y, 8, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = 'rgba(238, 242, 255, 0.8)';
+      ctx.font = 'bold 22px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      const capped = k > 0 && Math.round(R ** k) > 36;
+      ctx.fillText(
+        gens[k] === 0 ? '0 💨' : `${capped ? '≈' : ''}${Math.round(R ** k)}`,
+        x,
+        cy + spread / 2 + 52,
+      );
+      ctx.font = '14px system-ui, sans-serif';
+      ctx.fillStyle = 'rgba(238, 242, 255, 0.5)';
+      ctx.fillText(k === 0 ? 'patient zero' : `generation ${k}`, x, cy + spread / 2 + 76);
+    }
+
+    ctx.font = 'bold 22px system-ui, sans-serif';
+    ctx.fillStyle = 'rgba(238, 242, 255, 0.9)';
+    ctx.textAlign = 'center';
+    const verdict =
+      power >= 1.3 ? '🔥 this one takes off' : power <= 0.8 ? '💨 this one fizzles out' : '⚖️ on a knife’s edge';
+    ctx.fillText(`spreading power ≈ ${power.toFixed(1)} — ${verdict}`, (x0 + x1) / 2, 54);
+  }
+
+  /** Chapter 4: two live-computed SIR curves — do nothing vs use your tools. */
+  private drawDelveCurves(ctx: CanvasRenderingContext2D, x0: number, x1: number, h: number): void {
+    const solve = (beta: number, gamma: number, s0: number): number[] => {
+      let s = s0 * AGENT_COUNT;
+      let i = 3;
+      const out: number[] = [];
+      for (let t = 0; t < 400; t++) {
+        const inf = (beta * s * i) / AGENT_COUNT;
+        s -= inf * 0.2;
+        i += (inf - gamma * i) * 0.2;
+        out.push(i);
+      }
+      return out;
+    };
+    const wild = solve(0.55, 1 / 7, 1);
+    const tamed = solve(0.26, 1 / 7, 0.75);
+    const peak = Math.max(...wild);
+    const plotY0 = h * 0.2;
+    const plotY1 = h * 0.78;
+    const plotH = plotY1 - plotY0;
+    const xAt = (t: number) => x0 + ((x1 - x0) * t) / 399;
+    const yAt = (i: number) => plotY1 - (plotH * i) / peak;
+
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(x0, plotY1);
+    ctx.lineTo(x1, plotY1);
+    ctx.stroke();
+
+    const band = (curve: number[], fill: string, stroke: string) => {
+      ctx.beginPath();
+      ctx.moveTo(x0, plotY1);
+      curve.forEach((i, t) => ctx.lineTo(xAt(t), yAt(i)));
+      ctx.lineTo(x1, plotY1);
+      ctx.closePath();
+      ctx.fillStyle = fill;
+      ctx.fill();
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      curve.forEach((i, t) => (t === 0 ? ctx.moveTo(xAt(t), yAt(i)) : ctx.lineTo(xAt(t), yAt(i))));
+      ctx.stroke();
+    };
+    band(wild, 'rgba(251, 95, 117, 0.25)', COLOR.i);
+    band(tamed, 'rgba(87, 217, 138, 0.25)', COLOR.v);
+
+    // Hospital capacity line.
+    const capY = yAt(peak * 0.42);
+    ctx.strokeStyle = 'rgba(238, 242, 255, 0.5)';
+    ctx.setLineDash([8, 8]);
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(x0, capY);
+    ctx.lineTo(x1, capY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(238, 242, 255, 0.7)';
+    ctx.font = '15px system-ui, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('🏥 what hospitals can handle', x0 + 8, capY - 8);
+
+    const wildPeakT = wild.indexOf(peak);
+    ctx.fillStyle = COLOR.i;
+    ctx.font = 'bold 18px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('do nothing', xAt(wildPeakT), yAt(peak) - 14);
+    const tamedPeak = Math.max(...tamed);
+    ctx.fillStyle = COLOR.v;
+    ctx.fillText('soap + closed school + vaccines', xAt(tamed.indexOf(tamedPeak)), yAt(tamedPeak) - 14);
+
+    ctx.fillStyle = 'rgba(238, 242, 255, 0.6)';
+    ctx.font = '16px system-ui, sans-serif';
+    ctx.fillText('sick people over time →', (x0 + x1) / 2, plotY1 + 34);
+  }
+
+  /** Chapter 5: the city's own epidemic curve so far, drawn big. */
+  private drawDelveHistory(ctx: CanvasRenderingContext2D, x0: number, x1: number, h: number): void {
+    const y0 = h * 0.22;
+    const y1 = h * 0.75;
+    ctx.fillStyle = 'rgba(5, 8, 20, 0.5)';
+    ctx.beginPath();
+    ctx.roundRect(x0 - 16, y0 - 16, x1 - x0 + 32, y1 - y0 + 32, 16);
+    ctx.fill();
+    const n = this.history.length;
+    ctx.textAlign = 'center';
+    if (n < 2) {
+      ctx.fillStyle = 'rgba(238, 242, 255, 0.5)';
+      ctx.font = '20px system-ui, sans-serif';
+      ctx.fillText('no outbreak yet —', (x0 + x1) / 2, (y0 + y1) / 2 - 16);
+      ctx.fillText('close the science and infect someone!', (x0 + x1) / 2, (y0 + y1) / 2 + 16);
+      return;
+    }
+    const H = y1 - y0;
+    const xAt = (k: number) => x0 + ((x1 - x0) * k) / (n - 1);
+    const iTop = this.history.map((s) => y1 - (H * s.i) / AGENT_COUNT);
+    const rTop = this.history.map((s, k) => iTop[k] - (H * s.r) / AGENT_COUNT);
+    const band = (lower: (k: number) => number, upper: number[], color: string) => {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(xAt(0), lower(0));
+      for (let k = 1; k < n; k++) ctx.lineTo(xAt(k), lower(k));
+      for (let k = n - 1; k >= 0; k--) ctx.lineTo(xAt(k), upper[k]);
+      ctx.closePath();
+      ctx.fill();
+    };
+    band(() => y1, iTop, 'rgba(251, 95, 117, 0.85)');
+    band((k) => iTop[k], rTop, 'rgba(141, 128, 184, 0.7)');
+    band((k) => rTop[k], new Array<number>(n).fill(y0), 'rgba(157, 184, 216, 0.25)');
+    ctx.fillStyle = 'rgba(238, 242, 255, 0.75)';
+    ctx.font = 'bold 20px system-ui, sans-serif';
+    ctx.fillText('your city’s epidemic curve — live', (x0 + x1) / 2, y0 - 32);
   }
 
   private drawCity(ctx: CanvasRenderingContext2D): void {

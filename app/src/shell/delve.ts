@@ -19,6 +19,29 @@ export interface DelveHandle {
   dispose(): void;
 }
 
+export interface DelveToggleHandle {
+  element: HTMLButtonElement;
+  /** Swap the pill between "open the science" and "close the science". */
+  setOpen(open: boolean): void;
+}
+
+/** The "🔬 How does this work?" pill, top-right corner of a game screen. */
+export function delveToggle(onClick: () => void): DelveToggleHandle {
+  const element = document.createElement('button');
+  element.className = 'delve-toggle';
+  const setOpen = (open: boolean) => {
+    element.classList.toggle('active', open);
+    element.replaceChildren();
+    element.append(open ? '✕ ' : '🔬 ');
+    const label = document.createElement('span');
+    label.textContent = open ? 'Close the science' : 'How does this work?';
+    element.appendChild(label);
+  };
+  element.addEventListener('click', onClick);
+  setOpen(false);
+  return { element, setOpen };
+}
+
 export function delvePanel(opts: {
   heading: string;
   chapters: DelveChapter[];

@@ -8,7 +8,12 @@
 // evolution run, meet a zoo of pre-trained bodies).
 import type { ArcadeGame, GameHost, GameInstance } from '../../shell/types';
 import { scoreFlow, type ScoreFlowHandle } from '../../shell/scoreflow';
-import { delvePanel, type DelveHandle } from '../../shell/delve';
+import {
+  delvePanel,
+  delveToggle,
+  type DelveHandle,
+  type DelveToggleHandle,
+} from '../../shell/delve';
 import {
   Creature,
   FIXED_DT,
@@ -181,6 +186,7 @@ class CreatureInstance implements GameInstance {
 
   // Delve state.
   private delve: DelveHandle | null = null;
+  private toggle!: DelveToggleHandle;
   private delveFrom: 'build' | 'train' = 'build';
   private demoAccum = 0;
   private pokeC: Creature | null = null;
@@ -304,6 +310,7 @@ class CreatureInstance implements GameInstance {
     this.buildBar.classList.remove('hidden');
     this.trainBar.classList.add('hidden');
     this.hud.classList.remove('hidden');
+    this.toggle.element.classList.remove('hidden');
     this.setTool('draw');
     this.refreshBuildUi();
   }
@@ -317,6 +324,7 @@ class CreatureInstance implements GameInstance {
     this.buildBar.classList.add('hidden');
     this.trainBar.classList.remove('hidden');
     this.hud.classList.remove('hidden');
+    this.toggle.element.classList.remove('hidden');
     this.hint.textContent =
       'Every creature has different muscle wiring — the farthest walkers get babies with small mutations. Nobody tells them HOW to walk!';
   }
@@ -334,6 +342,7 @@ class CreatureInstance implements GameInstance {
     this.raceOver = false;
     this.raceAccum = 0;
     this.trainBar.classList.add('hidden');
+    this.toggle.element.classList.add('hidden');
     this.hint.textContent = 'Farthest in 12 seconds wins the crown! 🏁';
   }
 
@@ -413,6 +422,7 @@ class CreatureInstance implements GameInstance {
     this.trainBar.classList.add('hidden');
     this.hud.classList.add('hidden');
     this.hint.textContent = '';
+    this.toggle.setOpen(true);
     this.delve = delvePanel({
       heading: '🔬 The science of Creature Lab',
       chapters: this.delveChapters(),
@@ -425,6 +435,7 @@ class CreatureInstance implements GameInstance {
   private exitDelve(): void {
     this.delve?.dispose();
     this.delve = null;
+    this.toggle.setOpen(false);
     this.pokeC = null;
     this.brainC = null;
     this.demoEvo = null;
@@ -652,7 +663,6 @@ class CreatureInstance implements GameInstance {
     add(this.buildBar, 'move', '✋', 'Move', () => this.setTool('move'));
     add(this.buildBar, 'type', '💪', 'Bone/muscle', () => this.setTool('type'));
     add(this.buildBar, 'erase', '🧽', 'Erase', () => this.setTool('erase'));
-    add(this.buildBar, 'delve', '🔬', 'The science', () => this.enterDelve());
     add(this.buildBar, 'train', '🧠', 'TRAIN!', () => this.enterTrain(true));
 
     this.trainBar = document.createElement('div');
@@ -663,7 +673,6 @@ class CreatureInstance implements GameInstance {
         `Speed ×${SPEEDS[this.speedIdx]}`;
     });
     add(this.trainBar, 'race', '🏁', 'Race the champ', () => this.enterRace());
-    add(this.trainBar, 'delveTrain', '🔬', 'The science', () => this.enterDelve());
     add(this.trainBar, 'back', '🛠', 'Body shop', () => this.enterBuild());
 
     this.hud = document.createElement('div');
@@ -671,7 +680,19 @@ class CreatureInstance implements GameInstance {
     this.hint = document.createElement('p');
     this.hint.className = 'challenge-hint';
 
-    this.host.overlay.append(this.presetBar, this.buildBar, this.trainBar, this.hud, this.hint);
+    this.toggle = delveToggle(() => {
+      if (this.mode === 'delve') this.exitDelve();
+      else this.enterDelve();
+    });
+
+    this.host.overlay.append(
+      this.presetBar,
+      this.buildBar,
+      this.trainBar,
+      this.hud,
+      this.hint,
+      this.toggle.element,
+    );
   }
 
   private setTool(tool: Tool): void {
@@ -955,7 +976,7 @@ class CreatureInstance implements GameInstance {
   /** Little "what am I looking at" legend for the physics chapter. */
   private drawLegend(ctx: CanvasRenderingContext2D, w: number): void {
     const x = w - 250;
-    const y = 40;
+    const y = 110; // below the top-right "close the science" pill
     ctx.fillStyle = 'rgba(5, 8, 20, 0.6)';
     ctx.beginPath();
     ctx.roundRect(x - 20, y - 24, 240, 118, 12);
