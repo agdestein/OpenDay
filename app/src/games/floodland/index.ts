@@ -3,6 +3,7 @@
 // dikes on a sand budget against three escalating storm surges.
 import type { ArcadeGame, GameHost, GameInstance } from '../../shell/types';
 import { scoreFlow, type ScoreFlowHandle } from '../../shell/scoreflow';
+import { fmtNumber, pick, type Localized } from '../../lib/i18n';
 import { FloodSim, GRID_H, GRID_W } from './water';
 
 /** Virtual canvas pixels per grid cell (world is 1600x900). */
@@ -20,8 +21,10 @@ const REND_W = GRID_W * SS;
 const REND_H = GRID_H * SS;
 
 interface Storm {
+  // Storm names are Dutch flavor text (like real named storms) and stay the
+  // same across languages.
   name: string;
-  blurb: string;
+  blurb: Localized<string>;
   surge: number;
   wave: number;
   sand: number;
@@ -32,26 +35,206 @@ interface Storm {
 const STORMS: Storm[] = [
   {
     name: 'Herfststorm 🍂',
-    blurb: 'A storm surge is heading for Zeeland! Protect Oma 👵 and the islands in the south.',
+    blurb: {
+      en: 'A storm surge is heading for Zeeland! Protect Oma 👵 and the islands in the south.',
+      nl: 'Er komt een stormvloed aan voor Zeeland! Bescherm Oma 👵 en de eilanden in het zuiden.',
+      no: 'En stormflo er på vei mot Zeeland! Beskytt Oma 👵 og øyene i sør.',
+    },
     surge: 1.8,
     wave: 0.35,
     sand: 360,
   },
   {
     name: 'Noordwester ⛈️',
-    blurb: 'A serious one: the low northern dunes and the river mouths will not hold this.',
+    blurb: {
+      en: 'A serious one: the low northern dunes and the river mouths will not hold this.',
+      nl: 'Een serieuze: de lage duinen in het noorden en de riviermondingen houden dit niet tegen.',
+      no: 'En alvorlig en: de lave dynene i nord og elvemunningene holder ikke denne.',
+    },
     surge: 2.6,
     wave: 0.4,
     sand: 440,
   },
   {
     name: 'Watersnood! 🌊',
-    blurb: 'The big one — like 1953. Every weak spot in the coast is about to break.',
+    blurb: {
+      en: 'The big one — like 1953. Every weak spot in the coast is about to break.',
+      nl: 'De grote — net als in 1953. Elke zwakke plek in de kust dreigt te breken.',
+      no: 'Den store — som i 1953. Hvert svake punkt i kysten er i ferd med å briste.',
+    },
     surge: 3.2,
     wave: 0.5,
     sand: 360,
   },
 ];
+
+const TEXT: Localized<{
+  dragHint: string;
+  buildPhaseHint: string;
+  stormArrivesHint: string;
+  stormOfTotal: (round: number, total: number) => string;
+  introContinuation: (surge: number, sand: number) => string;
+  toWork: string;
+  stormPassed: (name: string) => string;
+  stayedDry: (n: number) => string;
+  roundNote: (omaDry: boolean) => string;
+  nextStorm: string;
+  stormsPassed: string;
+  peopleSaved: (n: number) => string;
+  playAgain: string;
+  freePlay: string;
+  toolBuild: string;
+  toolDig: string;
+  toolSplash: string;
+  toolStorm: string;
+  toolReset: string;
+  toolChallenge: string;
+  toolDigBack: string;
+  toolStop: string;
+  legendSea: string;
+  legendPolder: string;
+  legendLand: string;
+  legendDike: string;
+  legendRisk: string;
+  hudSand: (n: number) => string;
+  hudDry: (n: number) => string;
+  hudStormRound: (round: number, total: number) => string;
+  hudArrivesIn: (s: number) => string;
+  hudStormSurge: (name: string, level: number) => string;
+  hudSavedSoFar: (status: string, total: number) => string;
+  hudSeaLevel: (level: number) => string;
+  cursorNeeds: (need: number) => string;
+}> = {
+  en: {
+    dragHint: 'Drag to build dikes and dunes — then try the 🌩️ Storm button and hold back the sea!',
+    buildPhaseHint:
+      '⚠️ Striped land will flood! Build dikes across the red stripes — when the stripes behind a dike vanish, it will hold. Dig back sand you regret.',
+    stormArrivesHint: 'Here it comes! 🌊 Emergency repairs are still allowed.',
+    stormOfTotal: (round, total) => `Storm ${round} of ${total}`,
+    introContinuation: (surge, sand) =>
+      `Expected surge: +${fmtNumber(surge, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} m. You get 🏖️ ${fmtNumber(sand)} sand. Red stripes show where the sea will get in — build dikes until the stripes are gone! Dikes you built before are still standing.`,
+    toWork: '▶ To work!',
+    stormPassed: (name) => `${name} has passed!`,
+    stayedDry: (n) => `${fmtNumber(n)} people stayed dry`,
+    roundNote: (omaDry) =>
+      `${omaDry ? 'Oma is safe! 👵✨' : 'Oh no — Oma got wet feet! 👵💧'} The next storm will be worse. Your dikes stay, and more sand is coming.`,
+    nextStorm: '▶ Next storm',
+    stormsPassed: '🏆 The storms have passed!',
+    peopleSaved: (n) => `${fmtNumber(n)} people saved`,
+    playAgain: '🔁 Play again',
+    freePlay: '🏝️ Free play',
+    toolBuild: 'Build',
+    toolDig: 'Dig',
+    toolSplash: 'Splash',
+    toolStorm: 'Storm',
+    toolReset: 'Reset',
+    toolChallenge: 'Challenge',
+    toolDigBack: 'Dig back',
+    toolStop: 'Stop',
+    legendSea: 'sea & water',
+    legendPolder: 'polder — below sea level!',
+    legendLand: 'dunes & higher land',
+    legendDike: 'sand you built',
+    legendRisk: 'the storm would flood this',
+    hudSand: (n) => `🏖️ ${fmtNumber(n)} sand`,
+    hudDry: (n) => `🏠 ${fmtNumber(n)} dry`,
+    hudStormRound: (round, total) => `Storm ${round}/${total}`,
+    hudArrivesIn: (s) => ` · 🌊 arrives in ${fmtNumber(s)} s`,
+    hudStormSurge: (name, level) =>
+      ` · ${name} surge +${fmtNumber(level, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} m`,
+    hudSavedSoFar: (status, total) => `  |  ${status} · saved so far: ${fmtNumber(total)}`,
+    hudSeaLevel: (level) =>
+      `  |  🌊 sea +${fmtNumber(level, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} m`,
+    cursorNeeds: (need) =>
+      `/ needs ${fmtNumber(need, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} m`,
+  },
+  nl: {
+    dragHint: 'Sleep om dijken en duinen te bouwen — probeer daarna de 🌩️ Storm-knop en houd de zee tegen!',
+    buildPhaseHint:
+      '⚠️ Gestreept land overstroomt! Bouw dijken dwars over de rode strepen — als de strepen achter een dijk verdwijnen, houdt hij stand. Graaf zand terug als je spijt hebt.',
+    stormArrivesHint: 'Daar komt-ie! 🌊 Noodreparaties mogen nog.',
+    stormOfTotal: (round, total) => `Storm ${round} van ${total}`,
+    introContinuation: (surge, sand) =>
+      `Verwachte stormvloed: +${fmtNumber(surge, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} m. Je krijgt 🏖️ ${fmtNumber(sand)} zand. Rode strepen laten zien waar de zee naar binnen komt — bouw dijken tot de strepen weg zijn! Dijken die je eerder bouwde, blijven staan.`,
+    toWork: '▶ Aan de slag!',
+    stormPassed: (name) => `${name} is voorbij!`,
+    stayedDry: (n) => `${fmtNumber(n)} mensen bleven droog`,
+    roundNote: (omaDry) =>
+      `${omaDry ? 'Oma is veilig! 👵✨' : 'Oh nee — Oma kreeg natte voeten! 👵💧'} De volgende storm wordt erger. Je dijken blijven staan en er komt meer zand.`,
+    nextStorm: '▶ Volgende storm',
+    stormsPassed: '🏆 De stormen zijn voorbij!',
+    peopleSaved: (n) => `${fmtNumber(n)} mensen gered`,
+    playAgain: '🔁 Opnieuw spelen',
+    freePlay: '🏝️ Vrij spelen',
+    toolBuild: 'Bouwen',
+    toolDig: 'Graven',
+    toolSplash: 'Spetteren',
+    toolStorm: 'Storm',
+    toolReset: 'Resetten',
+    toolChallenge: 'Uitdaging',
+    toolDigBack: 'Terug graven',
+    toolStop: 'Stop',
+    legendSea: 'zee & water',
+    legendPolder: 'polder — onder zeeniveau!',
+    legendLand: 'duinen & hoger land',
+    legendDike: 'zand dat je hebt gebouwd',
+    legendRisk: 'dit overstroomt bij de storm',
+    hudSand: (n) => `🏖️ ${fmtNumber(n)} zand`,
+    hudDry: (n) => `🏠 ${fmtNumber(n)} droog`,
+    hudStormRound: (round, total) => `Storm ${round}/${total}`,
+    hudArrivesIn: (s) => ` · 🌊 komt over ${fmtNumber(s)} s`,
+    hudStormSurge: (name, level) =>
+      ` · ${name} stormvloed +${fmtNumber(level, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} m`,
+    hudSavedSoFar: (status, total) => `  |  ${status} · tot nu toe gered: ${fmtNumber(total)}`,
+    hudSeaLevel: (level) =>
+      `  |  🌊 zee +${fmtNumber(level, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} m`,
+    cursorNeeds: (need) =>
+      `/ nodig: ${fmtNumber(need, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} m`,
+  },
+  no: {
+    dragHint: 'Dra for å bygge diker og dyner — prøv så 🌩️ Storm-knappen og hold havet tilbake!',
+    buildPhaseHint:
+      '⚠️ Stripete land oversvømmes! Bygg diker tvers over de røde stripene — når stripene bak et dike forsvinner, holder det. Grav tilbake sand du angrer på.',
+    stormArrivesHint: 'Nå kommer den! 🌊 Nødreparasjoner er fortsatt lov.',
+    stormOfTotal: (round, total) => `Storm ${round} av ${total}`,
+    introContinuation: (surge, sand) =>
+      `Forventet stormflo: +${fmtNumber(surge, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} m. Du får 🏖️ ${fmtNumber(sand)} sand. Røde striper viser hvor havet kommer inn — bygg diker til stripene er borte! Diker du bygde tidligere, står fortsatt.`,
+    toWork: '▶ Sett i gang!',
+    stormPassed: (name) => `${name} har passert!`,
+    stayedDry: (n) => `${fmtNumber(n)} personer holdt seg tørre`,
+    roundNote: (omaDry) =>
+      `${omaDry ? 'Oma er trygg! 👵✨' : 'Å nei — Oma fikk våte føtter! 👵💧'} Neste storm blir verre. Dikene dine står, og det kommer mer sand.`,
+    nextStorm: '▶ Neste storm',
+    stormsPassed: '🏆 Stormene har passert!',
+    peopleSaved: (n) => `${fmtNumber(n)} personer reddet`,
+    playAgain: '🔁 Spill igjen',
+    freePlay: '🏝️ Fri lek',
+    toolBuild: 'Bygg',
+    toolDig: 'Grav',
+    toolSplash: 'Plask',
+    toolStorm: 'Storm',
+    toolReset: 'Nullstill',
+    toolChallenge: 'Utfordring',
+    toolDigBack: 'Grav tilbake',
+    toolStop: 'Stopp',
+    legendSea: 'hav & vann',
+    legendPolder: 'polder — under havnivå!',
+    legendLand: 'dyner & høyere land',
+    legendDike: 'sand du har bygd',
+    legendRisk: 'dette oversvømmes av stormen',
+    hudSand: (n) => `🏖️ ${fmtNumber(n)} sand`,
+    hudDry: (n) => `🏠 ${fmtNumber(n)} tørre`,
+    hudStormRound: (round, total) => `Storm ${round}/${total}`,
+    hudArrivesIn: (s) => ` · 🌊 kommer om ${fmtNumber(s)} s`,
+    hudStormSurge: (name, level) =>
+      ` · ${name} stormflo +${fmtNumber(level, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} m`,
+    hudSavedSoFar: (status, total) => `  |  ${status} · reddet så langt: ${fmtNumber(total)}`,
+    hudSeaLevel: (level) =>
+      `  |  🌊 hav +${fmtNumber(level, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} m`,
+    cursorNeeds: (need) =>
+      `/ trenger ${fmtNumber(need, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} m`,
+  },
+};
 
 const BUILD_TIME = 25;
 const RAMP = 8;
@@ -153,8 +336,7 @@ class FloodInstance implements GameInstance {
     canvas.addEventListener('pointermove', this.onPointerMove);
     window.addEventListener('pointerup', this.onPointerUp);
     this.setTool('build');
-    this.hint.textContent =
-      'Drag to build dikes and dunes — then try the 🌩️ Storm button and hold back the sea!';
+    this.hint.textContent = pick(TEXT).dragHint;
   }
 
   frame(dt: number): void {
@@ -214,26 +396,26 @@ class FloodInstance implements GameInstance {
     this.hint.textContent = '';
 
     this.showCard((card) => {
+      const T = pick(TEXT);
       const heading = document.createElement('h2');
-      heading.textContent = `Storm ${this.round + 1} of ${STORMS.length}`;
+      heading.textContent = T.stormOfTotal(this.round + 1, STORMS.length);
       const name = document.createElement('div');
       name.className = 'score-flow-score';
       name.textContent = storm.name;
       const blurb = document.createElement('p');
       blurb.className = 'score-flow-prompt';
-      blurb.textContent = `${storm.blurb} Expected surge: +${storm.surge.toFixed(1)} m. You get 🏖️ ${storm.sand} sand. Red stripes show where the sea will get in — build dikes until the stripes are gone! Dikes you built before are still standing.`;
+      blurb.textContent = `${pick(storm.blurb)} ${T.introContinuation(storm.surge, storm.sand)}`;
       const actions = document.createElement('div');
       actions.className = 'score-flow-actions';
       const go = document.createElement('button');
       go.className = 'arcade-button';
-      go.textContent = '▶ To work!';
+      go.textContent = T.toWork;
       go.addEventListener('click', () => {
         this.card?.remove();
         this.card = null;
         this.phase = 'build';
         this.phaseTime = 0;
-        this.hint.textContent =
-          '⚠️ Striped land will flood! Build dikes across the red stripes — when the stripes behind a dike vanish, it will hold. Dig back sand you regret.';
+        this.hint.textContent = pick(TEXT).buildPhaseHint;
       });
       actions.appendChild(go);
       card.append(heading, name, blurb, actions);
@@ -249,7 +431,7 @@ class FloodInstance implements GameInstance {
       if (this.phaseTime >= BUILD_TIME) {
         this.phase = 'storm';
         this.phaseTime = 0;
-        this.hint.textContent = 'Here it comes! 🌊 Emergency repairs are still allowed.';
+        this.hint.textContent = pick(TEXT).stormArrivesHint;
       }
     } else if (this.phase === 'storm') {
       this.phaseTime += dt;
@@ -275,21 +457,20 @@ class FloodInstance implements GameInstance {
     }
     this.summaryTimer = 5;
     this.showCard((card) => {
+      const T = pick(TEXT);
       const heading = document.createElement('h2');
-      heading.textContent = `${STORMS[this.round].name} has passed!`;
+      heading.textContent = T.stormPassed(STORMS[this.round].name);
       const score = document.createElement('div');
       score.className = 'score-flow-score';
-      score.textContent = `${(stats.saved * 1000).toLocaleString()} people stayed dry`;
+      score.textContent = T.stayedDry(stats.saved * 1000);
       const note = document.createElement('p');
       note.className = 'score-flow-prompt';
-      note.textContent = `${
-        stats.omaDry ? 'Oma is safe! 👵✨' : 'Oh no — Oma got wet feet! 👵💧'
-      } The next storm will be worse. Your dikes stay, and more sand is coming.`;
+      note.textContent = T.roundNote(stats.omaDry);
       const actions = document.createElement('div');
       actions.className = 'score-flow-actions';
       const next = document.createElement('button');
       next.className = 'arcade-button';
-      next.textContent = '▶ Next storm';
+      next.textContent = T.nextStorm;
       next.addEventListener('click', () => this.nextRound());
       actions.appendChild(next);
       card.append(heading, score, note, actions);
@@ -306,14 +487,15 @@ class FloodInstance implements GameInstance {
     this.card?.remove();
     this.card = null;
     this.flow?.dispose();
+    const T = pick(TEXT);
     this.flow = scoreFlow({
       gameId: 'floodland',
-      heading: '🏆 The storms have passed!',
+      heading: T.stormsPassed,
       score: this.totalSaved * 1000,
-      scoreLabel: `${(this.totalSaved * 1000).toLocaleString()} people saved`,
+      scoreLabel: T.peopleSaved(this.totalSaved * 1000),
       actions: [
-        { label: '🔁 Play again', onClick: () => this.startGame() },
-        { label: '🏝️ Free play', onClick: () => this.exitToToy() },
+        { label: T.playAgain, onClick: () => this.startGame() },
+        { label: T.freePlay, onClick: () => this.exitToToy() },
       ],
     });
     this.host.overlay.appendChild(this.flow.element);
@@ -331,8 +513,7 @@ class FloodInstance implements GameInstance {
     this.gameBar.classList.add('hidden');
     this.toyBar.classList.remove('hidden');
     this.setTool('build');
-    this.hint.textContent =
-      'Drag to build dikes and dunes — then try the 🌩️ Storm button and hold back the sea!';
+    this.hint.textContent = pick(TEXT).dragHint;
   }
 
   // ---- toy mode ----
@@ -410,29 +591,31 @@ class FloodInstance implements GameInstance {
       return button;
     };
 
+    const T = pick(TEXT);
+
     this.toyBar = document.createElement('div');
     this.toyBar.className = 'game-toolbar';
-    add(this.toyBar, 'build', '🏗️', 'Build', () => this.setTool('build'));
-    add(this.toyBar, 'dig', '⛏️', 'Dig', () => this.setTool('dig'));
-    add(this.toyBar, 'splash', '💦', 'Splash', () => this.setTool('splash'));
-    add(this.toyBar, 'storm', '🌩️', 'Storm', () => {
+    add(this.toyBar, 'build', '🏗️', T.toolBuild, () => this.setTool('build'));
+    add(this.toyBar, 'dig', '⛏️', T.toolDig, () => this.setTool('dig'));
+    add(this.toyBar, 'splash', '💦', T.toolSplash, () => this.setTool('splash'));
+    add(this.toyBar, 'storm', '🌩️', T.toolStorm, () => {
       this.toyStorm = !this.toyStorm;
       this.buttons.storm.classList.toggle('active', this.toyStorm);
       if (!this.toyStorm) this.sim.resetWater();
     });
-    add(this.toyBar, 'reset', '🧹', 'Reset', () => {
+    add(this.toyBar, 'reset', '🧹', T.toolReset, () => {
       this.toyStorm = false;
       this.buttons.storm.classList.remove('active');
       this.sim.resetAll();
       this.sim.waveAmp = CALM_WAVE;
     });
-    add(this.toyBar, 'challenge', '⛈️', 'Challenge', () => this.startGame());
+    add(this.toyBar, 'challenge', '⛈️', T.toolChallenge, () => this.startGame());
 
     this.gameBar = document.createElement('div');
     this.gameBar.className = 'game-toolbar hidden';
-    add(this.gameBar, 'gbuild', '🏗️', 'Build', () => this.setTool('build'));
-    add(this.gameBar, 'gdig', '⛏️', 'Dig back', () => this.setTool('dig'));
-    add(this.gameBar, 'stop', '⏹', 'Stop', () => this.exitToToy());
+    add(this.gameBar, 'gbuild', '🏗️', T.toolBuild, () => this.setTool('build'));
+    add(this.gameBar, 'gdig', '⛏️', T.toolDigBack, () => this.setTool('dig'));
+    add(this.gameBar, 'stop', '⏹', T.toolStop, () => this.exitToToy());
 
     const hud = document.createElement('div');
     hud.className = 'challenge-hud';
@@ -455,11 +638,11 @@ class FloodInstance implements GameInstance {
       item.append(box, text);
       legend.appendChild(item);
     };
-    row('sea', 'sea & water');
-    row('polder', 'polder — below sea level!');
-    row('land', 'dunes & higher land');
-    row('dike', 'sand you built');
-    row('risk', 'the storm would flood this');
+    row('sea', T.legendSea);
+    row('polder', T.legendPolder);
+    row('land', T.legendLand);
+    row('dike', T.legendDike);
+    row('risk', T.legendRisk);
 
     this.host.overlay.append(this.toyBar, this.gameBar, hud, this.hint, legend);
   }
@@ -482,22 +665,22 @@ class FloodInstance implements GameInstance {
   }
 
   private updateHud(): void {
+    const T = pick(TEXT);
     const stats = this.sim.savedStats();
-    const dry = `🏠 ${(stats.saved * 1000).toLocaleString()} dry`;
+    const dry = T.hudDry(stats.saved * 1000);
     if (this.mode === 'game') {
-      this.hudLeft.textContent = `🏖️ ${Math.max(0, Math.round(this.sand))} sand   ${dry}`;
+      this.hudLeft.textContent = `${T.hudSand(Math.max(0, Math.round(this.sand)))}   ${dry}`;
       const storm = STORMS[this.round];
-      let status = `Storm ${this.round + 1}/${STORMS.length}`;
+      let status = T.hudStormRound(this.round + 1, STORMS.length);
       if (this.phase === 'build') {
-        status += ` · 🌊 arrives in ${Math.max(0, Math.ceil(BUILD_TIME - this.phaseTime))} s`;
+        status += T.hudArrivesIn(Math.max(0, Math.ceil(BUILD_TIME - this.phaseTime)));
       } else if (this.phase === 'storm') {
-        status += ` · ${storm.name} surge +${this.sim.seaLevel.toFixed(1)} m`;
+        status += T.hudStormSurge(storm.name, this.sim.seaLevel);
       }
-      this.hudRight.textContent = `  |  ${status} · saved so far: ${(this.totalSaved * 1000).toLocaleString()}`;
+      this.hudRight.textContent = T.hudSavedSoFar(status, this.totalSaved * 1000);
     } else {
       this.hudLeft.textContent = dry;
-      this.hudRight.textContent =
-        this.sim.seaLevel > 0.05 ? `  |  🌊 sea +${this.sim.seaLevel.toFixed(1)} m` : '';
+      this.hudRight.textContent = this.sim.seaLevel > 0.05 ? T.hudSeaLevel(this.sim.seaLevel) : '';
     }
   }
 
@@ -769,8 +952,9 @@ class FloodInstance implements GameInstance {
         ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
         ctx.shadowBlur = 4;
         ctx.textAlign = 'left';
+        const heightStr = fmtNumber(height, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
         ctx.fillText(
-          `${height.toFixed(1)} m ${high ? '✓' : `/ needs ${need.toFixed(1)} m`}`,
+          `${heightStr} m ${high ? '✓' : pick(TEXT).cursorNeeds(need)}`,
           this.cursor.x * CELL + 2.6 * CELL,
           this.cursor.y * CELL - 1.5 * CELL,
         );
@@ -783,9 +967,12 @@ class FloodInstance implements GameInstance {
 
 export const floodland: ArcadeGame = {
   id: 'floodland',
-  title: 'Save the Netherlands',
-  scienceLine:
-    'Real shallow-water equations — after the 1953 flood, Dutch mathematicians computed storm surges to design the Delta Works, and our group still works on flood-safety simulation with Deltares.',
+  title: { en: 'Save the Netherlands', nl: 'Red Nederland', no: 'Redd Nederland' },
+  scienceLine: {
+    en: 'Real shallow-water equations — after the 1953 flood, Dutch mathematicians computed storm surges to design the Delta Works, and our group still works on flood-safety simulation with Deltares.',
+    nl: 'Echte ondiepwater-vergelijkingen — na de Watersnoodramp van 1953 berekenden Nederlandse wiskundigen stormvloeden om de Deltawerken te ontwerpen, en onze groep werkt nog steeds aan overstromingsveiligheid-simulaties met Deltares.',
+    no: 'Ekte gruntvanns-likninger — etter storflommen i 1953 beregnet nederlandske matematikere stormfloer for å designe Deltawerken, og gruppa vår jobber fortsatt med flomsikkerhet-simulering sammen med Deltares.',
+  },
   tileEmoji: '🌊',
   create: (host) => new FloodInstance(host),
 };
