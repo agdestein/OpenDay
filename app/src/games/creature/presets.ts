@@ -114,6 +114,53 @@ export function clonePlan(plan: BodyPlan): BodyPlan {
 }
 
 /**
+ * Showcase brains for the delve layer's zoo: one evolved genome per preset,
+ * trained offline with the exact solver above and picked for gaits that keep
+ * ground contact (so they read as walking, not glitch-bouncing).
+ */
+export const TRAINED: Record<string, Genome> = {
+  // NOTE: gaits are chaotic — these exact decimals were what was measured;
+  // "tidier" rounding can turn a trot into a faceplant.
+  Doggo: {
+    freq: 2.78,
+    muscles: [
+      { amp: 0.063, phase: 1.537 },
+      { amp: 0.22, phase: 2.317 },
+      { amp: 0.146, phase: 2.122 },
+      { amp: 0.122, phase: 5.828 },
+    ],
+  },
+  Wiggler: {
+    freq: 2.8,
+    muscles: [
+      { amp: 0.214, phase: 3.408 },
+      { amp: 0, phase: 0.23 },
+      { amp: 0.016, phase: 0.341 },
+      { amp: 0.235, phase: 0.93 },
+      { amp: 0.275, phase: 5.881 },
+      { amp: 0.3, phase: 1.75 },
+    ],
+  },
+  Hopper: {
+    freq: 2.8,
+    muscles: [
+      { amp: 0.3, phase: 3.427 },
+      { amp: 0.3, phase: 0.487 },
+      { amp: 0, phase: 3.032 },
+    ],
+  },
+  Walker: {
+    freq: 1.03,
+    muscles: [
+      { amp: 0.3, phase: 0.96 },
+      { amp: 0.259, phase: 3.829 },
+      { amp: 0.209, phase: 3.356 },
+      { amp: 0.227, phase: 1.376 },
+    ],
+  },
+};
+
+/**
  * Built-in reigning champion for the very first race of the day, before any kid
  * has claimed the throne: a pre-trained Doggo (genome from an offline evolution
  * run with the exact solver above).
