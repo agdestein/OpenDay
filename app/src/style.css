@@ -20,6 +20,10 @@ body {
   overflow: hidden;
   user-select: none;
   -webkit-user-select: none;
+  /* Keep mobile browsers from inflating text when the fixed-width viewport
+     is scaled down (see the viewport meta in index.html). */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 .screen {
