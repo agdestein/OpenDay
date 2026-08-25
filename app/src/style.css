@@ -511,3 +511,15 @@ body {
   bottom: 1rem;
   right: 1rem;
 }
+
+/* ---------- Creature Lab ---------- */
+
+/* Build-mode preset picker: vertical column on the left, clear of the tool bar. */
+.creature-presets {
+  left: 1rem;
+  bottom: auto;
+  top: 50%;
+  transform: translateY(-50%);
+  flex-direction: column;
+  gap: 0.5rem;
+}

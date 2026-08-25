@@ -41,6 +41,8 @@ Planned first games (see [docs/plan.md](docs/plan.md) for the full implementatio
 2. **Outbreak!** — stop a simulated epidemic in a mini-city (our group has actually
    worked on epidemic simulation).
 3. **Save the Netherlands** — build dikes against a storm surge, on a budget.
+4. **Creature Lab** — build a stick creature and watch evolution teach it to walk;
+   race your champion against the reigning champ of the day.
 
 ## Running the app
 
