@@ -1,6 +1,7 @@
 // Starter body plans for the build screen. Node 0 is the head (gets the eye).
 // Units: meters, y up, ground at y = 0. All face +x (the running direction).
 import type { BodyPlan, Genome } from './physics';
+import type { Localized } from '../../lib/i18n';
 
 export interface Preset {
   name: string;
@@ -105,6 +106,13 @@ export const PRESETS: Preset[] = [
   { name: 'Hopper', emoji: '🐸', plan: hopper },
   { name: 'Walker', emoji: '🧍', plan: walker },
 ];
+
+/** Display names for the presets above (Preset.name is the internal id/lookup key). */
+export const PRESET_NAMES: Localized<Record<string, string>> = {
+  en: { Doggo: 'Doggo', Wiggler: 'Wiggler', Hopper: 'Hopper', Walker: 'Walker' },
+  nl: { Doggo: 'Hondje', Wiggler: 'Kruipertje', Hopper: 'Springer', Walker: 'Loper' },
+  no: { Doggo: 'Vovven', Wiggler: 'Makken', Hopper: 'Hopperen', Walker: 'Vandreren' },
+};
 
 export function clonePlan(plan: BodyPlan): BodyPlan {
   return {

@@ -23,7 +23,8 @@ import {
   type Genome,
 } from './physics';
 import { POPULATION, nextGeneration, randomGenome } from './evolve';
-import { clonePlan, FALLBACK_CHAMP, PRESETS, TRAINED } from './presets';
+import { clonePlan, FALLBACK_CHAMP, PRESET_NAMES, PRESETS, TRAINED } from './presets';
+import { pick, type Localized } from '../../lib/i18n';
 
 /** Sim-seconds each generation gets to walk. */
 const EVAL_TIME = 7;
@@ -51,6 +52,270 @@ const COLOR = {
 
 /** Per-muscle colors for the delve "brain waves" chapter. */
 const MUSCLE_COLORS = ['#fb5f75', '#7dd3fc', '#fbbf24', '#57d98a', '#c084fc', '#fb923c', '#a3e635', '#f472b6'];
+
+interface CreatureText {
+  build: {
+    hint: { draw: string; move: string; type: string; erase: string };
+    tool: {
+      draw: string;
+      move: string;
+      boneMuscle: string;
+      erase: string;
+      train: string;
+      needsMuscle: string;
+    };
+  };
+  train: {
+    hint: string;
+    speed: (mult: number) => string;
+    race: string;
+    bodyShop: string;
+    hud: (gen: number, best: string, secs: number) => string;
+  };
+  race: {
+    hint: string;
+    winHeading: string;
+    loseHeading: string;
+    scoreLabel: (you: number, champ: number) => string;
+    trainMore: string;
+    newCreature: string;
+    champLabel: (name: string) => string;
+    youLabel: string;
+    hudOver: (you: number, champ: number) => string;
+    go: string;
+  };
+  delve: {
+    heading: string;
+    chapter0: { title: string; p1: string; p2: string; p3: string };
+    chapter1: { title: string; p1: string; scramble: string; champion: string; note: string };
+    chapter2: { title: string; p1: (pop: number, evalTime: number) => string; p2: string; p3: string };
+    chapter3: { title: string; p1: string; p2: string; p3: string; p4: string };
+    legend: { dot: string; bone: string; muscle: string };
+    wavesLabel: string;
+    pokeLabel: string;
+    evoLabel: (gen: number, best: string) => string;
+    chartLabel: string;
+  };
+}
+
+const TEXT: Localized<CreatureText> = {
+  en: {
+    build: {
+      hint: {
+        draw: 'Drag from a dot to grow arms, legs and tails — then hit TRAIN! 🧠',
+        move: 'Drag the dots to reshape your creature.',
+        type: 'Click a stick to flip it: gray bones are stiff, red muscles push and pull.',
+        erase: 'Click a dot or stick to remove it.',
+      },
+      tool: {
+        draw: 'Draw',
+        move: 'Move',
+        boneMuscle: 'Bone/muscle',
+        erase: 'Erase',
+        train: 'TRAIN!',
+        needsMuscle: 'Needs a muscle!',
+      },
+    },
+    train: {
+      hint: 'Every creature has different muscle wiring — the farthest walkers get babies with small mutations. Nobody tells them HOW to walk!',
+      speed: (mult) => `Speed ×${mult}`,
+      race: 'Race the champ',
+      bodyShop: 'Body shop',
+      hud: (gen, best, secs) => `🧬 Generation ${gen}   🏆 Best walk: ${best}   ⏱ ${secs}s`,
+    },
+    race: {
+      hint: 'Farthest in 12 seconds wins the crown! 🏁',
+      winHeading: '👑 You took the crown!',
+      loseHeading: '🏁 The champ holds the throne!',
+      scoreLabel: (you, champ) => `You: ${you.toFixed(2)} m — Champ: ${champ.toFixed(2)} m`,
+      trainMore: '🧠 Train more',
+      newCreature: '🛠 New creature',
+      champLabel: (name) => `👑 ${name}`,
+      youLabel: '⭐ YOUR CREATURE',
+      hudOver: (you, champ) => `🏁 You: ${you.toFixed(2)} m — Champ: ${champ.toFixed(2)} m`,
+      go: 'GO!',
+    },
+    delve: {
+      heading: '🔬 The science of Creature Lab',
+      chapter0: {
+        title: 'A creature is dots and springs',
+        p1: 'Everything you see is simulated physics. Each dot is a little mass that feels gravity and friction. Gray sticks are bones: they always keep their length. Red sticks are muscles: springs that can rhythmically stretch and squeeze.',
+        p2: 'Nothing about standing, tripping or tumbling is programmed anywhere — it all follows from Newton’s laws, recomputed 120 times per second. The same technique animates cloth, hair and ragdolls in films and video games.',
+        p3: '👉 Click the creature to poke it. Every wobble you cause is pure physics.',
+      },
+      chapter1: {
+        title: 'The “brain” is a rhythm',
+        p1: 'This creature’s brain contains no walking instructions — only a beat for each muscle. Every muscle changes its length like a wave:',
+        scramble: '🎲 Scramble the brain',
+        champion: '👑 Champion brain',
+        note: 'The whole brain is just these numbers: how strongly (A), how fast (f) and in which order (φ) each muscle fires. The colored waves below are the live heartbeat of each muscle — scramble them and watch walking fall apart.',
+      },
+      chapter2: {
+        title: 'Learning = try, measure, mutate',
+        p1: (pop, evalTime) =>
+          `A live experiment: ${pop} creatures start with random brains. After ${evalTime} seconds we measure a single number — how far did you get? The best get “babies”: copies with small random changes. Repeat.`,
+        p2: 'Nobody teaches them how to walk; the distance score is the only feedback. That is enough for the learning curve to climb all by itself.',
+        p3: 'Scientists call this evolutionary optimization — a close cousin of reinforcement learning, the trial-and-error method used to train game-playing AIs and real robots.',
+      },
+      chapter3: {
+        title: 'Where the real world uses this',
+        p1: 'Real robots learn to walk exactly like this: first many thousands of attempts in a physics simulation (cheap, safe, fast), then the best behaviour is moved onto real legs. Four-legged inspection robots learned their gaits this way.',
+        p2: 'The same recipe — try, measure, keep the best, mutate — has designed NASA satellite antennas, searched for new medicines, and optimizes wind-farm layouts (try the wind farm game!).',
+        p3: 'Simulating the world well enough that a computer can learn from it is what the Scientific Computing group at CWI works on every day.',
+        p4: 'These four bodies were all trained by the exact same algorithm — it knew nothing about legs, worms or frogs beforehand.',
+      },
+      legend: { dot: 'dot: a little mass', bone: 'bone: fixed length', muscle: 'muscle: pulsing spring' },
+      wavesLabel: 'each muscle’s length over time  ·  ● = now',
+      pokeLabel: '👉 poke it!',
+      evoLabel: (gen, best) => `🧬 Generation ${gen} · best ${best}`,
+      chartLabel: 'best distance per generation',
+    },
+  },
+  nl: {
+    build: {
+      hint: {
+        draw: 'Sleep vanaf een stip om armen, benen en staarten te laten groeien — druk dan op TRAINEN! 🧠',
+        move: 'Sleep de stippen om je beestje een nieuwe vorm te geven.',
+        type: 'Klik op een stok om hem om te draaien: grijze botten zijn stijf, rode spieren duwen en trekken.',
+        erase: 'Klik op een stip of stok om hem te verwijderen.',
+      },
+      tool: {
+        draw: 'Tekenen',
+        move: 'Verplaatsen',
+        boneMuscle: 'Bot/spier',
+        erase: 'Wissen',
+        train: 'TRAINEN!',
+        needsMuscle: 'Heeft een spier nodig!',
+      },
+    },
+    train: {
+      hint: 'Elk beestje heeft andere spierbedrading — de verste lopers krijgen baby’s met kleine mutaties. Niemand vertelt ze HOE ze moeten lopen!',
+      speed: (mult) => `Snelheid ×${mult}`,
+      race: 'Race tegen de kampioen',
+      bodyShop: 'Werkplaats',
+      hud: (gen, best, secs) => `🧬 Generatie ${gen}   🏆 Beste wandeling: ${best}   ⏱ ${secs}s`,
+    },
+    race: {
+      hint: 'Wie in 12 seconden het verst komt, wint de kroon! 🏁',
+      winHeading: '👑 Jij hebt de kroon veroverd!',
+      loseHeading: '🏁 De kampioen houdt de troon!',
+      scoreLabel: (you, champ) => `Jij: ${you.toFixed(2)} m — Kampioen: ${champ.toFixed(2)} m`,
+      trainMore: '🧠 Meer trainen',
+      newCreature: '🛠 Nieuw beestje',
+      champLabel: (name) => `👑 ${name}`,
+      youLabel: '⭐ JOUW BEESTJE',
+      hudOver: (you, champ) => `🏁 Jij: ${you.toFixed(2)} m — Kampioen: ${champ.toFixed(2)} m`,
+      go: 'AF!',
+    },
+    delve: {
+      heading: '🔬 De wetenschap van Creature Lab',
+      chapter0: {
+        title: 'Een beestje is stippen en veren',
+        p1: 'Alles wat je ziet is gesimuleerde natuurkunde. Elke stip is een klein gewicht dat zwaartekracht en wrijving voelt. Grijze stokken zijn botten: die houden altijd dezelfde lengte. Rode stokken zijn spieren: veren die ritmisch kunnen uitrekken en samentrekken.',
+        p2: 'Er is nergens geprogrammeerd hoe iets moet staan, struikelen of tuimelen — het volgt allemaal uit de wetten van Newton, 120 keer per seconde opnieuw berekend. Dezelfde techniek animeert stof, haar en ragdolls in films en videogames.',
+        p3: '👉 Klik op het beestje om het te porren. Elke wiebel die je veroorzaakt is pure natuurkunde.',
+      },
+      chapter1: {
+        title: 'Het “brein” is een ritme',
+        p1: 'Het brein van dit beestje bevat geen loopinstructies — alleen een ritme voor elke spier. Elke spier verandert van lengte als een golf:',
+        scramble: '🎲 Brein husselen',
+        champion: '👑 Kampioensbrein',
+        note: 'Het hele brein bestaat uit deze getallen: hoe sterk (A), hoe snel (f) en in welke volgorde (φ) elke spier afvuurt. De gekleurde golven hieronder zijn de levende hartslag van elke spier — hussel ze en kijk hoe het lopen uit elkaar valt.',
+      },
+      chapter2: {
+        title: 'Leren = proberen, meten, muteren',
+        p1: (pop, evalTime) =>
+          `Een live experiment: ${pop} beestjes beginnen met willekeurige breinen. Na ${evalTime} seconden meten we één getal — hoe ver kwam je? De besten krijgen “baby’s”: kopieën met kleine willekeurige veranderingen. Herhaal.`,
+        p2: 'Niemand leert ze lopen; de afstandsscore is de enige feedback. Dat is genoeg om de leercurve helemaal vanzelf te laten stijgen.',
+        p3: 'Wetenschappers noemen dit evolutionaire optimalisatie — een naaste neef van reinforcement learning, de vallen-en-opstaan-methode waarmee spelende AI’s en echte robots worden getraind.',
+      },
+      chapter3: {
+        title: 'Waar de echte wereld dit gebruikt',
+        p1: 'Echte robots leren op precies deze manier lopen: eerst duizenden pogingen in een natuurkundige simulatie (goedkoop, veilig, snel), waarna het beste gedrag wordt overgezet naar echte poten. Viervoetige inspectierobots hebben hun manier van lopen zo geleerd.',
+        p2: 'Hetzelfde recept — proberen, meten, de beste bewaren, muteren — heeft NASA-satellietantennes ontworpen, gezocht naar nieuwe medicijnen, en optimaliseert de indeling van windmolenparken (probeer het windmolenpark-spel!).',
+        p3: 'Het simuleren van de wereld, goed genoeg zodat een computer ervan kan leren — daar werkt de groep Scientific Computing bij het CWI elke dag aan.',
+        p4: 'Deze vier lichamen zijn allemaal getraind met precies hetzelfde algoritme — het wist vooraf niets over benen, wormen of kikkers.',
+      },
+      legend: { dot: 'stip: een klein gewicht', bone: 'bot: vaste lengte', muscle: 'spier: kloppende veer' },
+      wavesLabel: 'lengte van elke spier in de tijd  ·  ● = nu',
+      pokeLabel: '👉 porren maar!',
+      evoLabel: (gen, best) => `🧬 Generatie ${gen} · beste ${best}`,
+      chartLabel: 'beste afstand per generatie',
+    },
+  },
+  no: {
+    build: {
+      hint: {
+        draw: 'Dra fra en prikk for å la armer, ben og haler vokse — trykk så på TREN! 🧠',
+        move: 'Dra i prikkene for å forme skapningen din på nytt.',
+        type: 'Klikk på en pinne for å bytte type: grå bein er stive, røde muskler skyver og drar.',
+        erase: 'Klikk på en prikk eller pinne for å fjerne den.',
+      },
+      tool: {
+        draw: 'Tegn',
+        move: 'Flytt',
+        boneMuscle: 'Bein/muskel',
+        erase: 'Slett',
+        train: 'TREN!',
+        needsMuscle: 'Trenger en muskel!',
+      },
+    },
+    train: {
+      hint: 'Hver skapning har ulik muskelkobling — de som går lengst får babyer med små mutasjoner. Ingen forteller dem HVORDAN de skal gå!',
+      speed: (mult) => `Fart ×${mult}`,
+      race: 'Løp mot mesteren',
+      bodyShop: 'Verksted',
+      hud: (gen, best, secs) => `🧬 Generasjon ${gen}   🏆 Beste gange: ${best}   ⏱ ${secs}s`,
+    },
+    race: {
+      hint: 'Den som kommer lengst på 12 sekunder, vinner kronen! 🏁',
+      winHeading: '👑 Du tok kronen!',
+      loseHeading: '🏁 Mesteren beholder tronen!',
+      scoreLabel: (you, champ) => `Du: ${you.toFixed(2)} m — Mester: ${champ.toFixed(2)} m`,
+      trainMore: '🧠 Tren mer',
+      newCreature: '🛠 Ny skapning',
+      champLabel: (name) => `👑 ${name}`,
+      youLabel: '⭐ DIN SKAPNING',
+      hudOver: (you, champ) => `🏁 Du: ${you.toFixed(2)} m — Mester: ${champ.toFixed(2)} m`,
+      go: 'KJØR!',
+    },
+    delve: {
+      heading: '🔬 Vitenskapen bak Creature Lab',
+      chapter0: {
+        title: 'En skapning er prikker og fjærer',
+        p1: 'Alt du ser er simulert fysikk. Hver prikk er en liten masse som kjenner tyngdekraft og friksjon. Grå pinner er bein: de holder alltid samme lengde. Røde pinner er muskler: fjærer som rytmisk kan strekke seg og trekke seg sammen.',
+        p2: 'Ingenting om å stå, snuble eller trille rundt er programmert noe sted — alt følger av Newtons lover, regnet ut på nytt 120 ganger i sekundet. Den samme teknikken animerer stoff, hår og ragdoll-figurer i filmer og dataspill.',
+        p3: '👉 Klikk på skapningen for å dytte den. Hver risting du lager, er ren fysikk.',
+      },
+      chapter1: {
+        title: '«Hjernen» er en rytme',
+        p1: 'Hjernen til denne skapningen inneholder ingen gå-instruksjoner — bare en rytme for hver muskel. Hver muskel endrer lengde som en bølge:',
+        scramble: '🎲 Rot til hjernen',
+        champion: '👑 Mesterhjerne',
+        note: 'Hele hjernen består bare av disse tallene: hvor sterkt (A), hvor fort (f) og i hvilken rekkefølge (φ) hver muskel avfyrer. De fargede bølgene under er den levende hjerterytmen til hver muskel — rot dem til og se gangen falle fra hverandre.',
+      },
+      chapter2: {
+        title: 'Læring = prøve, måle, mutere',
+        p1: (pop, evalTime) =>
+          `Et live eksperiment: ${pop} skapninger starter med tilfeldige hjerner. Etter ${evalTime} sekunder måler vi ett eneste tall — hvor langt kom du? De beste får «babyer»: kopier med små tilfeldige endringer. Gjenta.`,
+        p2: 'Ingen lærer dem å gå; avstandspoenget er den eneste tilbakemeldingen. Det er nok til at læringskurven stiger helt av seg selv.',
+        p3: 'Forskere kaller dette evolusjonær optimalisering — en nær slektning av reinforcement learning, prøve-og-feile-metoden som brukes til å trene spillende AI-er og ekte roboter.',
+      },
+      chapter3: {
+        title: 'Hvor den virkelige verden bruker dette',
+        p1: 'Ekte roboter lærer å gå på nøyaktig denne måten: først mange tusen forsøk i en fysikksimulering (billig, trygt, raskt), og så flyttes den beste oppførselen over på ekte bein. Firbeinte inspeksjonsroboter lærte gangarten sin på denne måten.',
+        p2: 'Den samme oppskriften — prøve, måle, beholde de beste, mutere — har designet NASA-satellittantenner, lett etter nye medisiner, og optimaliserer layouten til vindparker (prøv vindpark-spillet!).',
+        p3: 'Å simulere verden godt nok til at en datamaskin kan lære av den, er det gruppen Scientific Computing ved CWI jobber med hver dag.',
+        p4: 'Disse fire kroppene ble alle trent med akkurat samme algoritme — den visste ingenting om bein, mark eller frosker på forhånd.',
+      },
+      legend: { dot: 'prikk: en liten masse', bone: 'bein: fast lengde', muscle: 'muskel: pulserende fjær' },
+      wavesLabel: 'hver muskels lengde over tid  ·  ● = nå',
+      pokeLabel: '👉 dytt den!',
+      evoLabel: (gen, best) => `🧬 Generasjon ${gen} · beste ${best}`,
+      chartLabel: 'beste avstand per generasjon',
+    },
+  },
+};
 
 type Mode = 'build' | 'train' | 'race' | 'delve';
 type Tool = 'draw' | 'move' | 'type' | 'erase';
@@ -325,17 +590,17 @@ class CreatureInstance implements GameInstance {
     this.trainBar.classList.remove('hidden');
     this.hud.classList.remove('hidden');
     this.toggle.element.classList.remove('hidden');
-    this.hint.textContent =
-      'Every creature has different muscle wiring — the farthest walkers get babies with small mutations. Nobody tells them HOW to walk!';
+    this.hint.textContent = pick(TEXT).train.hint;
   }
 
   private enterRace(): void {
     if (!this.evo) return;
+    const T = pick(TEXT);
     const champ = this.loadChamp();
     const yourGenome = this.evo.bestEver?.genome ?? this.evo.genomes[evoLeader(this.evo)];
     this.racers = [
-      { creature: new Creature(champ.plan, champ.genome), label: `👑 ${champ.name}`, color: COLOR.champ, camX: 0 },
-      { creature: new Creature(this.evo.plan, yourGenome), label: '⭐ YOUR CREATURE', color: COLOR.you, camX: 0 },
+      { creature: new Creature(champ.plan, champ.genome), label: T.race.champLabel(champ.name), color: COLOR.champ, camX: 0 },
+      { creature: new Creature(this.evo.plan, yourGenome), label: T.race.youLabel, color: COLOR.you, camX: 0 },
     ];
     this.mode = 'race';
     this.raceElapsed = -COUNTDOWN;
@@ -343,7 +608,7 @@ class CreatureInstance implements GameInstance {
     this.raceAccum = 0;
     this.trainBar.classList.add('hidden');
     this.toggle.element.classList.add('hidden');
-    this.hint.textContent = 'Farthest in 12 seconds wins the crown! 🏁';
+    this.hint.textContent = T.race.hint;
   }
 
   // ---- simulation ----
@@ -378,14 +643,15 @@ class CreatureInstance implements GameInstance {
     }
     this.hint.textContent = '';
     this.flow?.dispose();
+    const T = pick(TEXT);
     this.flow = scoreFlow({
       gameId: 'creature',
-      heading: won ? '👑 You took the crown!' : '🏁 The champ holds the throne!',
+      heading: won ? T.race.winHeading : T.race.loseHeading,
       score: Math.round(Math.max(0, yourDist) * 100),
-      scoreLabel: `You: ${yourDist.toFixed(2)} m — Champ: ${champDist.toFixed(2)} m`,
+      scoreLabel: T.race.scoreLabel(yourDist, champDist),
       actions: [
-        { label: '🧠 Train more', onClick: () => this.enterTrain(false) },
-        { label: '🛠 New creature', onClick: () => this.enterBuild() },
+        { label: T.race.trainMore, onClick: () => this.enterTrain(false) },
+        { label: T.race.newCreature, onClick: () => this.enterBuild() },
       ],
     });
     this.host.overlay.appendChild(this.flow.element);
@@ -424,7 +690,7 @@ class CreatureInstance implements GameInstance {
     this.hint.textContent = '';
     this.toggle.setOpen(true);
     this.delve = delvePanel({
-      heading: '🔬 The science of Creature Lab',
+      heading: pick(TEXT).delve.heading,
       chapters: this.delveChapters(),
       onChapter: (i) => this.setDelveChapter(i),
       onExit: () => this.exitDelve(),
@@ -445,53 +711,38 @@ class CreatureInstance implements GameInstance {
   }
 
   private delveChapters() {
+    const T = pick(TEXT).delve;
     return [
       {
-        title: 'A creature is dots and springs',
-        paragraphs: [
-          'Everything you see is simulated physics. Each dot is a little mass that feels gravity and friction. Gray sticks are bones: they always keep their length. Red sticks are muscles: springs that can rhythmically stretch and squeeze.',
-          'Nothing about standing, tripping or tumbling is programmed anywhere — it all follows from Newton’s laws, recomputed 120 times per second. The same technique animates cloth, hair and ragdolls in films and video games.',
-          '👉 Click the creature to poke it. Every wobble you cause is pure physics.',
-        ],
+        title: T.chapter0.title,
+        paragraphs: [T.chapter0.p1, T.chapter0.p2, T.chapter0.p3],
       },
       {
-        title: 'The “brain” is a rhythm',
-        paragraphs: [
-          'This creature’s brain contains no walking instructions — only a beat for each muscle. Every muscle changes its length like a wave:',
-        ],
+        title: T.chapter1.title,
+        paragraphs: [T.chapter1.p1],
         formula: 'length(t) = rest × (1 + A · sin(2π f t + φ))',
         extras: (host: HTMLElement) => {
           const scramble = document.createElement('button');
           scramble.className = 'arcade-button';
-          scramble.textContent = '🎲 Scramble the brain';
+          scramble.textContent = T.chapter1.scramble;
           scramble.addEventListener('click', () => this.setBrain(false));
           const champ = document.createElement('button');
           champ.className = 'arcade-button';
-          champ.textContent = '👑 Champion brain';
+          champ.textContent = T.chapter1.champion;
           champ.addEventListener('click', () => this.setBrain(true));
           host.append(scramble, champ);
           const note = document.createElement('p');
-          note.textContent =
-            'The whole brain is just these numbers: how strongly (A), how fast (f) and in which order (φ) each muscle fires. The colored waves below are the live heartbeat of each muscle — scramble them and watch walking fall apart.';
+          note.textContent = T.chapter1.note;
           host.parentElement?.insertBefore(note, host);
         },
       },
       {
-        title: 'Learning = try, measure, mutate',
-        paragraphs: [
-          `A live experiment: ${DELVE_POP} creatures start with random brains. After ${DELVE_EVAL_TIME} seconds we measure a single number — how far did you get? The best get “babies”: copies with small random changes. Repeat.`,
-          'Nobody teaches them how to walk; the distance score is the only feedback. That is enough for the learning curve to climb all by itself.',
-          'Scientists call this evolutionary optimization — a close cousin of reinforcement learning, the trial-and-error method used to train game-playing AIs and real robots.',
-        ],
+        title: T.chapter2.title,
+        paragraphs: [T.chapter2.p1(DELVE_POP, DELVE_EVAL_TIME), T.chapter2.p2, T.chapter2.p3],
       },
       {
-        title: 'Where the real world uses this',
-        paragraphs: [
-          'Real robots learn to walk exactly like this: first many thousands of attempts in a physics simulation (cheap, safe, fast), then the best behaviour is moved onto real legs. Four-legged inspection robots learned their gaits this way.',
-          'The same recipe — try, measure, keep the best, mutate — has designed NASA satellite antennas, searched for new medicines, and optimizes wind-farm layouts (try the wind farm game!).',
-          'Simulating the world well enough that a computer can learn from it is what the Scientific Computing group at CWI works on every day.',
-          'These four bodies were all trained by the exact same algorithm — it knew nothing about legs, worms or frogs beforehand.',
-        ],
+        title: T.chapter3.title,
+        paragraphs: [T.chapter3.p1, T.chapter3.p2, T.chapter3.p3, T.chapter3.p4],
       },
     ];
   }
@@ -508,7 +759,7 @@ class CreatureInstance implements GameInstance {
       this.demoEvo = makeEvoState(this.delvePlan(), DELVE_POP, DELVE_EVAL_TIME);
     } else if (chapter === 3) {
       this.zoo = PRESETS.map((p) => ({
-        name: p.name,
+        name: pick(PRESET_NAMES)[p.name],
         emoji: p.emoji,
         creature: new Creature(p.plan, TRAINED[p.name]),
         camX: 0,
@@ -626,6 +877,7 @@ class CreatureInstance implements GameInstance {
   // ---- UI ----
 
   private buildUi(): void {
+    const T = pick(TEXT);
     const add = (
       bar: HTMLElement,
       key: string,
@@ -651,7 +903,7 @@ class CreatureInstance implements GameInstance {
     this.presetBar = document.createElement('div');
     this.presetBar.className = 'game-toolbar creature-presets';
     for (const preset of PRESETS) {
-      add(this.presetBar, `preset-${preset.name}`, preset.emoji, preset.name, () => {
+      add(this.presetBar, `preset-${preset.name}`, preset.emoji, pick(PRESET_NAMES)[preset.name], () => {
         this.plan = clonePlan(preset.plan);
         this.refreshBuildUi();
       });
@@ -659,21 +911,21 @@ class CreatureInstance implements GameInstance {
 
     this.buildBar = document.createElement('div');
     this.buildBar.className = 'game-toolbar';
-    add(this.buildBar, 'draw', '✏️', 'Draw', () => this.setTool('draw'));
-    add(this.buildBar, 'move', '✋', 'Move', () => this.setTool('move'));
-    add(this.buildBar, 'type', '💪', 'Bone/muscle', () => this.setTool('type'));
-    add(this.buildBar, 'erase', '🧽', 'Erase', () => this.setTool('erase'));
-    add(this.buildBar, 'train', '🧠', 'TRAIN!', () => this.enterTrain(true));
+    add(this.buildBar, 'draw', '✏️', T.build.tool.draw, () => this.setTool('draw'));
+    add(this.buildBar, 'move', '✋', T.build.tool.move, () => this.setTool('move'));
+    add(this.buildBar, 'type', '💪', T.build.tool.boneMuscle, () => this.setTool('type'));
+    add(this.buildBar, 'erase', '🧽', T.build.tool.erase, () => this.setTool('erase'));
+    add(this.buildBar, 'train', '🧠', T.build.tool.train, () => this.enterTrain(true));
 
     this.trainBar = document.createElement('div');
     this.trainBar.className = 'game-toolbar hidden';
-    add(this.trainBar, 'speed', '⏩', `Speed ×${SPEEDS[this.speedIdx]}`, () => {
+    add(this.trainBar, 'speed', '⏩', T.train.speed(SPEEDS[this.speedIdx]), () => {
       this.speedIdx = (this.speedIdx + 1) % SPEEDS.length;
       this.buttons.speed.querySelector('.tool-label')!.textContent =
-        `Speed ×${SPEEDS[this.speedIdx]}`;
+        pick(TEXT).train.speed(SPEEDS[this.speedIdx]);
     });
-    add(this.trainBar, 'race', '🏁', 'Race the champ', () => this.enterRace());
-    add(this.trainBar, 'back', '🛠', 'Body shop', () => this.enterBuild());
+    add(this.trainBar, 'race', '🏁', T.train.race, () => this.enterRace());
+    add(this.trainBar, 'back', '🛠', T.train.bodyShop, () => this.enterBuild());
 
     this.hud = document.createElement('div');
     this.hud.className = 'challenge-hud';
@@ -700,21 +952,23 @@ class CreatureInstance implements GameInstance {
     for (const key of ['draw', 'move', 'type', 'erase'] as const) {
       this.buttons[key].classList.toggle('active', key === tool);
     }
+    const hint = pick(TEXT).build.hint;
     this.hint.textContent = {
-      draw: 'Drag from a dot to grow arms, legs and tails — then hit TRAIN! 🧠',
-      move: 'Drag the dots to reshape your creature.',
-      type: 'Click a stick to flip it: gray bones are stiff, red muscles push and pull.',
-      erase: 'Click a dot or stick to remove it.',
+      draw: hint.draw,
+      move: hint.move,
+      type: hint.type,
+      erase: hint.erase,
     }[tool];
   }
 
   private refreshBuildUi(): void {
+    const T = pick(TEXT).build.tool;
     const muscles = muscleCount(this.plan);
     const trainButton = this.buttons.train;
     trainButton.disabled = muscles === 0 || this.plan.sticks.length === 0;
     trainButton.querySelector('.tool-label')!.textContent = trainButton.disabled
-      ? 'Needs a muscle!'
-      : 'TRAIN!';
+      ? T.needsMuscle
+      : T.train;
   }
 
   private updateHud(): void {
@@ -723,13 +977,17 @@ class CreatureInstance implements GameInstance {
       this.hud.textContent = `🦴 ${this.plan.sticks.length - muscles}  💪 ${muscles}  ⚪ ${this.plan.nodes.length}/${MAX_NODES}`;
     } else if (this.mode === 'train' && this.evo) {
       const best = this.evo.bestEver ? `${Math.max(0, this.evo.bestEver.dist).toFixed(1)} m` : '—';
-      this.hud.textContent = `🧬 Generation ${this.evo.generation}   🏆 Best walk: ${best}   ⏱ ${Math.ceil(EVAL_TIME - this.evo.genElapsed)}s`;
+      this.hud.textContent = pick(TEXT).train.hud(
+        this.evo.generation,
+        best,
+        Math.ceil(EVAL_TIME - this.evo.genElapsed),
+      );
     } else if (this.mode === 'race') {
       const t = Math.max(0, RACE_TIME - this.raceElapsed);
       const you = this.racers[1].creature.comX();
       const champ = this.racers[0].creature.comX();
       this.hud.textContent = this.raceOver
-        ? `🏁 You: ${you.toFixed(2)} m — Champ: ${champ.toFixed(2)} m`
+        ? pick(TEXT).race.hudOver(you, champ)
         : `⏱ ${t.toFixed(1)}s   ⭐ ${Math.max(0, you).toFixed(1)} m   👑 ${Math.max(0, champ).toFixed(1)} m`;
     }
   }
@@ -862,7 +1120,7 @@ class CreatureInstance implements GameInstance {
     ctx.stroke();
 
     if (this.raceElapsed < 0.8 && !this.raceOver) {
-      const label = this.raceElapsed < 0 ? `${Math.ceil(-this.raceElapsed)}` : 'GO!';
+      const label = this.raceElapsed < 0 ? `${Math.ceil(-this.raceElapsed)}` : pick(TEXT).race.go;
       ctx.fillStyle = 'rgba(238, 242, 255, 0.95)';
       ctx.font = 'bold 120px system-ui, sans-serif';
       ctx.textAlign = 'center';
@@ -901,7 +1159,7 @@ class CreatureInstance implements GameInstance {
       ctx.fillStyle = 'rgba(238, 242, 255, 0.7)';
       ctx.font = 'bold 22px system-ui, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('👉 poke it!', this.demoCenterX(w), h * 0.18);
+      ctx.fillText(pick(TEXT).delve.pokeLabel, this.demoCenterX(w), h * 0.18);
     } else if (chapter === 1 && this.brainC) {
       const wavesH = Math.min(220, h * 0.32);
       const view: View = {
@@ -929,11 +1187,14 @@ class CreatureInstance implements GameInstance {
       ctx.fillStyle = 'rgba(238, 242, 255, 0.85)';
       ctx.font = 'bold 22px system-ui, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(
-        `🧬 Generation ${this.demoEvo.generation} · best ${this.demoEvo.bestEver ? Math.max(0, this.demoEvo.bestEver.dist).toFixed(1) : '—'} m`,
-        this.demoCenterX(w),
-        44,
-      );
+      {
+        const best = this.demoEvo.bestEver ? `${Math.max(0, this.demoEvo.bestEver.dist).toFixed(1)} m` : '—';
+        ctx.fillText(
+          pick(TEXT).delve.evoLabel(this.demoEvo.generation, best),
+          this.demoCenterX(w),
+          44,
+        );
+      }
     } else if (chapter === 3) {
       const laneH = h / this.zoo.length;
       const labelX = Math.min(500, w * 0.46) + 24;
@@ -975,6 +1236,7 @@ class CreatureInstance implements GameInstance {
 
   /** Little "what am I looking at" legend for the physics chapter. */
   private drawLegend(ctx: CanvasRenderingContext2D, w: number): void {
+    const T = pick(TEXT).delve.legend;
     const x = w - 250;
     const y = 110; // below the top-right "close the science" pill
     ctx.fillStyle = 'rgba(5, 8, 20, 0.6)';
@@ -996,7 +1258,7 @@ class CreatureInstance implements GameInstance {
         ctx.arc(x + 24, y, 9, 0, Math.PI * 2);
         ctx.fill();
       },
-      'dot: a little mass',
+      T.dot,
     );
     row(
       34,
@@ -1009,7 +1271,7 @@ class CreatureInstance implements GameInstance {
         ctx.lineTo(x + 46, y + 34);
         ctx.stroke();
       },
-      'bone: fixed length',
+      T.bone,
     );
     row(
       68,
@@ -1021,7 +1283,7 @@ class CreatureInstance implements GameInstance {
         ctx.lineTo(x + 46, y + 68);
         ctx.stroke();
       },
-      'muscle: pulsing spring',
+      T.muscle,
     );
   }
 
@@ -1043,7 +1305,7 @@ class CreatureInstance implements GameInstance {
     ctx.fillStyle = 'rgba(238, 242, 255, 0.6)';
     ctx.font = '14px system-ui, sans-serif';
     ctx.textAlign = 'left';
-    ctx.fillText('each muscle’s length over time  ·  ● = now', panelX, y0 + 8);
+    ctx.fillText(pick(TEXT).delve.wavesLabel, panelX, y0 + 8);
 
     const window = 2 / genome.freq; // show two beats
     const tNow = this.brainC.time % window;
@@ -1210,7 +1472,7 @@ class CreatureInstance implements GameInstance {
     ctx.fillStyle = 'rgba(238, 242, 255, 0.7)';
     ctx.font = '14px system-ui, sans-serif';
     ctx.textAlign = 'left';
-    ctx.fillText('best distance per generation', x, y - 10);
+    ctx.fillText(pick(TEXT).delve.chartLabel, x, y - 10);
     const max = Math.max(1, ...history);
     const bw = Math.min(24, W / history.length);
     history.forEach((d, i) => {
@@ -1235,9 +1497,12 @@ class CreatureInstance implements GameInstance {
 
 export const creature: ArcadeGame = {
   id: 'creature',
-  title: 'Creature Lab',
-  scienceLine:
-    'Nobody programmed these creatures to walk — they learn by evolution: try, keep the best, mutate, repeat. The same trial-and-error math trains real robots.',
+  title: { en: 'Creature Lab', nl: 'Beestenlab', no: 'Skapningslab' },
+  scienceLine: {
+    en: 'Nobody programmed these creatures to walk — they learn by evolution: try, keep the best, mutate, repeat. The same trial-and-error math trains real robots.',
+    nl: 'Niemand heeft deze beestjes geprogrammeerd om te lopen — ze leren door evolutie: proberen, de beste bewaren, muteren, herhalen. Dezelfde vallen-en-opstaan-wiskunde traint echte robots.',
+    no: 'Ingen har programmert disse skapningene til å gå — de lærer gjennom evolusjon: prøve, beholde de beste, mutere, gjenta. Den samme prøve-og-feile-matematikken trener ekte roboter.',
+  },
   tileEmoji: '🧬',
   create: (host) => new CreatureInstance(host),
 };
