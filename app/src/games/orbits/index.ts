@@ -10,6 +10,7 @@ import {
   type DelveToggleHandle,
 } from '../../shell/delve';
 import { orbitsDelve, type Integrator } from './delve';
+import { pick, type Localized } from '../../lib/i18n';
 
 interface Planet {
   x: number;
@@ -34,11 +35,155 @@ const LAUNCH_CAP = 1.2;
 
 type Outcome = 'orbit' | 'far' | 'escape' | 'crash';
 
-const OUTCOME_STYLE: Record<Outcome, { color: string; label: string }> = {
-  orbit: { color: '#6ee7b7', label: 'nice orbit!' },
-  far: { color: '#fde047', label: '🌠 a huge orbit — gone for a long while' },
-  escape: { color: '#fb923c', label: '🚀 past escape speed!' },
-  crash: { color: '#f87171', label: '💥 heading for the Sun' },
+const OUTCOME_COLOR: Record<Outcome, string> = {
+  orbit: '#6ee7b7',
+  far: '#fde047',
+  escape: '#fb923c',
+  crash: '#f87171',
+};
+
+const TEXT: Localized<{
+  dragHint: string;
+  delveHeading: string;
+  outcomeLabel: Record<Outcome, string>;
+  shapesLabels: [string, string, string, string];
+  shapesCaption: string;
+  balancePoint: string;
+  samePull: string;
+  heavyWobble: string;
+  lightBig: string;
+  closeFast: string;
+  farSlow: string;
+  energySpeed: string;
+  energyHeight: string;
+  energyTotal: string;
+  stepsTitleEuler: string;
+  stepsTitleSymplectic: string;
+  trueOrbit: string;
+  stepsEnergyEuler: string;
+  stepsEnergySymplectic: string;
+  trueEnergy: string;
+  moonGrip: string;
+  ghostFallsShort: string;
+  earth: string;
+  moon: string;
+  splashdown: string;
+  slingshot: string;
+}> = {
+  en: {
+    dragHint: 'Drag and release to launch a planet — longer drag = faster!',
+    delveHeading: '🔬 The science of Gravity Doodle',
+    outcomeLabel: {
+      orbit: 'nice orbit!',
+      far: '🌠 a huge orbit — gone for a long while',
+      escape: '🚀 past escape speed!',
+      crash: '💥 heading for the Sun',
+    },
+    shapesLabels: [
+      '35% of circle speed — falls into the Sun 💥',
+      '100% — a perfect circle',
+      '120% — an ellipse',
+      '150% (more than √2) — escapes forever 🚀',
+    ],
+    shapesCaption: 'same spot, different speed',
+    balancePoint: 'balance point',
+    samePull: 'same pull, both ways!',
+    heavyWobble: '4× the mass → small wobble',
+    lightBig: 'light → big orbit, high speed',
+    closeFast: 'close → fast! 🏎',
+    farSlow: 'far → slow… 🐢',
+    energySpeed: '🏎 speed energy',
+    energyHeight: '🪜 height energy',
+    energyTotal: 'total — never changes!',
+    stepsTitleEuler: '📐 simple steps (Euler, 1768) — watch it drift!',
+    stepsTitleSymplectic: '🪄 smart steps (symplectic) — it stays!',
+    trueOrbit: 'true orbit',
+    stepsEnergyEuler: 'energy the computer thinks it has — growing out of nothing!',
+    stepsEnergySymplectic: 'energy — wobbles, but never drifts away',
+    trueEnergy: 'true energy –',
+    moonGrip: "the Moon's grip",
+    ghostFallsShort: '👻 without the Moon: falls short!',
+    earth: '🌍 Earth',
+    moon: '🌕 Moon',
+    splashdown: '🌊 splashdown — home for free!',
+    slingshot: 'gravity slingshot!',
+  },
+  nl: {
+    dragHint: 'Sleep en laat los om een planeet te lanceren — langer slepen = sneller!',
+    delveHeading: '🔬 De wetenschap van Gravity Doodle',
+    outcomeLabel: {
+      orbit: 'mooie baan!',
+      far: '🌠 een enorme baan — lang weg',
+      escape: '🚀 voorbij de ontsnappingssnelheid!',
+      crash: '💥 op weg naar de Zon',
+    },
+    shapesLabels: [
+      '35% van de cirkelsnelheid — valt in de Zon 💥',
+      '100% — een perfecte cirkel',
+      '120% — een ellips',
+      '150% (meer dan √2) — ontsnapt voorgoed 🚀',
+    ],
+    shapesCaption: 'zelfde plek, andere snelheid',
+    balancePoint: 'zwaartepunt',
+    samePull: 'zelfde trekkracht, twee kanten op!',
+    heavyWobble: '4× de massa → kleine wiebel',
+    lightBig: 'licht → grote baan, hoge snelheid',
+    closeFast: 'dichtbij → snel! 🏎',
+    farSlow: 'ver weg → langzaam… 🐢',
+    energySpeed: '🏎 bewegingsenergie',
+    energyHeight: '🪜 hoogte-energie',
+    energyTotal: 'totaal — verandert nooit!',
+    stepsTitleEuler: '📐 simpele stappen (Euler, 1768) — kijk hem wegdrijven!',
+    stepsTitleSymplectic: '🪄 slimme stappen (symplectisch) — hij blijft!',
+    trueOrbit: 'echte baan',
+    stepsEnergyEuler: 'energie die de computer denkt te hebben — groeit uit het niets!',
+    stepsEnergySymplectic: 'energie — wiebelt, maar drijft nooit weg',
+    trueEnergy: 'echte energie –',
+    moonGrip: 'de greep van de Maan',
+    ghostFallsShort: '👻 zonder de Maan: komt tekort!',
+    earth: '🌍 Aarde',
+    moon: '🌕 Maan',
+    splashdown: '🌊 landing op zee — gratis naar huis!',
+    slingshot: 'zwaartekracht-slingerschot!',
+  },
+  no: {
+    dragHint: 'Dra og slipp for å skyte opp en planet — lengre drag = raskere!',
+    delveHeading: '🔬 Vitenskapen bak Gravity Doodle',
+    outcomeLabel: {
+      orbit: 'fin bane!',
+      far: '🌠 en enorm bane — borte lenge',
+      escape: '🚀 forbi unnslipningshastigheten!',
+      crash: '💥 på vei mot Solen',
+    },
+    shapesLabels: [
+      '35 % av sirkelfarten — faller i Solen 💥',
+      '100 % — en perfekt sirkel',
+      '120 % — en ellipse',
+      '150 % (mer enn √2) — unnslipper for godt 🚀',
+    ],
+    shapesCaption: 'samme sted, ulik fart',
+    balancePoint: 'tyngdepunkt',
+    samePull: 'samme drag, begge veier!',
+    heavyWobble: '4× massen → liten vakling',
+    lightBig: 'lett → stor bane, høy fart',
+    closeFast: 'nær → raskt! 🏎',
+    farSlow: 'langt unna → sakte… 🐢',
+    energySpeed: '🏎 bevegelsesenergi',
+    energyHeight: '🪜 høydeenergi',
+    energyTotal: 'totalt — endrer seg aldri!',
+    stepsTitleEuler: '📐 enkle steg (Euler, 1768) — se den drive utover!',
+    stepsTitleSymplectic: '🪄 smarte steg (symplektisk) — den blir værende!',
+    trueOrbit: 'ekte bane',
+    stepsEnergyEuler: 'energien datamaskinen tror den har — vokser ut av ingenting!',
+    stepsEnergySymplectic: 'energi — vakler, men driver aldri bort',
+    trueEnergy: 'ekte energi –',
+    moonGrip: 'Månens grep',
+    ghostFallsShort: '👻 uten Månen: kommer for kort!',
+    earth: '🌍 Jorden',
+    moon: '🌕 Månen',
+    splashdown: '🌊 landing i havet — gratis hjem!',
+    slingshot: 'tyngdekraft-slyngeskudd!',
+  },
 };
 
 // ---- delve demo worlds (fixed world coordinates, fitted to the canvas) ----
@@ -237,7 +382,7 @@ class OrbitsInstance implements GameInstance {
     ctx.fillStyle = 'rgba(238, 242, 255, 0.85)';
     ctx.font = 'bold 20px system-ui, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('Drag and release to launch a planet — longer drag = faster!', w / 2, 40);
+    ctx.fillText(pick(TEXT).dragHint, w / 2, 40);
   }
 
   destroy(): void {
@@ -339,7 +484,8 @@ class OrbitsInstance implements GameInstance {
     if (!this.drag) return;
     const v = this.launchVelocity(this.drag, this.pointer);
     const { pts, outcome } = this.previewPath(cx, cy, this.drag.x, this.drag.y, v.x, v.y);
-    const style = OUTCOME_STYLE[outcome];
+    const color = OUTCOME_COLOR[outcome];
+    const label = pick(TEXT).outcomeLabel[outcome];
 
     // The drag itself (thin), then the predicted path (dashed, outcome-colored).
     ctx.beginPath();
@@ -354,7 +500,7 @@ class OrbitsInstance implements GameInstance {
     for (const p of pts) ctx.lineTo(p.x, p.y);
     ctx.setLineDash([7, 7]);
     ctx.lineDashOffset = -this.time * 40;
-    ctx.strokeStyle = style.color;
+    ctx.strokeStyle = color;
     ctx.lineWidth = 2.5;
     ctx.stroke();
     ctx.setLineDash([]);
@@ -362,7 +508,7 @@ class OrbitsInstance implements GameInstance {
 
     if (outcome === 'crash') {
       const end = pts[pts.length - 1];
-      ctx.strokeStyle = style.color;
+      ctx.strokeStyle = color;
       ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.moveTo(end.x - 7, end.y - 7);
@@ -372,10 +518,10 @@ class OrbitsInstance implements GameInstance {
       ctx.stroke();
     }
 
-    ctx.fillStyle = style.color;
+    ctx.fillStyle = color;
     ctx.font = 'bold 16px system-ui, sans-serif';
     ctx.textAlign = 'left';
-    ctx.fillText(style.label, this.drag.x + 14, this.drag.y - 12);
+    ctx.fillText(label, this.drag.x + 14, this.drag.y - 12);
   }
 
   private drawSun(ctx: CanvasRenderingContext2D, cx: number, cy: number, radius: number): void {
@@ -395,7 +541,7 @@ class OrbitsInstance implements GameInstance {
     if (this.delve) return;
     this.drag = null;
     this.delve = delvePanel({
-      heading: '🔬 The science of Gravity Doodle',
+      heading: pick(TEXT).delveHeading,
       chapters: orbitsDelve({
         getIntegrator: () => this.integrator,
         setIntegrator: (kind) => {
@@ -435,13 +581,14 @@ class OrbitsInstance implements GameInstance {
         alive: true,
         respawn: 0,
       });
+      const labels = pick(TEXT).shapesLabels;
       this.demo = {
         kind: 'shapes',
         bodies: [
-          make(0.35, '#f87171', '35% of circle speed — falls into the Sun 💥'),
-          make(1.0, '#4ade80', '100% — a perfect circle'),
-          make(1.2, '#7dd3fc', '120% — an ellipse'),
-          make(1.5, '#fb923c', '150% (more than √2) — escapes forever 🚀'),
+          make(0.35, '#f87171', labels[0]),
+          make(1.0, '#4ade80', labels[1]),
+          make(1.2, '#7dd3fc', labels[2]),
+          make(1.5, '#fb923c', labels[3]),
         ],
       };
     } else if (chapter === 1) {
@@ -719,7 +866,7 @@ class OrbitsInstance implements GameInstance {
     ctx.font = '16px system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText('🚀', X(-SHAPES.R), Y(0) + 6);
-    this.caption(ctx, 'same spot, different speed', X(-SHAPES.R), Y(0) + 28);
+    this.caption(ctx, pick(TEXT).shapesCaption, X(-SHAPES.R), Y(0) + 28);
 
     for (const b of demo.bodies) {
       if (b.trail.length > 1) {
@@ -786,7 +933,7 @@ class OrbitsInstance implements GameInstance {
     ctx.moveTo(X(0), Y(0) - 8);
     ctx.lineTo(X(0), Y(0) + 8);
     ctx.stroke();
-    this.caption(ctx, 'balance point', X(0), Y(0) - 14);
+    this.caption(ctx, pick(TEXT).balancePoint, X(0), Y(0) - 14);
 
     // Bodies: heavy star and light planet.
     ctx.beginPath();
@@ -805,7 +952,7 @@ class OrbitsInstance implements GameInstance {
     const L = 52;
     this.arrow(ctx, X(b1.x) + (dx / d) * 30, Y(b1.y) + (dy / d) * 30, (dx / d) * L, (dy / d) * L, '#fb923c', 4);
     this.arrow(ctx, X(b2.x) - (dx / d) * 15, Y(b2.y) - (dy / d) * 15, (-dx / d) * L, (-dy / d) * L, '#fb923c', 4);
-    this.caption(ctx, 'same pull, both ways!', X((b1.x + b2.x) / 2), Y((b1.y + b2.y) / 2) - 16);
+    this.caption(ctx, pick(TEXT).samePull, X((b1.x + b2.x) / 2), Y((b1.y + b2.y) / 2) - 16);
 
     // Velocity arrows: the light one visibly faster.
     const vScale = 1.1 * s;
@@ -815,9 +962,9 @@ class OrbitsInstance implements GameInstance {
     ctx.font = '700 15px system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillStyle = '#fbbf24';
-    ctx.fillText('4× the mass → small wobble', X(b1.x), Y(b1.y) + 48);
+    ctx.fillText(pick(TEXT).heavyWobble, X(b1.x), Y(b1.y) + 48);
     ctx.fillStyle = '#7dd3fc';
-    ctx.fillText('light → big orbit, high speed', X(b2.x), Y(b2.y) - 26);
+    ctx.fillText(pick(TEXT).lightBig, X(b2.x), Y(b2.y) - 26);
   }
 
   /** Chapter 3: eccentric orbit + live kinetic/potential/total energy plot. */
@@ -846,7 +993,7 @@ class OrbitsInstance implements GameInstance {
     ctx.fillStyle = '#7dd3fc';
     ctx.fill();
     const near = Math.hypot(demo.x, demo.y) < ENERGY.rp * 1.7;
-    this.caption(ctx, near ? 'close → fast! 🏎' : 'far → slow… 🐢', X(demo.x), Y(demo.y) - 16);
+    this.caption(ctx, near ? pick(TEXT).closeFast : pick(TEXT).farSlow, X(demo.x), Y(demo.y) - 16);
 
     // Energy strip: kinetic, shifted potential, and their (flat) sum.
     const peMin = -ENERGY.gm / ENERGY.rp;
@@ -862,10 +1009,16 @@ class OrbitsInstance implements GameInstance {
     ctx.lineWidth = 1;
     ctx.strokeRect(px0, py0, px1 - px0, py1 - py0);
 
-    const series: { color: string; label: string; of: (hp: { ke: number; pe: number }) => number }[] = [
-      { color: '#fbbf24', label: '🏎 speed energy', of: (p) => p.ke },
-      { color: '#7dd3fc', label: '🪜 height energy', of: (p) => p.pe - peMin },
-      { color: '#4ade80', label: 'total — never changes!', of: (p) => p.ke + p.pe - peMin },
+    const t = pick(TEXT);
+    const series: {
+      color: string;
+      label: string;
+      total: boolean;
+      of: (hp: { ke: number; pe: number }) => number;
+    }[] = [
+      { color: '#fbbf24', label: t.energySpeed, total: false, of: (p) => p.ke },
+      { color: '#7dd3fc', label: t.energyHeight, total: false, of: (p) => p.pe - peMin },
+      { color: '#4ade80', label: t.energyTotal, total: true, of: (p) => p.ke + p.pe - peMin },
     ];
     for (const ser of series) {
       if (demo.hist.length > 1) {
@@ -876,7 +1029,7 @@ class OrbitsInstance implements GameInstance {
           i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
         });
         ctx.strokeStyle = ser.color;
-        ctx.lineWidth = ser.label.startsWith('total') ? 3.5 : 2;
+        ctx.lineWidth = ser.total ? 3.5 : 2;
         ctx.stroke();
       }
     }
@@ -902,11 +1055,12 @@ class OrbitsInstance implements GameInstance {
     const X = (x: number) => ox + s * x;
     const Y = (y: number) => oy + s * y;
 
+    const t = pick(TEXT);
     ctx.fillStyle = euler ? '#fb923c' : '#4ade80';
     ctx.font = '700 17px system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(
-      euler ? '📐 simple steps (Euler, 1768) — watch it drift!' : '🪄 smart steps (symplectic) — it stays!',
+      euler ? t.stepsTitleEuler : t.stepsTitleSymplectic,
       (area.x0 + area.x1) / 2,
       area.y0 + 12,
     );
@@ -920,7 +1074,7 @@ class OrbitsInstance implements GameInstance {
     ctx.lineWidth = 1.5;
     ctx.stroke();
     ctx.setLineDash([]);
-    this.caption(ctx, 'true orbit', X(0), Y(0) - STEPS.R * s - 8);
+    this.caption(ctx, t.trueOrbit, X(0), Y(0) - STEPS.R * s - 8);
 
     // The step polygon: straight hops with a dot at every step.
     const color = euler ? '#fb923c' : '#4ade80';
@@ -982,12 +1136,12 @@ class OrbitsInstance implements GameInstance {
     ctx.font = '600 14px system-ui, sans-serif';
     ctx.textAlign = 'left';
     ctx.fillText(
-      euler ? 'energy the computer thinks it has — growing out of nothing!' : 'energy — wobbles, but never drifts away',
+      euler ? t.stepsEnergyEuler : t.stepsEnergySymplectic,
       px0 + 10,
       py0 - 8,
     );
     ctx.textAlign = 'right';
-    ctx.fillText('true energy –', px0 - 4, yOf(0) + 4);
+    ctx.fillText(t.trueEnergy, px0 - 4, yOf(0) + 4);
   }
 
   /** Chapter 5: the free-return figure-8 around the Moon, flown live. */
@@ -1016,7 +1170,7 @@ class OrbitsInstance implements GameInstance {
     ctx.beginPath();
     ctx.arc(X(D), Y(0), gripR * s, 0, Math.PI * 2);
     ctx.fill();
-    this.caption(ctx, "the Moon's grip", X(D), Y(-gripR) - 10);
+    this.caption(ctx, pick(TEXT).moonGrip, X(D), Y(-gripR) - 10);
 
     for (let wx = -100; wx <= 515; wx += 22) {
       for (let wy = -145; wy <= 170; wy += 22) {
@@ -1071,7 +1225,7 @@ class OrbitsInstance implements GameInstance {
         ctx.fillStyle = 'rgba(203, 213, 225, 0.75)';
         ctx.font = '600 14px system-ui, sans-serif';
         ctx.textAlign = 'left';
-        ctx.fillText('👻 without the Moon: falls short!', X(g.x) + 12, Y(g.y) - 10);
+        ctx.fillText(pick(TEXT).ghostFallsShort, X(g.x) + 12, Y(g.y) - 10);
       }
     }
 
@@ -1104,8 +1258,8 @@ class OrbitsInstance implements GameInstance {
     ctx.arc(X(MOON.D) + moonR * 0.3, Y(0) - moonR * 0.2, moonR * 0.28, 0, Math.PI * 2);
     ctx.fillStyle = '#94a3b8';
     ctx.fill();
-    this.caption(ctx, '🌍 Earth', X(0), Y(0) + earthR + 20);
-    this.caption(ctx, '🌕 Moon', X(MOON.D), Y(0) + moonR + 20);
+    this.caption(ctx, pick(TEXT).earth, X(0), Y(0) + earthR + 20);
+    this.caption(ctx, pick(TEXT).moon, X(MOON.D), Y(0) + moonR + 20);
 
     // Flown part of the trajectory, bright.
     ctx.beginPath();
@@ -1134,18 +1288,21 @@ class OrbitsInstance implements GameInstance {
       ctx.font = '700 22px system-ui, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillStyle = '#6ee7b7';
-      ctx.fillText('🌊 splashdown — home for free!', (area.x0 + area.x1) / 2, area.y0 + 30);
+      ctx.fillText(pick(TEXT).splashdown, (area.x0 + area.x1) / 2, area.y0 + 30);
     } else if (Math.hypot(p.x - MOON.D, p.y) < 120) {
-      this.caption(ctx, 'gravity slingshot!', X(p.x), Y(p.y) - 18);
+      this.caption(ctx, pick(TEXT).slingshot, X(p.x), Y(p.y) - 18);
     }
   }
 }
 
 export const orbits: ArcadeGame = {
   id: 'orbits',
-  title: 'Gravity Doodle',
-  scienceLine:
-    'The same math that flings these planets around plans real space missions.',
+  title: { en: 'Gravity Doodle', nl: 'Zwaartekracht-doodle', no: 'Tyngdekraft-doodle' },
+  scienceLine: {
+    en: 'The same math that flings these planets around plans real space missions.',
+    nl: 'Dezelfde wiskunde die deze planeten rondslingert, plant ook echte ruimtemissies.',
+    no: 'Den samme matematikken som slynger disse planetene rundt, planlegger ekte romferder.',
+  },
   tileEmoji: '🪐',
   create: (host) => new OrbitsInstance(host),
 };
