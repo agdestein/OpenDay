@@ -7,16 +7,11 @@ import {
   AGENT_COUNT,
   CITY_H,
   CITY_W,
+  COLOR,
   INFECTION_RADIUS,
   OutbreakSim,
 } from './sim';
-
-const COLOR = {
-  s: '#9db8d8',
-  i: '#fb5f75',
-  r: '#8d80b8',
-  v: '#57d98a',
-};
+import { createDelve, type DelveHandle } from './delve';
 
 interface Round {
   name: string;
@@ -79,6 +74,7 @@ class OutbreakInstance implements GameInstance {
   private hint!: HTMLElement;
   private card: HTMLElement | null = null;
   private flow: ScoreFlowHandle | null = null;
+  private delve!: DelveHandle;
   private buttons: Record<string, HTMLButtonElement> = {};
 
   private onPointerDown = (e: PointerEvent) => {
@@ -113,6 +109,7 @@ class OutbreakInstance implements GameInstance {
       }
     }
     this.updateHud();
+    this.delve.update();
     this.draw();
   }
 
@@ -132,6 +129,7 @@ class OutbreakInstance implements GameInstance {
     this.totalSaved = 0;
     this.toyBar.classList.add('hidden');
     this.gameBar.classList.remove('hidden');
+    this.delve.setMode('game');
     this.showIntro();
   }
 
@@ -261,6 +259,7 @@ class OutbreakInstance implements GameInstance {
     this.ripples = [];
     this.gameBar.classList.add('hidden');
     this.toyBar.classList.remove('hidden');
+    this.delve.setMode('toy');
     this.setTool('infect');
     this.syncToySchoolButton();
     this.hint.textContent = 'Click anywhere to start an outbreak! 🦠';
@@ -382,7 +381,15 @@ class OutbreakInstance implements GameInstance {
     this.hint = document.createElement('p');
     this.hint.className = 'challenge-hint';
 
-    this.host.overlay.append(this.toyBar, this.gameBar, this.hud, this.hint);
+    this.delve = createDelve(this.sim);
+    this.host.overlay.append(
+      this.toyBar,
+      this.gameBar,
+      this.hud,
+      this.hint,
+      this.delve.toggle,
+      this.delve.panel,
+    );
   }
 
   private setTool(tool: Tool): void {

@@ -9,6 +9,14 @@ export const CITY_H = 900;
 
 export const AGENT_COUNT = 500;
 export const INFECTION_RADIUS = 22;
+
+/** Display colors for the SIR states (+ vaccinated), shared by the canvas renderer and the delve panel. */
+export const COLOR = {
+  s: '#9db8d8',
+  i: '#fb5f75',
+  r: '#8d80b8',
+  v: '#57d98a',
+};
 const KID_FRACTION = 0.35;
 const HOUSEHOLD_SPREAD = 14;
 /** How strongly a hand-wash station damps transmission at its venue. */
