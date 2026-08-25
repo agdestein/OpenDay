@@ -2,6 +2,22 @@
 // entry (mouse letter grid + physical keyboard) -> today's top-5 board with the
 // player's row highlighted -> caller-provided action buttons.
 import { addScore, type ScoreEntry } from './scores';
+import { fmtNumber, pick, type Localized } from '../lib/i18n';
+
+const TEXT: Localized<{ todaysBest: string; initialsPrompt: string }> = {
+  en: {
+    todaysBest: "Today's best",
+    initialsPrompt: 'Your name on the scoreboard — pick three letters!',
+  },
+  nl: {
+    todaysBest: 'De beste van vandaag',
+    initialsPrompt: 'Jouw naam op het scorebord — kies drie letters!',
+  },
+  no: {
+    todaysBest: 'Dagens beste',
+    initialsPrompt: 'Navnet ditt på poengtavla — velg tre bokstaver!',
+  },
+};
 
 export interface ScoreFlowAction {
   label: string;
@@ -50,7 +66,7 @@ export function scoreFlow(opts: {
 
     const title = document.createElement('p');
     title.className = 'score-board-title';
-    title.textContent = "Today's best";
+    title.textContent = pick(TEXT).todaysBest;
     const board = document.createElement('ol');
     board.className = 'score-board';
     const row = (entry: ScoreEntry, index: number) => {
@@ -61,7 +77,7 @@ export function scoreFlow(opts: {
       const name = document.createElement('span');
       name.textContent = entry.initials;
       const points = document.createElement('span');
-      points.textContent = Math.round(entry.score).toLocaleString();
+      points.textContent = fmtNumber(Math.round(entry.score));
       li.append(place, name, points);
       return li;
     };
@@ -89,7 +105,7 @@ export function scoreFlow(opts: {
   let letters = '';
   const prompt = document.createElement('p');
   prompt.className = 'score-flow-prompt';
-  prompt.textContent = 'Your name on the scoreboard — pick three letters!';
+  prompt.textContent = pick(TEXT).initialsPrompt;
   const slots = document.createElement('div');
   slots.className = 'initial-slots';
   const slotEls = [0, 1, 2].map(() => {

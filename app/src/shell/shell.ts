@@ -23,7 +23,13 @@ export class Shell {
   }
 
   showMenu(): void {
-    this.setScreen(renderMenu(this.games, (game) => this.launch(game)));
+    this.setScreen(
+      renderMenu(
+        this.games,
+        (game) => this.launch(game),
+        () => this.showMenu(),
+      ),
+    );
   }
 
   launch(game: ArcadeGame): void {

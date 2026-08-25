@@ -3,6 +3,14 @@
 // the text and navigation; the game keeps rendering live illustrations on its
 // own canvas next to it (and is told which chapter is showing).
 
+import { pick, type Localized } from '../lib/i18n';
+
+const TEXT: Localized<{ open: string; close: string; backToGame: string }> = {
+  en: { open: 'How does this work?', close: 'Close the science', backToGame: '✕ Back to the game' },
+  nl: { open: 'Hoe werkt dit?', close: 'Sluit de wetenschap', backToGame: '✕ Terug naar het spel' },
+  no: { open: 'Hvordan virker dette?', close: 'Lukk vitenskapen', backToGame: '✕ Tilbake til spillet' },
+};
+
 export interface DelveChapter {
   title: string;
   paragraphs: string[];
@@ -34,7 +42,7 @@ export function delveToggle(onClick: () => void): DelveToggleHandle {
     element.replaceChildren();
     element.append(open ? '✕ ' : '🔬 ');
     const label = document.createElement('span');
-    label.textContent = open ? 'Close the science' : 'How does this work?';
+    label.textContent = open ? pick(TEXT).close : pick(TEXT).open;
     element.appendChild(label);
   };
   element.addEventListener('click', onClick);
@@ -83,7 +91,7 @@ export function delvePanel(opts: {
 
   const exit = document.createElement('button');
   exit.className = 'arcade-button delve-exit';
-  exit.textContent = '✕ Back to the game';
+  exit.textContent = pick(TEXT).backToGame;
   exit.addEventListener('click', () => opts.onExit());
 
   prev.addEventListener('click', () => show(index - 1));

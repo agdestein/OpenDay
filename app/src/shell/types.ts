@@ -1,3 +1,5 @@
+import type { Localized } from '../lib/i18n';
+
 /** What the shell provides to a running game. */
 export interface GameHost {
   /** Full-screen canvas; the shell resizes its backing store on window resize. */
@@ -25,9 +27,9 @@ export interface GameInstance {
 
 export interface ArcadeGame {
   id: string;
-  title: string;
+  title: Localized<string>;
   /** One sentence for parents, shown on the menu tile and title card. */
-  scienceLine: string;
+  scienceLine: Localized<string>;
   /** Menu tile art (for now: an emoji). */
   tileEmoji: string;
   create(host: GameHost): GameInstance;

@@ -1,11 +1,37 @@
 import type { ArcadeGame, Screen } from './types';
 import { toggleFullscreen } from '../lib/fullscreen';
 import { randRange } from '../lib/util';
+import { LANGS, getLang, setLang, pick, type Localized } from '../lib/i18n';
 
 /** Drifting glow-dots behind the menu, so the stand looks alive from a distance. */
 const PARTICLE_COUNT = 70;
 
-export function renderMenu(games: ArcadeGame[], onPick: (game: ArcadeGame) => void): Screen {
+const TEXT: Localized<{ subtitle: string; footer: string; fullscreen: string }> = {
+  en: {
+    subtitle: 'Pick a world to simulate!',
+    footer: 'Scientific Computing group · CWI Science Day',
+    fullscreen: 'Fullscreen (F)',
+  },
+  nl: {
+    subtitle: 'Kies een wereld om te simuleren!',
+    footer: 'Scientific Computing-groep · CWI Open Dag',
+    fullscreen: 'Volledig scherm (F)',
+  },
+  no: {
+    subtitle: 'Velg en verden å simulere!',
+    footer: 'Scientific Computing-gruppen · CWI åpen dag',
+    fullscreen: 'Fullskjerm (F)',
+  },
+};
+
+const FLAGS: Localized<string> = { en: '🇬🇧', nl: '🇳🇱', no: '🇳🇴' };
+
+export function renderMenu(
+  games: ArcadeGame[],
+  onPick: (game: ArcadeGame) => void,
+  onLangChange: () => void,
+): Screen {
+  const T = pick(TEXT);
   const element = document.createElement('div');
   element.className = 'screen menu-screen';
 
@@ -21,7 +47,7 @@ export function renderMenu(games: ArcadeGame[], onPick: (game: ArcadeGame) => vo
   title.textContent = 'CWI Science Arcade';
   const subtitle = document.createElement('p');
   subtitle.className = 'menu-subtitle';
-  subtitle.textContent = 'Pick a world to simulate!';
+  subtitle.textContent = T.subtitle;
   content.append(title, subtitle);
 
   const grid = document.createElement('div');
@@ -35,10 +61,10 @@ export function renderMenu(games: ArcadeGame[], onPick: (game: ArcadeGame) => vo
     emoji.textContent = game.tileEmoji;
     const name = document.createElement('span');
     name.className = 'tile-title';
-    name.textContent = game.title;
+    name.textContent = pick(game.title);
     const science = document.createElement('span');
     science.className = 'tile-science';
-    science.textContent = game.scienceLine;
+    science.textContent = pick(game.scienceLine);
     tile.append(emoji, name, science);
     grid.appendChild(tile);
   }
@@ -46,15 +72,31 @@ export function renderMenu(games: ArcadeGame[], onPick: (game: ArcadeGame) => vo
 
   const footer = document.createElement('p');
   footer.className = 'menu-footer';
-  footer.textContent = 'Scientific Computing group · CWI Science Day';
+  footer.textContent = T.footer;
   element.appendChild(footer);
 
   const fullscreen = document.createElement('button');
   fullscreen.className = 'corner-button fullscreen-button';
-  fullscreen.title = 'Fullscreen (F)';
+  fullscreen.title = T.fullscreen;
   fullscreen.textContent = '⛶';
   fullscreen.addEventListener('click', toggleFullscreen);
   element.appendChild(fullscreen);
+
+  const langs = document.createElement('div');
+  langs.className = 'lang-switcher';
+  for (const lang of LANGS) {
+    const button = document.createElement('button');
+    button.className = 'lang-button';
+    button.classList.toggle('active', lang === getLang());
+    button.textContent = FLAGS[lang];
+    button.addEventListener('click', () => {
+      if (lang === getLang()) return;
+      setLang(lang);
+      onLangChange();
+    });
+    langs.appendChild(button);
+  }
+  element.appendChild(langs);
 
   // Attract animation.
   const ctx = bg.getContext('2d')!;

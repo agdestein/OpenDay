@@ -2,6 +2,22 @@
 // launch/idle/cleanup cycle. Replaced by real games in later phases.
 import type { ArcadeGame, GameHost, GameInstance } from '../../shell/types';
 import { pointerPos, randRange } from '../../lib/util';
+import { pick, type Localized } from '../../lib/i18n';
+
+const TEXT: Localized<{ clickToDrop: string; ballCount: (n: number) => string }> = {
+  en: {
+    clickToDrop: 'Click anywhere to drop balls!',
+    ballCount: (n) => `${n} balls simulated, 60 times per second`,
+  },
+  nl: {
+    clickToDrop: 'Klik ergens om ballen te laten vallen!',
+    ballCount: (n) => `${n} ballen gesimuleerd, 60 keer per seconde`,
+  },
+  no: {
+    clickToDrop: 'Klikk hvor som helst for å slippe baller!',
+    ballCount: (n) => `${n} baller simulert, 60 ganger i sekundet`,
+  },
+};
 
 interface Ball {
   x: number;
@@ -70,10 +86,8 @@ class BounceInstance implements GameInstance {
     ctx.fillStyle = 'rgba(238, 242, 255, 0.85)';
     ctx.font = 'bold 20px system-ui, sans-serif';
     ctx.textAlign = 'center';
-    const label =
-      this.balls.length === 0
-        ? 'Click anywhere to drop balls!'
-        : `${this.balls.length} balls simulated, 60 times per second`;
+    const T = pick(TEXT);
+    const label = this.balls.length === 0 ? T.clickToDrop : T.ballCount(this.balls.length);
     ctx.fillText(label, w / 2, 40);
   }
 
@@ -100,9 +114,12 @@ class BounceInstance implements GameInstance {
 
 export const bounce: ArcadeGame = {
   id: 'bounce',
-  title: 'Bouncy Balls',
-  scienceLine:
-    'Even a bouncing ball is a simulation: position, velocity, gravity — recomputed 60 times per second.',
+  title: { en: 'Bouncy Balls', nl: 'Stuiterballen', no: 'Spretteballer' },
+  scienceLine: {
+    en: 'Even a bouncing ball is a simulation: position, velocity, gravity — recomputed 60 times per second.',
+    nl: 'Zelfs een stuiterende bal is een simulatie: positie, snelheid, zwaartekracht — 60 keer per seconde opnieuw berekend.',
+    no: 'Selv en sprettende ball er en simulering: posisjon, fart, tyngdekraft — beregnet på nytt 60 ganger i sekundet.',
+  },
   tileEmoji: '🏀',
   create: (host) => new BounceInstance(host),
 };

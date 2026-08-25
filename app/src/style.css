@@ -616,6 +616,40 @@ body {
   right: 1rem;
 }
 
+/* Flag buttons on the menu, bottom-left (mirrors the fullscreen button). */
+.lang-switcher {
+  position: absolute;
+  z-index: 30;
+  bottom: 1rem;
+  left: 1rem;
+  display: flex;
+  gap: 0.4rem;
+}
+
+.lang-button {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(11, 16, 32, 0.6);
+  font-size: 1.4rem;
+  cursor: pointer;
+  opacity: 0.55;
+  transition:
+    background 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.lang-button:hover {
+  background: rgba(255, 255, 255, 0.15);
+  opacity: 1;
+}
+
+.lang-button.active {
+  opacity: 1;
+  border-color: rgba(255, 255, 255, 0.55);
+}
+
 /* ---------- Floodland (Save the Netherlands) ---------- */
 
 .flood-legend {
