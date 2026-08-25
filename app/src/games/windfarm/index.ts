@@ -3,6 +3,49 @@
 import type { ArcadeGame, GameHost, GameInstance } from '../../shell/types';
 import { FluidSolver, type Obstacle } from './fluid';
 import { Challenge, type ChallengeNext } from './game';
+import { pick, type Localized } from '../../lib/i18n';
+
+const TEXT: Localized<{
+  noWebgl: string;
+  stir: string;
+  blocks: string;
+  wind: string;
+  clear: string;
+  windFarm: string;
+  computer: string;
+  stop: string;
+}> = {
+  en: {
+    noWebgl: 'Sorry — this computer cannot run the fluid simulation.',
+    stir: 'Stir',
+    blocks: 'Blocks',
+    wind: 'Wind',
+    clear: 'Clear',
+    windFarm: 'Wind farm',
+    computer: 'Computer',
+    stop: 'Stop',
+  },
+  nl: {
+    noWebgl: 'Sorry — deze computer kan de vloeistofsimulatie niet draaien.',
+    stir: 'Roeren',
+    blocks: 'Blokken',
+    wind: 'Wind',
+    clear: 'Wissen',
+    windFarm: 'Windmolenpark',
+    computer: 'Computer',
+    stop: 'Stop',
+  },
+  no: {
+    noWebgl: 'Beklager — denne datamaskinen kan ikke kjøre væskesimuleringen.',
+    stir: 'Rør',
+    blocks: 'Blokker',
+    wind: 'Vind',
+    clear: 'Tøm',
+    windFarm: 'Vindpark',
+    computer: 'Datamaskin',
+    stop: 'Stopp',
+  },
+};
 
 const SPLAT_FORCE = 6000; // uv-space pointer delta -> velocity (cells/sec)
 const DYE_RADIUS = 0.0025;
@@ -82,7 +125,7 @@ class FluidInstance implements GameInstance {
     if (!solver.ok) {
       const message = document.createElement('p');
       message.className = 'game-message';
-      message.textContent = 'Sorry — this computer cannot run the fluid simulation.';
+      message.textContent = pick(TEXT).noWebgl;
       this.host.overlay.appendChild(message);
       return;
     }
@@ -222,25 +265,27 @@ class FluidInstance implements GameInstance {
       return button;
     };
 
+    const T = pick(TEXT);
+
     this.toyBar = document.createElement('div');
     this.toyBar.className = 'game-toolbar';
-    this.buttons.stir = add(this.toyBar, '🌀', 'Stir', () => this.setMode('stir'));
-    this.buttons.blocks = add(this.toyBar, '🪨', 'Blocks', () => this.setMode('blocks'));
-    this.buttons.wind = add(this.toyBar, '🌬️', 'Wind', () => {
+    this.buttons.stir = add(this.toyBar, '🌀', T.stir, () => this.setMode('stir'));
+    this.buttons.blocks = add(this.toyBar, '🪨', T.blocks, () => this.setMode('blocks'));
+    this.buttons.wind = add(this.toyBar, '🌬️', T.wind, () => {
       this.windOn = !this.windOn;
       this.buttons.wind!.classList.toggle('active', this.windOn);
     });
-    add(this.toyBar, '🧹', 'Clear', () => {
+    add(this.toyBar, '🧹', T.clear, () => {
       this.obstacles = [];
       this.solver!.setObstacles(this.obstacles);
       this.solver!.reset();
     });
-    add(this.toyBar, '⚡', 'Wind farm', () => this.startChallenge(false));
-    add(this.toyBar, '🤖', 'Computer', () => this.startChallenge(true));
+    add(this.toyBar, '⚡', T.windFarm, () => this.startChallenge(false));
+    add(this.toyBar, '🤖', T.computer, () => this.startChallenge(true));
 
     this.challengeBar = document.createElement('div');
     this.challengeBar.className = 'game-toolbar hidden';
-    add(this.challengeBar, '⏹', 'Stop', () => this.challenge?.abort());
+    add(this.challengeBar, '⏹', T.stop, () => this.challenge?.abort());
 
     this.setMode('stir');
     this.host.overlay.append(this.toyBar, this.challengeBar);
@@ -255,9 +300,12 @@ class FluidInstance implements GameInstance {
 
 export const windfarm: ArcadeGame = {
   id: 'windfarm',
-  title: 'Swirl Lab',
-  scienceLine:
-    'Real fluid dynamics: turbine wakes steal wind and cost wind farms real money — simulating flows like this is our group’s daily work.',
+  title: { en: 'Swirl Lab', nl: 'Wervel-lab', no: 'Virvellab' },
+  scienceLine: {
+    en: 'Real fluid dynamics: turbine wakes steal wind and cost wind farms real money — simulating flows like this is our group’s daily work.',
+    nl: 'Echte stromingsleer: het zog van windturbines steelt wind en kost windmolenparken echt geld — het simuleren van zulke stromingen is het dagelijkse werk van onze groep.',
+    no: 'Ekte strømningsmekanikk: kjølvannet fra turbiner stjeler vind og koster vindparker ekte penger — å simulere slike strømninger er gruppas daglige arbeid.',
+  },
   tileEmoji: '🌀',
   create: (host) => new FluidInstance(host),
 };

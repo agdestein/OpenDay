@@ -5,7 +5,66 @@
 import type { GameHost } from '../../shell/types';
 import { scoreFlow, type ScoreFlowHandle } from '../../shell/scoreflow';
 import { clamp, randRange } from '../../lib/util';
+import { fmtNumber, pick, type Localized } from '../../lib/i18n';
 import type { FluidSolver } from './fluid';
+
+const TEXT: Localized<{
+  hintComputer: string;
+  hintHuman: string;
+  legendFull: string;
+  legendWake: string;
+  headingComputerDone: string;
+  headingTimeUp: string;
+  yourTurn: string;
+  cpuAgain: string;
+  freePlay: string;
+  playAgain: string;
+  computersTurn: string;
+}> = {
+  en: {
+    hintComputer: '🤖 The computer is placing turbines — watch it dodge the orange wakes…',
+    hintHuman:
+      'Click to place turbines — orange wakes steal wind from turbines behind! Click one to take it back.',
+    legendFull: 'full wind',
+    legendWake: 'wake (slow)',
+    headingComputerDone: '🤖 The computer is done!',
+    headingTimeUp: "⏱ Time's up!",
+    yourTurn: '🙋 Your turn',
+    cpuAgain: '🤖 Again',
+    freePlay: '🌀 Free play',
+    playAgain: '🔁 Play again',
+    computersTurn: '🤖 Computer’s turn',
+  },
+  nl: {
+    hintComputer: '🤖 De computer plaatst turbines — kijk hoe hij de oranje zog-gebieden ontwijkt…',
+    hintHuman:
+      'Klik om turbines te plaatsen — oranje zog steelt wind van turbines erachter! Klik op een turbine om hem terug te pakken.',
+    legendFull: 'volle wind',
+    legendWake: 'zog (langzaam)',
+    headingComputerDone: '🤖 De computer is klaar!',
+    headingTimeUp: '⏱ Tijd is om!',
+    yourTurn: '🙋 Jouw beurt',
+    cpuAgain: '🤖 Nog een keer',
+    freePlay: '🌀 Vrij spelen',
+    playAgain: '🔁 Opnieuw spelen',
+    computersTurn: '🤖 Beurt van de computer',
+  },
+  no: {
+    hintComputer:
+      '🤖 Datamaskinen plasserer turbiner — se hvordan den unngår de oransje kjølvannssonene…',
+    hintHuman:
+      'Klikk for å plassere turbiner — oransje kjølvann stjeler vind fra turbinene bak! Klikk på en turbin for å ta den tilbake.',
+    legendFull: 'full vind',
+    legendWake: 'kjølvann (sakte)',
+    headingComputerDone: '🤖 Datamaskinen er ferdig!',
+    headingTimeUp: '⏱ Tiden er ute!',
+    yourTurn: '🙋 Din tur',
+    cpuAgain: '🤖 En gang til',
+    freePlay: '🌀 Fri lek',
+    playAgain: '🔁 Spill igjen',
+    computersTurn: '🤖 Datamaskinens tur',
+  },
+};
 
 export const TURBINE_BUDGET = 8;
 export const ROUND_SECONDS = 60;
@@ -72,6 +131,8 @@ export class Challenge {
     readonly computer: boolean,
     private onDone: (next: ChallengeNext) => void,
   ) {
+    const T = pick(TEXT);
+
     this.layer = document.createElement('div');
     this.layer.className = 'challenge-layer';
 
@@ -85,15 +146,13 @@ export class Challenge {
 
     const hint = document.createElement('p');
     hint.className = 'challenge-hint';
-    hint.textContent = computer
-      ? '🤖 The computer is placing turbines — watch it dodge the orange wakes…'
-      : 'Click to place turbines — orange wakes steal wind from turbines behind! Click one to take it back.';
+    hint.textContent = computer ? T.hintComputer : T.hintHuman;
 
     const legend = document.createElement('div');
     legend.className = 'wake-legend';
     legend.innerHTML =
-      '<span class="wake-swatch wake-swatch-full"></span> full wind' +
-      '<span class="wake-swatch wake-swatch-wake"></span> wake (slow)';
+      `<span class="wake-swatch wake-swatch-full"></span> ${T.legendFull}` +
+      `<span class="wake-swatch wake-swatch-wake"></span> ${T.legendWake}`;
 
     this.layer.append(hud, hint, legend);
     host.overlay.appendChild(this.layer);
@@ -283,7 +342,7 @@ export class Challenge {
   private updateHud(totalPower: number): void {
     this.hudTime.textContent = `⏱ ${Math.max(0, Math.ceil(this.timeLeft))}`;
     this.hudTime.classList.toggle('urgent', this.timeLeft <= 10 && !this.over);
-    this.hudEnergy.textContent = `⚡ ${Math.round(this.energy).toLocaleString()} kJ (${Math.round(totalPower)} kW)`;
+    this.hudEnergy.textContent = `⚡ ${fmtNumber(Math.round(this.energy))} kJ (${fmtNumber(Math.round(totalPower))} kW)`;
     this.hudLeft.textContent = `🌀 ×${TURBINE_BUDGET - this.turbines.length}`;
   }
 
@@ -291,6 +350,7 @@ export class Challenge {
     this.over = true;
     this.timeLeft = 0;
     const score = Math.round(this.energy);
+    const T = pick(TEXT);
     const next = (choice: ChallengeNext) => () => {
       if (!this.left) {
         this.left = true;
@@ -299,20 +359,20 @@ export class Challenge {
     };
     this.flow = scoreFlow({
       gameId: 'windfarm',
-      heading: this.computer ? '🤖 The computer is done!' : "⏱ Time's up!",
+      heading: this.computer ? T.headingComputerDone : T.headingTimeUp,
       score,
-      scoreLabel: `⚡ ${score.toLocaleString()} kJ`,
+      scoreLabel: `⚡ ${fmtNumber(score)} kJ`,
       presetInitials: this.computer ? 'CPU' : undefined,
       actions: this.computer
         ? [
-            { label: '🙋 Your turn', onClick: next('human') },
-            { label: '🤖 Again', onClick: next('cpu') },
-            { label: '🌀 Free play', onClick: next('toy') },
+            { label: T.yourTurn, onClick: next('human') },
+            { label: T.cpuAgain, onClick: next('cpu') },
+            { label: T.freePlay, onClick: next('toy') },
           ]
         : [
-            { label: '🔁 Play again', onClick: next('human') },
-            { label: '🤖 Computer’s turn', onClick: next('cpu') },
-            { label: '🌀 Free play', onClick: next('toy') },
+            { label: T.playAgain, onClick: next('human') },
+            { label: T.computersTurn, onClick: next('cpu') },
+            { label: T.freePlay, onClick: next('toy') },
           ],
     });
     this.layer.appendChild(this.flow.element);
