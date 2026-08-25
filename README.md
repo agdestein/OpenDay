@@ -60,6 +60,12 @@ Useful at the stand:
 
 - Add `?games=bounce,orbits` (comma-separated game ids) to the URL to limit which
   games a machine shows, so each computer showcases a different subset.
+- Add `?lang=nl` (or `en`, `no`) to set a machine's default language; visitors can
+  switch with the flag buttons on the menu. English is the development/source
+  language, Dutch is the event language, Norwegian exists for playtesting.
+  Translations live next to the code that uses them as typed `Localized<...>`
+  dictionaries (see `app/src/lib/i18n.ts`) — a missing translation is a compile
+  error, so the three languages cannot silently drift apart.
 - Press `F` (or the corner button) for fullscreen; `Esc` returns to the menu.
 - A game with no input for 90 seconds resets to the menu automatically.
 
