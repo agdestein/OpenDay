@@ -194,14 +194,31 @@ void main() {
 
 export const displaySrc = `${header}
 uniform sampler2D uDye;
+uniform sampler2D uVelocity;
 uniform float uAspect;
 uniform int uCount;
 uniform vec3 uObstacles[${MAX_OBSTACLES}];
+uniform float uWakeMode;
+uniform float uWind;
 void main() {
-  vec3 color = texture(uDye, vUv).rgb;
-  // Dark blue background with a soft vertical gradient.
-  vec3 background = mix(vec3(0.02, 0.03, 0.08), vec3(0.05, 0.07, 0.14), vUv.y);
-  color = background + color;
+  vec3 color;
+  if (uWakeMode > 0.5) {
+    // Wake view (wind-farm challenge): hue encodes local wind speed relative
+    // to the free stream, so the momentum-deficit wake behind each rotor
+    // glows warm against the cool full-speed flow.
+    // Velocity dissipation drags the free stream to ~85% of the inflow speed
+    // by the right edge, so normalize against that, not the raw inflow.
+    float frac = length(texture(uVelocity, vUv).xy) / max(0.85 * uWind, 1.0);
+    vec3 wake = mix(vec3(0.62, 0.08, 0.06), vec3(0.93, 0.52, 0.10), smoothstep(0.15, 0.6, frac));
+    color = mix(wake, vec3(0.05, 0.27, 0.44), smoothstep(0.6, 0.9, frac));
+    // Keep the dye streaks as brightness only, so the motion of the flow
+    // stays visible without recoloring the wake map.
+    color += vec3(dot(texture(uDye, vUv).rgb, vec3(0.2126, 0.7152, 0.0722)) * 0.12);
+  } else {
+    // Dark blue background with a soft vertical gradient.
+    vec3 background = mix(vec3(0.02, 0.03, 0.08), vec3(0.05, 0.07, 0.14), vUv.y);
+    color = background + texture(uDye, vUv).rgb;
+  }
   for (int i = 0; i < ${MAX_OBSTACLES}; i++) {
     if (i >= uCount) break;
     vec2 d = vUv - uObstacles[i].xy;

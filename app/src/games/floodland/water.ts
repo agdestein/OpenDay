@@ -53,6 +53,8 @@ export class FloodSim {
   water = new Float32Array(N);
   /** How much the player has raised each cell (for sandbag coloring). */
   built = new Float32Array(N);
+  /** Cells the sea would reach at the last computeRisk() level (1 = would flood). */
+  risk = new Uint8Array(N);
   villages: Village[] = [];
   /** Current sea level and wave amplitude at the western boundary. */
   seaLevel = 0;
@@ -123,11 +125,18 @@ export class FloodSim {
     // tracks the (wavy) sea level, so surge and waves start near the shore
     // instead of having to propagate across the whole damped basin.
     for (let y = 0; y < GRID_H; y++) {
-      const level = this.seaLevel + this.waveAmp * Math.sin(this.time * 1.4 + y * 0.3);
       const row = y * GRID_W;
       for (let x = 0; x < GRID_W; x++) {
         const i = row + x;
-        if (terrain[i] < -3) water[i] = Math.max(0, level - terrain[i]);
+        if (terrain[i] >= -3) continue;
+        // Two harmonics rolling shoreward (phase moves with +x) so the swell
+        // reads as waves approaching the beach, not horizontal bands.
+        const level =
+          this.seaLevel +
+          this.waveAmp *
+            (0.75 * Math.sin(x * 0.35 + y * 0.12 - this.time * 1.4) +
+              0.35 * Math.sin(x * 0.21 - y * 0.17 - this.time * 2.6 + 1.3));
+        water[i] = Math.max(0, level - terrain[i]);
       }
     }
 
@@ -203,7 +212,9 @@ export class FloodSim {
         const d2 = (x - cx) ** 2 + (y - cy) ** 2;
         if (d2 > r * r) continue;
         const i = y * GRID_W + x;
-        const want = Math.min(amount * Math.exp(-d2 / 1.4), MAX_TERRAIN - this.terrain[i]);
+        // Sharp falloff: a dike only needs to be ~2 cells wide to hold, and a
+        // narrow brush makes every unit of the sand budget go further.
+        const want = Math.min(amount * Math.exp(-d2 / 0.7), MAX_TERRAIN - this.terrain[i]);
         const dh = Math.min(want, budget - spent);
         if (dh <= 0) continue;
         this.terrain[i] += dh;
@@ -216,18 +227,96 @@ export class FloodSim {
     return spent;
   }
 
-  /** Lower terrain (toy mode digging). */
-  lower(cx: number, cy: number, amount: number): void {
+  /**
+   * Raise terrain toward a target crest height (game-mode dike building).
+   * One brush pass lifts the core of the stroke straight to `target`, so a
+   * single drag leaves a storm-proof dike and never over-builds: the cost is
+   * exactly the height deficit. Returns the sand spent.
+   */
+  raiseToward(cx: number, cy: number, target: number, budget: number): number {
+    let spent = 0;
     const r = 2;
     for (let y = Math.max(0, Math.floor(cy - r)); y <= Math.min(GRID_H - 1, Math.ceil(cy + r)); y++) {
       for (let x = Math.max(0, Math.floor(cx - r)); x <= Math.min(GRID_W - 1, Math.ceil(cx + r)); x++) {
         const d2 = (x - cx) ** 2 + (y - cy) ** 2;
         if (d2 > r * r) continue;
         const i = y * GRID_W + x;
-        this.terrain[i] = Math.max(-6, this.terrain[i] - amount * Math.exp(-d2 / 2));
-        this.built[i] = Math.max(0, this.built[i] - amount);
+        // Flat-top kernel: cells within ~0.7 of the stroke reach the full
+        // target in one pass (a drag between cell centers still seals), with
+        // a sharp shoulder so the dike stays narrow and cheap.
+        const k = Math.exp(-Math.max(0, d2 - 0.5) / 0.45);
+        const want = k * (target - this.terrain[i]);
+        const dh = Math.min(want, budget - spent);
+        if (dh <= 0) continue;
+        this.terrain[i] += dh;
+        this.built[i] += dh;
+        this.water[i] = Math.max(0, this.water[i] - dh);
+        spent += dh;
       }
     }
+    return spent;
+  }
+
+  /**
+   * Lower terrain (digging). Returns the sand refunded: only material the
+   * player placed comes back, so digging natural dunes is not a sand mine.
+   */
+  lower(cx: number, cy: number, amount: number): number {
+    let refund = 0;
+    const r = 2;
+    for (let y = Math.max(0, Math.floor(cy - r)); y <= Math.min(GRID_H - 1, Math.ceil(cy + r)); y++) {
+      for (let x = Math.max(0, Math.floor(cx - r)); x <= Math.min(GRID_W - 1, Math.ceil(cx + r)); x++) {
+        const d2 = (x - cx) ** 2 + (y - cy) ** 2;
+        if (d2 > r * r) continue;
+        const i = y * GRID_W + x;
+        const drop = Math.min(amount * Math.exp(-d2 / 2), this.terrain[i] + 6);
+        if (drop <= 0) continue;
+        this.terrain[i] -= drop;
+        const fromBuilt = Math.min(drop, this.built[i]);
+        this.built[i] -= fromBuilt;
+        refund += fromBuilt;
+      }
+    }
+    return refund;
+  }
+
+  /**
+   * Flood-fill from the open sea over all terrain below `level` and mark the
+   * currently-dry cells the water would reach. Drives the striped "this will
+   * flood" overlay: raising a dike above `level` cuts the fill, so the stripes
+   * behind a finished dike disappear — instant feedback that it will hold.
+   */
+  computeRisk(level: number): void {
+    const { terrain, water, risk } = this;
+    risk.fill(0);
+    const seen = new Uint8Array(N);
+    const queue: number[] = [];
+    for (let i = 0; i < N; i++) {
+      if (terrain[i] < -3) {
+        seen[i] = 1;
+        queue.push(i);
+      }
+    }
+    while (queue.length > 0) {
+      const i = queue.pop()!;
+      const x = i % GRID_W;
+      const y = (i - x) / GRID_W;
+      for (const [nx, ny] of [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]]) {
+        if (nx < 0 || nx >= GRID_W || ny < 0 || ny >= GRID_H) continue;
+        const j = ny * GRID_W + nx;
+        if (!seen[j] && terrain[j] < level) {
+          seen[j] = 1;
+          queue.push(j);
+        }
+      }
+    }
+    for (let i = 0; i < N; i++) {
+      if (seen[i] && water[i] < 0.15 && level - terrain[i] > 0.05) risk[i] = 1;
+    }
+  }
+
+  clearRisk(): void {
+    this.risk.fill(0);
   }
 
   /** Dump a blob of water (toy mode splashing). */
@@ -272,9 +361,12 @@ export class FloodSim {
   // ---- map generation ----
 
   private generateTerrain(): void {
+    // Sharp mask (σ well inside the ±3-row river structure): the dunes are
+    // only low where the river visibly runs, so damming what you can see
+    // seals the gap — no hidden low shoulders just outside it.
     const gapMask = (y: number) => {
       let m = 0;
-      for (const gy of GAPS) m += Math.exp(-(((y - gy) / 3.2) ** 2));
+      for (const gy of GAPS) m += Math.exp(-(((y - gy) / 1.6) ** 2));
       return m;
     };
     for (let y = 0; y < GRID_H; y++) {
@@ -336,7 +428,9 @@ export class FloodSim {
         for (let x = Math.max(0, cx - r - 2); x <= Math.min(GRID_W - 1, cx + r + 2); x++) {
           const d2 = ((x - cx) ** 2 + (y - cy) ** 2) / (r * r);
           const i = y * GRID_W + x;
-          this.terrain[i] = Math.max(this.terrain[i], -2.5 + (h + 2.5) * Math.exp(-d2 * 1.8));
+          // Decay to the delta floor so the island fades out smoothly instead
+          // of leaving a visible square plateau on the sea bed.
+          this.terrain[i] = Math.max(this.terrain[i], -3.4 + (h + 3.4) * Math.exp(-d2 * 1.8));
         }
       }
     };
@@ -352,11 +446,13 @@ export class FloodSim {
       y: number,
       count: number,
       oma = false,
+      /** House scatter radius factor: island villages huddle so a small ring fort can enclose them. */
+      spread = 1,
     ): Village => {
       const houses: House[] = [];
       for (let k = 0; k < count; k++) {
         const angle = (k / count) * Math.PI * 2 + 0.8;
-        const r = k === 0 ? 0 : 1.6 + (k % 2);
+        const r = (k === 0 ? 0 : 1.6 + (k % 2)) * spread;
         let hx = Math.round(x + Math.cos(angle) * r);
         let hy = Math.round(y + Math.sin(angle) * r * 0.8);
         // Nobody builds a house in the river: nudge onto the driest nearby cell.
@@ -387,7 +483,7 @@ export class FloodSim {
       make('Den Haag', 550, at(7, 47), 47, 6),
       make('Utrecht', 360, at(54, 44), 44, 5),
       make('Rotterdam', 650, at(15, 55), 55, 7),
-      make('Middelburg', 50, 48, 73, 3),
+      make('Middelburg', 50, 48, 73, 3, false, 0.6),
       make('Oma 👵', 1, 35, 79, 1, true),
     ];
   }

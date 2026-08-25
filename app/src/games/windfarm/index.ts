@@ -116,7 +116,7 @@ class FluidInstance implements GameInstance {
       solver.step(dt);
       this.challenge?.tick(dt);
     }
-    solver.render();
+    solver.render(this.challenge !== null);
 
     // One-time quality reduction if this machine can't hold ~50 fps.
     this.frameEma = 0.95 * this.frameEma + 0.05 * dt * 1000;

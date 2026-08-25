@@ -10,6 +10,14 @@ const CELL = 10;
 const VIRT_W = GRID_W * CELL;
 const VIRT_H = GRID_H * CELL;
 const SIM_DT = 1 / 90;
+/**
+ * Supersampling factor for the terrain/water raster. Colors are computed at
+ * SS× grid resolution from bilinearly interpolated height fields, so slopes,
+ * coastlines and dikes render as smooth shapes instead of blurred grid pixels.
+ */
+const SS = 4;
+const REND_W = GRID_W * SS;
+const REND_H = GRID_H * SS;
 
 interface Storm {
   name: string;
@@ -27,31 +35,37 @@ const STORMS: Storm[] = [
     blurb: 'A storm surge is heading for Zeeland! Protect Oma 👵 and the islands in the south.',
     surge: 1.8,
     wave: 0.35,
-    sand: 160,
+    sand: 360,
   },
   {
     name: 'Noordwester ⛈️',
     blurb: 'A serious one: the low northern dunes and the river mouths will not hold this.',
     surge: 2.6,
     wave: 0.4,
-    sand: 250,
+    sand: 440,
   },
   {
     name: 'Watersnood! 🌊',
     blurb: 'The big one — like 1953. Every weak spot in the coast is about to break.',
     surge: 3.2,
     wave: 0.5,
-    sand: 200,
+    sand: 360,
   },
 ];
 
-const BUILD_TIME = 18;
+const BUILD_TIME = 25;
 const RAMP = 8;
 const HOLD = 16;
 const FALL = 10;
 /** Terrain raised per brush pass while painting a dike. */
-const BUILD_AMOUNT = 0.6;
+const BUILD_AMOUNT = 0.9;
 const CALM_WAVE = 0.06;
+/**
+ * Level a dike must beat for the risk preview: surge plus the full wave crest.
+ * Headless playtests: building to surge + wave/2 still loses houses beside
+ * deep water (the delta islands) to wave overtopping; the full crest holds.
+ */
+const stormCrest = (storm: Storm) => storm.surge + storm.wave;
 
 type Tool = 'build' | 'dig' | 'splash';
 type GamePhase = 'intro' | 'build' | 'storm' | 'summary';
@@ -70,6 +84,17 @@ class FloodInstance implements GameInstance {
   private cursor: { x: number; y: number } | null = null;
   private lastCell = { x: 0, y: 0 };
   private time = 0;
+  private riskTimer = 0;
+
+  // Per-grid-cell shading, computed once per frame and bilinearly sampled by
+  // the supersampled painter: terrain hillshade, water-surface shade, foam.
+  private shadeT = new Float32Array(GRID_W * GRID_H);
+  private shadeS = new Float32Array(GRID_W * GRID_H);
+  private foamC = new Float32Array(GRID_W * GRID_H);
+  private sinX = new Float32Array(REND_W);
+  private sinY = new Float32Array(REND_H);
+  private ripX = new Float32Array(REND_W);
+  private ripY = new Float32Array(REND_H);
 
   private phase: GamePhase = 'intro';
   private round = 0;
@@ -115,11 +140,13 @@ class FloodInstance implements GameInstance {
   constructor(private host: GameHost) {}
 
   start(): void {
+    // Dev console access for tuning/debugging the live simulation.
+    (window as unknown as Record<string, unknown>).__flood = this.sim;
     this.ctx = this.host.canvas.getContext('2d')!;
-    this.off.width = GRID_W;
-    this.off.height = GRID_H;
+    this.off.width = REND_W;
+    this.off.height = REND_H;
     this.offCtx = this.off.getContext('2d')!;
-    this.img = this.offCtx.createImageData(GRID_W, GRID_H);
+    this.img = this.offCtx.createImageData(REND_W, REND_H);
     this.buildUi();
     const canvas = this.host.canvas;
     canvas.addEventListener('pointerdown', this.onPointerDown);
@@ -138,6 +165,14 @@ class FloodInstance implements GameInstance {
     const n = Math.max(1, Math.min(4, Math.round(dt / SIM_DT)));
     for (let i = 0; i < n; i++) this.sim.step(dt / n);
     if (this.mode === 'toy' || this.phase === 'storm') this.sim.updateFlooding();
+
+    this.riskTimer -= dt;
+    if (this.riskTimer <= 0) {
+      this.riskTimer = 0.3;
+      const level = this.riskLevel();
+      if (level > 0) this.sim.computeRisk(level);
+      else this.sim.clearRisk();
+    }
 
     this.updateHud();
     this.draw();
@@ -186,7 +221,7 @@ class FloodInstance implements GameInstance {
       name.textContent = storm.name;
       const blurb = document.createElement('p');
       blurb.className = 'score-flow-prompt';
-      blurb.textContent = `${storm.blurb} Expected surge: +${storm.surge.toFixed(1)} m. You get 🏖️ ${storm.sand} sand — drag to build dikes where the water will come in. Dikes you built before are still standing!`;
+      blurb.textContent = `${storm.blurb} Expected surge: +${storm.surge.toFixed(1)} m. You get 🏖️ ${storm.sand} sand. Red stripes show where the sea will get in — build dikes until the stripes are gone! Dikes you built before are still standing.`;
       const actions = document.createElement('div');
       actions.className = 'score-flow-actions';
       const go = document.createElement('button');
@@ -197,7 +232,8 @@ class FloodInstance implements GameInstance {
         this.card = null;
         this.phase = 'build';
         this.phaseTime = 0;
-        this.hint.textContent = 'Build now — you can keep building during the storm, but hurry!';
+        this.hint.textContent =
+          '⚠️ Striped land will flood! Build dikes across the red stripes — when the stripes behind a dike vanish, it will hold. Dig back sand you regret.';
       });
       actions.appendChild(go);
       card.append(heading, name, blurb, actions);
@@ -310,15 +346,32 @@ class FloodInstance implements GameInstance {
 
   // ---- input ----
 
+  /** Surge level to preview as flood risk right now (0 = no preview). */
+  private riskLevel(): number {
+    if (this.mode === 'game' && (this.phase === 'build' || this.phase === 'storm')) {
+      return stormCrest(STORMS[this.round]);
+    }
+    if (this.mode === 'toy' && this.toyStorm) return 2.4 + 0.45;
+    return 0;
+  }
+
   private applyTool(cx: number, cy: number): void {
     if (this.mode === 'game') {
       if (this.phase !== 'build' && this.phase !== 'storm') return;
-      this.sand -= this.sim.raise(cx, cy, BUILD_AMOUNT, this.sand);
+      if (this.tool === 'dig') this.sand += this.sim.lower(cx, cy, 1);
+      else {
+        // One stroke builds straight to a storm-proof crest; cost = deficit.
+        const target = stormCrest(STORMS[this.round]) + 0.3;
+        this.sand -= this.sim.raiseToward(cx, cy, target, this.sand);
+      }
+    } else if (this.tool === 'build') this.sim.raise(cx, cy, BUILD_AMOUNT, Infinity);
+    else if (this.tool === 'dig') this.sim.lower(cx, cy, 1);
+    else {
+      this.sim.splash(cx, cy);
       return;
     }
-    if (this.tool === 'build') this.sim.raise(cx, cy, BUILD_AMOUNT, Infinity);
-    else if (this.tool === 'dig') this.sim.lower(cx, cy, 1);
-    else this.sim.splash(cx, cy);
+    // Terrain changed: refresh the risk overlay on the next frame.
+    this.riskTimer = 0;
   }
 
   private toCell(e: PointerEvent): { x: number; y: number } {
@@ -377,6 +430,8 @@ class FloodInstance implements GameInstance {
 
     this.gameBar = document.createElement('div');
     this.gameBar.className = 'game-toolbar hidden';
+    add(this.gameBar, 'gbuild', '🏗️', 'Build', () => this.setTool('build'));
+    add(this.gameBar, 'gdig', '⛏️', 'Dig back', () => this.setTool('dig'));
     add(this.gameBar, 'stop', '⏹', 'Stop', () => this.exitToToy());
 
     const hud = document.createElement('div');
@@ -388,7 +443,25 @@ class FloodInstance implements GameInstance {
     this.hint = document.createElement('p');
     this.hint.className = 'challenge-hint';
 
-    this.host.overlay.append(this.toyBar, this.gameBar, hud, this.hint);
+    const legend = document.createElement('div');
+    legend.className = 'flood-legend';
+    const row = (swatch: string, label: string) => {
+      const item = document.createElement('div');
+      item.className = 'flood-legend-row';
+      const box = document.createElement('span');
+      box.className = `flood-swatch flood-swatch-${swatch}`;
+      const text = document.createElement('span');
+      text.textContent = label;
+      item.append(box, text);
+      legend.appendChild(item);
+    };
+    row('sea', 'sea & water');
+    row('polder', 'polder — below sea level!');
+    row('land', 'dunes & higher land');
+    row('dike', 'sand you built');
+    row('risk', 'the storm would flood this');
+
+    this.host.overlay.append(this.toyBar, this.gameBar, hud, this.hint, legend);
   }
 
   private setTool(tool: Tool): void {
@@ -396,6 +469,8 @@ class FloodInstance implements GameInstance {
     for (const key of ['build', 'dig', 'splash'] as const) {
       this.buttons[key]?.classList.toggle('active', tool === key);
     }
+    this.buttons.gbuild?.classList.toggle('active', tool === 'build');
+    this.buttons.gdig?.classList.toggle('active', tool === 'dig');
   }
 
   private showCard(build: (card: HTMLElement) => void): void {
@@ -449,60 +524,162 @@ class FloodInstance implements GameInstance {
     this.drawOverlays(ctx);
   }
 
-  /** Terrain + water colors into the grid-resolution ImageData. */
+  /**
+   * Terrain + water colors into the supersampled ImageData. Height fields are
+   * bilinearly interpolated so slopes render smoothly; hillshading (light from
+   * the north-west) makes dunes and dikes read as 3D relief, and the risk
+   * overlay draws marching red stripes on land the coming surge would reach.
+   */
   private paintCells(): void {
-    const { terrain, water, built } = this.sim;
+    const sim = this.sim;
+    const { terrain, water, built, risk } = sim;
+    const { shadeT, shadeS, foamC, sinX, sinY, ripX, ripY } = this;
+    const t = this.time;
+
+    for (let y = 0; y < GRID_H; y++) {
+      for (let x = 0; x < GRID_W; x++) {
+        const i = y * GRID_W + x;
+        const l = x > 0 ? i - 1 : i;
+        const rr = x < GRID_W - 1 ? i + 1 : i;
+        const u = y > 0 ? i - GRID_W : i;
+        const d = y < GRID_H - 1 ? i + GRID_W : i;
+        const st = 1 - 0.13 * (terrain[rr] - terrain[l] + terrain[d] - terrain[u]);
+        shadeT[i] = st < 0.6 ? 0.6 : st > 1.4 ? 1.4 : st;
+        const ss =
+          1 -
+          0.45 *
+            (terrain[rr] + water[rr] - terrain[l] - water[l] +
+              terrain[d] + water[d] - terrain[u] - water[u]);
+        shadeS[i] = ss < 0.72 ? 0.72 : ss > 1.32 ? 1.32 : ss;
+        foamC[i] = Math.min(1, sim.flux(i) * 0.3);
+      }
+    }
+    // Wave/foam wobble as separable sin tables: no trig in the pixel loop.
+    for (let px = 0; px < REND_W; px++) {
+      sinX[px] = Math.sin(t * 3.1 + px * 0.31);
+      ripX[px] = Math.sin(px * 0.23 + t * 1.9);
+    }
+    for (let py = 0; py < REND_H; py++) {
+      sinY[py] = Math.sin(t * 1.7 + py * 0.23);
+      ripY[py] = Math.sin(py * 0.19 - t * 0.8);
+    }
+
     const data = this.img.data;
-    for (let i = 0; i < GRID_W * GRID_H; i++) {
-      const t = terrain[i];
-      let r: number;
-      let g: number;
-      let b: number;
-      if (t < 0) {
-        // Polder / sea floor greens (only visible where dry).
-        const k = Math.min(1, -t / 3);
-        r = 74 - 22 * k;
-        g = 108 - 26 * k;
-        b = 60 - 14 * k;
-      } else if (t < 0.5) {
-        r = 205;
-        g = 187;
-        b = 132; // beach sand
-      } else if (t < 2.8) {
-        const k = (t - 0.5) / 2.3;
-        r = 118 - 20 * k;
-        g = 146 - 16 * k;
-        b = 82 - 8 * k; // grass
-      } else {
-        const k = Math.min(1, (t - 2.8) / 2.2);
-        r = 120 + 34 * k;
-        g = 122 + 16 * k;
-        b = 86 + 16 * k; // high dunes
+    const waveAmp = sim.waveAmp;
+    const stripePhase = t * 26;
+    let p = 0;
+    for (let py = 0; py < REND_H; py++) {
+      let gy = (py + 0.5) / SS - 0.5;
+      if (gy < 0) gy = 0;
+      else if (gy > GRID_H - 1) gy = GRID_H - 1;
+      const y0 = gy | 0;
+      const y1 = y0 < GRID_H - 1 ? y0 + 1 : y0;
+      const ty = gy - y0;
+      for (let px = 0; px < REND_W; px++, p += 4) {
+        let gx = (px + 0.5) / SS - 0.5;
+        if (gx < 0) gx = 0;
+        else if (gx > GRID_W - 1) gx = GRID_W - 1;
+        const x0 = gx | 0;
+        const x1 = x0 < GRID_W - 1 ? x0 + 1 : x0;
+        const tx = gx - x0;
+        const i00 = y0 * GRID_W + x0;
+        const i10 = y0 * GRID_W + x1;
+        const i01 = y1 * GRID_W + x0;
+        const i11 = y1 * GRID_W + x1;
+        const w00 = (1 - tx) * (1 - ty);
+        const w10 = tx * (1 - ty);
+        const w01 = (1 - tx) * ty;
+        const w11 = tx * ty;
+        const T = terrain[i00] * w00 + terrain[i10] * w10 + terrain[i01] * w01 + terrain[i11] * w11;
+        const Wd = water[i00] * w00 + water[i10] * w10 + water[i01] * w01 + water[i11] * w11;
+
+        let r: number;
+        let g: number;
+        let b: number;
+        if (T < -0.05) {
+          // Polder / sea floor: below sea level (only visible where dry).
+          const k = Math.min(1, -T / 3);
+          r = 98 - 34 * k;
+          g = 140 - 40 * k;
+          b = 76 - 20 * k;
+        } else if (T < 0.18) {
+          r = 197;
+          g = 182;
+          b = 134; // narrow sand band right at sea level — the coastline ring
+        } else if (T < 2.8) {
+          const k = (T - 0.18) / 2.62;
+          r = 132 - 24 * k;
+          g = 158 - 22 * k;
+          b = 90 - 12 * k; // grass
+        } else {
+          // High ground: muted sage-gray, so the eastern hills don't read as
+          // one giant beach next to the actual sand-colored coastline.
+          const k = Math.min(1, (T - 2.8) / 2.2);
+          r = 108 + 44 * k;
+          g = 136 + 18 * k;
+          b = 78 + 40 * k;
+        }
+        const B = built[i00] * w00 + built[i10] * w10 + built[i01] * w01 + built[i11] * w11;
+        const bl = Math.min(1, B) * 0.8;
+        r += (206 - r) * bl;
+        g += (182 - g) * bl;
+        b += (132 - b) * bl; // sandbag tint on player dikes
+        const sh = shadeT[i00] * w00 + shadeT[i10] * w10 + shadeT[i01] * w01 + shadeT[i11] * w11;
+        r *= sh;
+        g *= sh;
+        b *= sh;
+
+        if (Wd > 0.015) {
+          // Saturate quickly with depth: the deep sea stays one calm dark tone
+          // (waves show as moving shade and whitecaps, not banded color).
+          const k = Math.min(1, Wd / 2.2);
+          let wr = 72 - 46 * k;
+          let wg = 150 - 82 * k;
+          let wb = 208 - 88 * k;
+          let ws = shadeS[i00] * w00 + shadeS[i10] * w10 + shadeS[i01] * w01 + shadeS[i11] * w11;
+          if (Wd > 0.35) ws += 0.06 * ripX[px] * ripY[py];
+          wr *= ws;
+          wg *= ws;
+          wb *= ws;
+          const fC = foamC[i00] * w00 + foamC[i10] * w10 + foamC[i01] * w01 + foamC[i11] * w11;
+          let foam = fC * Math.min(1, Wd * 2.5);
+          // Shoreline foam only where the water actually moves (waves or flow),
+          // so calm coasts get a thin sparkle instead of a fat white halo.
+          if (Wd < 0.22) {
+            const activity = Math.min(1, fC * 2.5 + waveAmp * 1.3);
+            foam += (1 - Wd / 0.22) * 0.55 * activity * (0.55 + 0.45 * sinX[px] * sinY[py]);
+          }
+          if (T < -0.5 && waveAmp > 0.1) {
+            // Whitecaps only on the steepest crest faces, broken up by noise.
+            foam +=
+              Math.max(0, (ws - 1) * 2.0 - 0.34) *
+              Math.min(1, waveAmp * 1.8) *
+              (0.55 + 0.45 * sinX[px] * sinY[py]);
+          }
+          if (foam > 1) foam = 1;
+          wr += (235 - wr) * foam;
+          wg += (243 - wg) * foam;
+          wb += (248 - wb) * foam;
+          const alpha = Math.min(0.94, 0.45 + Wd * 0.5);
+          r += (wr - r) * alpha;
+          g += (wg - g) * alpha;
+          b += (wb - b) * alpha;
+        }
+
+        // Flood-risk overlay: marching diagonal stripes on threatened land.
+        if (risk[(ty > 0.5 ? y1 : y0) * GRID_W + (tx > 0.5 ? x1 : x0)]) {
+          if ((px + py + stripePhase) % 13 < 5.5) {
+            r += (255 - r) * 0.42;
+            g += (110 - g) * 0.42;
+            b += (84 - b) * 0.42;
+          }
+        }
+
+        data[p] = r;
+        data[p + 1] = g;
+        data[p + 2] = b;
+        data[p + 3] = 255;
       }
-      const bl = Math.min(1, built[i]) * 0.7;
-      r += (176 - r) * bl;
-      g += (158 - g) * bl;
-      b += (128 - b) * bl; // sandbag tint on player dikes
-      const wd = water[i];
-      if (wd > 0.03) {
-        const k = Math.min(1, wd / 4);
-        const foam = Math.min(1, this.sim.flux(i) * 0.35) * Math.min(1, wd * 3);
-        let wr = 66 - 44 * k;
-        let wg = 138 - 74 * k;
-        let wb = 196 - 82 * k;
-        wr += (215 - wr) * foam * 0.55;
-        wg += (232 - wg) * foam * 0.55;
-        wb += (244 - wb) * foam * 0.55;
-        const alpha = Math.min(0.93, 0.5 + wd * 0.22);
-        r += (wr - r) * alpha;
-        g += (wg - g) * alpha;
-        b += (wb - b) * alpha;
-      }
-      const p = i * 4;
-      data[p] = r;
-      data[p + 1] = g;
-      data[p + 2] = b;
-      data[p + 3] = 255;
     }
     this.offCtx.putImageData(this.img, 0, 0);
   }
@@ -553,7 +730,7 @@ class FloodInstance implements GameInstance {
     // Storm ambience: rain streaks and a dark tint scaling with the surge.
     const intensity = Math.min(1, this.sim.seaLevel / 2.5);
     if (intensity > 0.05) {
-      ctx.fillStyle = `rgba(10, 16, 38, ${0.22 * intensity})`;
+      ctx.fillStyle = `rgba(10, 16, 38, ${0.14 * intensity})`;
       ctx.fillRect(0, 0, VIRT_W, VIRT_H);
       ctx.strokeStyle = `rgba(190, 210, 235, ${0.25 * intensity})`;
       ctx.lineWidth = 1.5;
@@ -567,16 +744,39 @@ class FloodInstance implements GameInstance {
       ctx.stroke();
     }
 
-    // Brush cursor.
+    // Brush cursor, with a height readout: does this spot beat the surge?
     if (this.cursor && (this.mode === 'toy' || this.phase === 'build' || this.phase === 'storm')) {
+      const cx = Math.min(GRID_W - 1, Math.max(0, Math.round(this.cursor.x)));
+      const cy = Math.min(GRID_H - 1, Math.max(0, Math.round(this.cursor.y)));
+      const height = this.sim.terrain[cy * GRID_W + cx];
+      const need = this.riskLevel();
+      const high = need > 0 && height >= need;
       ctx.strokeStyle =
-        this.tool === 'dig' ? 'rgba(251, 146, 60, 0.8)' : 'rgba(238, 242, 255, 0.8)';
+        this.tool === 'dig'
+          ? 'rgba(251, 146, 60, 0.8)'
+          : high
+            ? 'rgba(74, 222, 128, 0.9)'
+            : 'rgba(238, 242, 255, 0.8)';
       ctx.lineWidth = 2;
       ctx.setLineDash([6, 5]);
       ctx.beginPath();
       ctx.arc(this.cursor.x * CELL, this.cursor.y * CELL, 2 * CELL, 0, Math.PI * 2);
       ctx.stroke();
       ctx.setLineDash([]);
+      if (need > 0) {
+        ctx.font = '700 15px system-ui, sans-serif';
+        ctx.fillStyle = high ? '#4ade80' : '#ffd166';
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+        ctx.shadowBlur = 4;
+        ctx.textAlign = 'left';
+        ctx.fillText(
+          `${height.toFixed(1)} m ${high ? '✓' : `/ needs ${need.toFixed(1)} m`}`,
+          this.cursor.x * CELL + 2.6 * CELL,
+          this.cursor.y * CELL - 1.5 * CELL,
+        );
+        ctx.shadowBlur = 0;
+        ctx.textAlign = 'center';
+      }
     }
   }
 }

@@ -86,10 +86,16 @@ export class Challenge {
     const hint = document.createElement('p');
     hint.className = 'challenge-hint';
     hint.textContent = computer
-      ? '🤖 The computer is placing turbines — watch it dodge the wakes…'
-      : 'Click to place turbines — wakes steal wind from turbines behind! Click one to take it back.';
+      ? '🤖 The computer is placing turbines — watch it dodge the orange wakes…'
+      : 'Click to place turbines — orange wakes steal wind from turbines behind! Click one to take it back.';
 
-    this.layer.append(hud, hint);
+    const legend = document.createElement('div');
+    legend.className = 'wake-legend';
+    legend.innerHTML =
+      '<span class="wake-swatch wake-swatch-full"></span> full wind' +
+      '<span class="wake-swatch wake-swatch-wake"></span> wake (slow)';
+
+    this.layer.append(hud, hint, legend);
     host.overlay.appendChild(this.layer);
     this.updateHud(0);
   }

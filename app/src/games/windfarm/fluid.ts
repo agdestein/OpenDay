@@ -318,14 +318,18 @@ export class FluidSolver {
     this.swap(this.dye);
   }
 
-  render(): void {
+  /** Draw to the canvas; wakeView colors by wind-speed deficit instead of dye. */
+  render(wakeView = false): void {
     const gl = this.gl;
     const p = this.programs.display;
     p.bind();
     gl.uniform1f(p.loc('uAspect'), this.aspect());
     gl.uniform1i(p.loc('uCount'), this.obstacleCount);
     gl.uniform3fv(p.loc('uObstacles[0]'), this.obstacleData);
+    gl.uniform1f(p.loc('uWakeMode'), wakeView ? 1 : 0);
+    gl.uniform1f(p.loc('uWind'), this.wind);
     this.bindTexture(p.loc('uDye'), this.dye.read.tex, 0);
+    this.bindTexture(p.loc('uVelocity'), this.velocity.read.tex, 1);
     this.blit(null);
   }
 
