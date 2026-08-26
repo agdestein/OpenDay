@@ -85,6 +85,19 @@ by Pavel Dobryakov (MIT License), itself based on the stable-fluids method of
 Our version is a TypeScript/WebGL2 rewrite of the solver core, with added wind
 inflow, obstacles, turbine drag disks, velocity probes, and the wake view.
 
+Creature Lab (`app/src/games/creature/`) is written from scratch (a small
+Verlet stick physics in the style of Jakobsen's *Advanced Character Physics*
+plus a simple genetic algorithm), but its design — build a creature from
+nodes, bones and oscillating muscles, then watch evolution teach it to walk —
+follows a beloved lineage: Karl Sims'
+[Evolved Virtual Creatures](https://www.karlsims.com/evolved-virtual-creatures.html)
+(1994), [carykh](https://www.youtube.com/@carykh)'s Evolution Simulator
+videos, and Keiwan Donyagard's [Evolution](https://keiwan.itch.io/evolution).
+
+Save the Netherlands (`app/src/games/floodland/`) uses the virtual-pipes
+height-field shallow-water scheme (O'Brien & Hodgins 1995; Mei, Decaudin & Hu
+2007).
+
 ## Repository layout
 
 - `README.md` — this file, the entry point.

@@ -6,6 +6,9 @@
 // Delve mode: the science layer for older kids and parents — four chapters
 // with live physics demos (poke a ragdoll, see the muscle waves, watch a mini
 // evolution run, meet a zoo of pre-trained bodies).
+// The design follows the classic evolve-a-walker lineage — Karl Sims' Evolved
+// Virtual Creatures (1994), carykh's Evolution Simulator, and Keiwan
+// Donyagard's Evolution — reimplemented from scratch (see README credits).
 import type { ArcadeGame, GameHost, GameInstance } from '../../shell/types';
 import { scoreFlow, type ScoreFlowHandle } from '../../shell/scoreflow';
 import {
