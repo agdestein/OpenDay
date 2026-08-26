@@ -19,6 +19,7 @@ const TEXT: Localized<{
   collisions: string;
   wallFriction: string;
   heatLoss: string;
+  reset: string;
   delveHeading: string;
 }> = {
   en: {
@@ -27,6 +28,7 @@ const TEXT: Localized<{
     collisions: 'Ball collisions',
     wallFriction: 'Wall friction',
     heatLoss: 'Heat loss',
+    reset: 'Reset',
     delveHeading: '🔬 The science of Bouncy Balls',
   },
   nl: {
@@ -35,6 +37,7 @@ const TEXT: Localized<{
     collisions: 'Botsingen',
     wallFriction: 'Wrijving',
     heatLoss: 'Warmteverlies',
+    reset: 'Reset',
     delveHeading: '🔬 De wetenschap van Stuiterballen',
   },
   no: {
@@ -43,6 +46,7 @@ const TEXT: Localized<{
     collisions: 'Kollisjoner',
     wallFriction: 'Friksjon',
     heatLoss: 'Varmetap',
+    reset: 'Nullstill',
     delveHeading: '🔬 Vitenskapen bak Spretteballer',
   },
 };
@@ -296,6 +300,19 @@ class BounceInstance implements GameInstance {
     toggle('collisions', '🎱', T.collisions);
     toggle('friction', '🧤', T.wallFriction);
     toggle('dissipate', '🔥', T.heatLoss);
+    const reset = document.createElement('button');
+    reset.className = 'tool-button';
+    const icon = document.createElement('span');
+    icon.className = 'tool-emoji';
+    icon.textContent = '🧹';
+    const text = document.createElement('span');
+    text.className = 'tool-label';
+    text.textContent = T.reset;
+    reset.append(icon, text);
+    reset.addEventListener('click', () => {
+      this.balls.length = 0;
+    });
+    this.toolbar!.appendChild(reset);
     this.host.overlay.appendChild(this.toolbar);
   }
 
