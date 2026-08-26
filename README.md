@@ -75,6 +75,16 @@ Useful at the stand:
 - Press `F` (or the corner button) for fullscreen; `Esc` returns to the menu.
 - A game with no input for 90 seconds resets to the menu automatically.
 
+## Credits
+
+The real-time fluid solver behind the wind-farm game
+(`app/src/games/windfarm/`) is adapted from
+[WebGL-Fluid-Simulation](https://github.com/PavelDoGreat/WebGL-Fluid-Simulation)
+by Pavel Dobryakov (MIT License), itself based on the stable-fluids method of
+[GPU Gems ch. 38](https://developer.nvidia.com/gpugems/gpugems/part-vi-beyond-triangles/chapter-38-fast-fluid-dynamics-simulation-gpu).
+Our version is a TypeScript/WebGL2 rewrite of the solver core, with added wind
+inflow, obstacles, turbine drag disks, velocity probes, and the wake view.
+
 ## Repository layout
 
 - `README.md` — this file, the entry point.

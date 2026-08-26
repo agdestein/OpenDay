@@ -2,6 +2,14 @@
 // Jacobi pressure projection, vorticity confinement). Tuned for looks, not
 // accuracy: the edges are outflow-only (enforced in the constrain pass), not
 // proper no-slip walls.
+//
+// The core solver shaders (advection, splat, curl, vorticity, divergence,
+// clear, pressure, gradient subtract) are adapted from Pavel Dobryakov's
+// WebGL-Fluid-Simulation, ported to GLSL ES 3.0:
+//   https://github.com/PavelDoGreat/WebGL-Fluid-Simulation
+//   Copyright (c) 2017 Pavel Dobryakov, MIT License.
+// The constrain (wind/obstacles/turbines), probe, and display passes are our
+// own additions.
 
 export const MAX_OBSTACLES = 16;
 export const MAX_TURBINES = 16;

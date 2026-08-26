@@ -1,7 +1,12 @@
 // Real-time 2D fluid solver on the GPU (WebGL2), in the classic stable-fluids
-// style popularized by GPU Gems and Pavel Dobryakov's WebGL-Fluid-Simulation:
-// splat inputs, vorticity confinement, Jacobi pressure projection,
-// semi-Lagrangian advection. Everything is tuned for looks, not accuracy.
+// style of GPU Gems ch. 38: splat inputs, vorticity confinement, Jacobi
+// pressure projection, semi-Lagrangian advection. Everything is tuned for
+// looks, not accuracy.
+//
+// The solver core is adapted from Pavel Dobryakov's WebGL-Fluid-Simulation
+// (https://github.com/PavelDoGreat/WebGL-Fluid-Simulation, Copyright (c) 2017
+// Pavel Dobryakov, MIT License), rewritten in TypeScript on WebGL2 — see
+// shaders.ts for which passes are ported and which are our own.
 import {
   MAX_OBSTACLES,
   MAX_TURBINES,
