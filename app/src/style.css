@@ -139,6 +139,83 @@ body {
   pointer-events: none;
 }
 
+/* ---------- "How does this work?" layer on the menu ---------- */
+
+/* Covers the menu chrome (footer, flags, fullscreen: z-index 30) but stays
+   under the toggle pill so the same button closes the layer again. */
+.about-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 31;
+  overflow-y: auto;
+  background: rgba(5, 8, 20, 0.92);
+  backdrop-filter: blur(6px);
+  animation: about-in 0.2s ease-out;
+}
+
+.menu-screen .delve-toggle {
+  z-index: 32;
+}
+
+@keyframes about-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.about-content {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 4.5rem 2rem 3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.about-content h2 {
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  font-weight: 900;
+  text-align: center;
+  background: linear-gradient(90deg, #7dd3fc, #c084fc, #fb7185);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.about-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
+  gap: 1.25rem;
+}
+
+.about-card {
+  padding: 1.4rem 1.5rem;
+  border-radius: 1.25rem;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.about-card-emoji {
+  font-size: 2.2rem;
+  line-height: 1;
+}
+
+.about-card h3 {
+  margin: 0.6rem 0 0.5rem;
+  font-size: 1.15rem;
+  font-weight: 800;
+}
+
+.about-card p {
+  font-size: 0.92rem;
+  line-height: 1.55;
+  opacity: 0.8;
+}
+
+.about-card p + p {
+  margin-top: 0.6rem;
+}
+
 /* ---------- Game overlay UI ---------- */
 
 .game-overlay {

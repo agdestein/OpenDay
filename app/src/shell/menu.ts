@@ -1,4 +1,6 @@
 import type { ArcadeGame, Screen } from './types';
+import { delveToggle } from './delve';
+import { renderAbout } from './about';
 import { toggleFullscreen } from '../lib/fullscreen';
 import { randRange } from '../lib/util';
 import { LANGS, getLang, setLang, pick, type Localized } from '../lib/i18n';
@@ -81,6 +83,21 @@ export function renderMenu(
   fullscreen.textContent = '⛶';
   fullscreen.addEventListener('click', toggleFullscreen);
   element.appendChild(fullscreen);
+
+  // "How does this work?" layer: same pill as the in-game delve toggles, but
+  // here it opens the big-picture cards (math -> simulation, CWI, our group).
+  let about: HTMLElement | null = null;
+  const aboutToggle = delveToggle(() => {
+    if (about) {
+      about.remove();
+      about = null;
+    } else {
+      about = renderAbout();
+      element.appendChild(about);
+    }
+    aboutToggle.setOpen(about !== null);
+  });
+  element.appendChild(aboutToggle.element);
 
   const langs = document.createElement('div');
   langs.className = 'lang-switcher';
