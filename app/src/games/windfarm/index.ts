@@ -3,6 +3,14 @@
 import type { ArcadeGame, GameHost, GameInstance } from '../../shell/types';
 import { FluidSolver, type Obstacle } from './fluid';
 import { Challenge, type ChallengeNext } from './game';
+import {
+  delvePanel,
+  delveToggle,
+  type DelveHandle,
+  type DelveToggleHandle,
+} from '../../shell/delve';
+import { windfarmDelve } from './delve';
+import { randRange } from '../../lib/util';
 import { pick, type Localized } from '../../lib/i18n';
 
 const TEXT: Localized<{
@@ -14,6 +22,7 @@ const TEXT: Localized<{
   windFarm: string;
   computer: string;
   stop: string;
+  delveHeading: string;
 }> = {
   en: {
     noWebgl: 'Sorry — this computer cannot run the fluid simulation.',
@@ -24,6 +33,7 @@ const TEXT: Localized<{
     windFarm: 'Wind farm',
     computer: 'Computer',
     stop: 'Stop',
+    delveHeading: '🔬 The science of Swirl Lab',
   },
   nl: {
     noWebgl: 'Sorry — deze computer kan de vloeistofsimulatie niet draaien.',
@@ -34,6 +44,7 @@ const TEXT: Localized<{
     windFarm: 'Windmolenpark',
     computer: 'Computer',
     stop: 'Stop',
+    delveHeading: '🔬 De wetenschap van het Wervel-lab',
   },
   no: {
     noWebgl: 'Beklager — denne datamaskinen kan ikke kjøre væskesimuleringen.',
@@ -44,6 +55,7 @@ const TEXT: Localized<{
     windFarm: 'Vindpark',
     computer: 'Datamaskin',
     stop: 'Stopp',
+    delveHeading: '🔬 Vitenskapen bak Virvellab',
   },
 };
 
@@ -81,6 +93,8 @@ class FluidInstance implements GameInstance {
   private buttons: Partial<Record<Mode | 'wind', HTMLButtonElement>> = {};
   private toyBar!: HTMLElement;
   private challengeBar!: HTMLElement;
+  private delve: DelveHandle | null = null;
+  private toggle: DelveToggleHandle | null = null;
 
   private onContextMenu = (e: Event) => e.preventDefault();
   private onPointerDown = (e: PointerEvent) => {
@@ -131,6 +145,8 @@ class FluidInstance implements GameInstance {
     }
     this.solver = solver;
     this.buildToolbar();
+    this.toggle = delveToggle(() => (this.delve ? this.closeDelve() : this.openDelve()));
+    this.host.overlay.appendChild(this.toggle.element);
     const canvas = this.host.canvas;
     canvas.addEventListener('contextmenu', this.onContextMenu);
     canvas.addEventListener('pointerdown', this.onPointerDown);
@@ -177,14 +193,48 @@ class FluidInstance implements GameInstance {
     window.removeEventListener('pointerup', this.onPointerUp);
     this.challenge?.destroy();
     this.challenge = null;
+    this.delve?.dispose();
+    this.delve = null;
     this.solver?.destroy();
     this.solver = null;
+  }
+
+  // ---- delve layer ----
+
+  private openDelve(): void {
+    if (this.delve || !this.solver) return;
+    // Something to look at while reading: the wind tunnel, live.
+    this.setWind(true);
+    this.delve = delvePanel({
+      heading: pick(TEXT).delveHeading,
+      chapters: windfarmDelve({ dropBlock: () => this.dropBlock() }),
+      onChapter: () => {},
+      onExit: () => this.closeDelve(),
+    });
+    this.host.overlay.appendChild(this.delve.element);
+    this.toggle?.setOpen(true);
+  }
+
+  private closeDelve(): void {
+    if (!this.delve) return;
+    this.delve.dispose();
+    this.delve = null;
+    this.toggle?.setOpen(false);
+  }
+
+  /** Chapter-3 lab: an obstacle mid-stream, so a vortex street forms live. */
+  private dropBlock(): void {
+    this.setWind(true);
+    if (this.obstacles.length >= MAX_PLACED_OBSTACLES) this.obstacles.shift();
+    this.obstacles.push({ x: 0.62, y: randRange(0.3, 0.7), r: OBSTACLE_RADIUS });
+    this.solver?.setObstacles(this.obstacles);
   }
 
   // ---- challenge mode ----
 
   private startChallenge(computer: boolean): void {
     if (!this.solver) return;
+    this.closeDelve();
     this.challenge?.destroy();
     // A fair, clean start: no leftover obstacles, dye, or momentum.
     this.obstacles = [];
@@ -208,6 +258,13 @@ class FluidInstance implements GameInstance {
   private setChallengeUi(on: boolean): void {
     this.toyBar.classList.toggle('hidden', on);
     this.challengeBar.classList.toggle('hidden', !on);
+    // No science detours in the middle of a timed round.
+    this.toggle?.element.classList.toggle('hidden', on);
+  }
+
+  private setWind(on: boolean): void {
+    this.windOn = on;
+    this.buttons.wind?.classList.toggle('active', on);
   }
 
   // ---- toy mode ----
@@ -271,10 +328,7 @@ class FluidInstance implements GameInstance {
     this.toyBar.className = 'game-toolbar';
     this.buttons.stir = add(this.toyBar, '🌀', T.stir, () => this.setMode('stir'));
     this.buttons.blocks = add(this.toyBar, '🪨', T.blocks, () => this.setMode('blocks'));
-    this.buttons.wind = add(this.toyBar, '🌬️', T.wind, () => {
-      this.windOn = !this.windOn;
-      this.buttons.wind!.classList.toggle('active', this.windOn);
-    });
+    this.buttons.wind = add(this.toyBar, '🌬️', T.wind, () => this.setWind(!this.windOn));
     add(this.toyBar, '🧹', T.clear, () => {
       this.obstacles = [];
       this.solver!.setObstacles(this.obstacles);

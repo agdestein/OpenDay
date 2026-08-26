@@ -3,6 +3,13 @@
 // dikes on a sand budget against three escalating storm surges.
 import type { ArcadeGame, GameHost, GameInstance } from '../../shell/types';
 import { scoreFlow, type ScoreFlowHandle } from '../../shell/scoreflow';
+import {
+  delvePanel,
+  delveToggle,
+  type DelveHandle,
+  type DelveToggleHandle,
+} from '../../shell/delve';
+import { floodlandDelve } from './delve';
 import { fmtNumber, pick, type Localized } from '../../lib/i18n';
 import { FloodSim, GRID_H, GRID_W } from './water';
 
@@ -104,6 +111,7 @@ const TEXT: Localized<{
   hudSavedSoFar: (status: string, total: number) => string;
   hudSeaLevel: (level: number) => string;
   cursorNeeds: (need: number) => string;
+  delveHeading: string;
 }> = {
   en: {
     dragHint: 'Drag to build dikes and dunes — then try the 🌩️ Storm button and hold back the sea!',
@@ -147,6 +155,7 @@ const TEXT: Localized<{
       `  |  🌊 sea +${fmtNumber(level, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} m`,
     cursorNeeds: (need) =>
       `/ needs ${fmtNumber(need, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} m`,
+    delveHeading: '🔬 The science of Save the Netherlands',
   },
   nl: {
     dragHint: 'Sleep om dijken en duinen te bouwen — probeer daarna de 🌩️ Storm-knop en houd de zee tegen!',
@@ -190,6 +199,7 @@ const TEXT: Localized<{
       `  |  🌊 zee +${fmtNumber(level, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} m`,
     cursorNeeds: (need) =>
       `/ nodig: ${fmtNumber(need, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} m`,
+    delveHeading: '🔬 De wetenschap van Red Nederland',
   },
   no: {
     dragHint: 'Dra for å bygge diker og dyner — prøv så 🌩️ Storm-knappen og hold havet tilbake!',
@@ -233,6 +243,7 @@ const TEXT: Localized<{
       `  |  🌊 hav +${fmtNumber(level, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} m`,
     cursorNeeds: (need) =>
       `/ trenger ${fmtNumber(need, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} m`,
+    delveHeading: '🔬 Vitenskapen bak Redd Nederland',
   },
 };
 
@@ -293,6 +304,8 @@ class FloodInstance implements GameInstance {
   private hint!: HTMLElement;
   private card: HTMLElement | null = null;
   private flow: ScoreFlowHandle | null = null;
+  private delve: DelveHandle | null = null;
+  private toggle!: DelveToggleHandle;
   private buttons: Record<string, HTMLButtonElement> = {};
 
   private onPointerDown = (e: PointerEvent) => {
@@ -331,6 +344,8 @@ class FloodInstance implements GameInstance {
     this.offCtx = this.off.getContext('2d')!;
     this.img = this.offCtx.createImageData(REND_W, REND_H);
     this.buildUi();
+    this.toggle = delveToggle(() => (this.delve ? this.closeDelve() : this.openDelve()));
+    this.host.overlay.appendChild(this.toggle.element);
     const canvas = this.host.canvas;
     canvas.addEventListener('pointerdown', this.onPointerDown);
     canvas.addEventListener('pointermove', this.onPointerMove);
@@ -366,7 +381,41 @@ class FloodInstance implements GameInstance {
     canvas.removeEventListener('pointermove', this.onPointerMove);
     window.removeEventListener('pointerup', this.onPointerUp);
     this.flow?.dispose();
+    this.delve?.dispose();
     this.card?.remove();
+  }
+
+  // ---- delve layer ----
+
+  private openDelve(): void {
+    if (this.delve) return;
+    this.delve = delvePanel({
+      heading: pick(TEXT).delveHeading,
+      chapters: floodlandDelve({
+        getStorm: () => this.toyStorm,
+        setStorm: (on) => this.setToyStorm(on),
+      }),
+      onChapter: () => {},
+      onExit: () => this.closeDelve(),
+    });
+    this.host.overlay.appendChild(this.delve.element);
+    this.toggle.setOpen(true);
+    this.hint.classList.add('hidden');
+  }
+
+  private closeDelve(): void {
+    if (!this.delve) return;
+    this.delve.dispose();
+    this.delve = null;
+    this.toggle.setOpen(false);
+    this.hint.classList.remove('hidden');
+  }
+
+  /** Single entry point for the toy storm, from the toolbar or the delve lab. */
+  private setToyStorm(on: boolean): void {
+    this.toyStorm = on;
+    this.buttons.storm?.classList.toggle('active', on);
+    if (!on) this.sim.resetWater();
   }
 
   // ---- game flow ----
@@ -374,6 +423,8 @@ class FloodInstance implements GameInstance {
   private startGame(): void {
     this.flow?.dispose();
     this.flow = null;
+    this.closeDelve();
+    this.toggle.element.classList.add('hidden');
     this.mode = 'game';
     this.round = 0;
     this.totalSaved = 0;
@@ -506,6 +557,7 @@ class FloodInstance implements GameInstance {
     this.flow = null;
     this.card?.remove();
     this.card = null;
+    this.toggle.element.classList.remove('hidden');
     this.mode = 'toy';
     this.toyStorm = false;
     this.sim.resetAll();
@@ -598,14 +650,9 @@ class FloodInstance implements GameInstance {
     add(this.toyBar, 'build', '🏗️', T.toolBuild, () => this.setTool('build'));
     add(this.toyBar, 'dig', '⛏️', T.toolDig, () => this.setTool('dig'));
     add(this.toyBar, 'splash', '💦', T.toolSplash, () => this.setTool('splash'));
-    add(this.toyBar, 'storm', '🌩️', T.toolStorm, () => {
-      this.toyStorm = !this.toyStorm;
-      this.buttons.storm.classList.toggle('active', this.toyStorm);
-      if (!this.toyStorm) this.sim.resetWater();
-    });
+    add(this.toyBar, 'storm', '🌩️', T.toolStorm, () => this.setToyStorm(!this.toyStorm));
     add(this.toyBar, 'reset', '🧹', T.toolReset, () => {
-      this.toyStorm = false;
-      this.buttons.storm.classList.remove('active');
+      this.setToyStorm(false);
       this.sim.resetAll();
       this.sim.waveAmp = CALM_WAVE;
     });
