@@ -111,6 +111,125 @@ const TURBINE_SVG = `
   </g>
 </svg>`;
 
+// ---- turbine machinery shared by the challenge and the delve wake demo ----
+
+/** Build a turbine sprite in the layer and return its live struct. */
+function createTurbine(layer: HTMLElement, x: number, y: number): Turbine {
+  const el = document.createElement('div');
+  el.className = 'turbine';
+  el.style.left = `${x * 100}%`;
+  el.style.top = `${(1 - y) * 100}%`;
+  el.innerHTML = TURBINE_SVG;
+  const label = document.createElement('div');
+  label.className = 'turbine-power';
+  label.textContent = '0 kW';
+  el.appendChild(label);
+  layer.appendChild(el);
+  return {
+    x,
+    y,
+    el,
+    rotor: el.querySelector('.turbine-rotor')!,
+    label,
+    angle: Math.random() * 360,
+    speed: 0,
+    power: 0,
+    shedIn: randRange(0.05, 0.15),
+    shedSign: Math.random() < 0.5 ? 1 : -1,
+  };
+}
+
+/** Probe each turbine's inflow and update its speed, power, and kW label. */
+function sampleTurbinePowers(solver: FluidSolver, turbines: Turbine[]): void {
+  const v = solver.sampleVelocities(
+    turbines.map((t) => ({ x: Math.max(0.005, t.x - PROBE_UPSTREAM), y: t.y })),
+  );
+  turbines.forEach((t, i) => {
+    t.speed = Math.hypot(v[i * 2], v[i * 2 + 1]);
+    const frac = clamp(t.speed / FREE_WIND, 0, 1.1);
+    t.power = P_MAX * frac * frac * frac;
+    t.label.textContent = `${Math.round(t.power)} kW`;
+    t.el.style.opacity = String(0.4 + 0.6 * clamp(t.power / P_MAX, 0, 1));
+  });
+}
+
+/** Small alternating cross-wind puffs just downstream: wakes meander. */
+function shedTurbulence(solver: FluidSolver, turbines: Turbine[], dt: number): void {
+  for (const t of turbines) {
+    t.shedIn -= dt;
+    if (t.shedIn > 0) continue;
+    t.shedIn = randRange(0.09, 0.16);
+    t.shedSign *= -1;
+    if (t.speed < 8) continue;
+    solver.splatVelocity(
+      t.x + 0.02,
+      t.y + (Math.random() - 0.5) * TURBINE_R,
+      0,
+      t.shedSign * t.speed * 0.4,
+      0.0008,
+    );
+  }
+}
+
+/** Spin each rotor at its local wind speed. */
+function spinRotors(turbines: Turbine[], dt: number): void {
+  for (const t of turbines) {
+    t.angle = (t.angle + t.speed * 6 * dt) % 360;
+    t.rotor.setAttribute('transform', `rotate(${t.angle})`);
+  }
+}
+
+/**
+ * Delve demo for the "wakes are money" chapter: two live turbines, the second
+ * parked straight in the first one's wake, with the usual power labels — no
+ * timer, no score, just the physics behind the ⚡ challenge.
+ */
+export class WakeDemo {
+  private layer: HTMLElement;
+  private turbines: Turbine[];
+  private sinceSample = SAMPLE_INTERVAL;
+
+  constructor(
+    host: GameHost,
+    private solver: FluidSolver,
+  ) {
+    const T = pick(TEXT);
+    this.layer = document.createElement('div');
+    this.layer.className = 'challenge-layer';
+    // To the right of the delve card; the wake blows rightward onto turbine 2.
+    const spots = [
+      { x: 0.52, y: 0.5, caption: T.legendFull, color: '#7dd3fc' },
+      { x: 0.7, y: 0.5, caption: T.legendWake, color: '#fb923c' },
+    ];
+    this.turbines = spots.map((s) => {
+      const t = createTurbine(this.layer, s.x, s.y);
+      const caption = document.createElement('div');
+      caption.className = 'turbine-caption';
+      caption.textContent = s.caption;
+      caption.style.color = s.color;
+      t.el.appendChild(caption);
+      return t;
+    });
+    host.overlay.appendChild(this.layer);
+    solver.setTurbines(this.turbines.map((t) => ({ x: t.x, y: t.y, r: TURBINE_R })));
+  }
+
+  tick(dt: number): void {
+    this.sinceSample += dt;
+    if (this.sinceSample >= SAMPLE_INTERVAL) {
+      this.sinceSample = 0;
+      sampleTurbinePowers(this.solver, this.turbines);
+    }
+    shedTurbulence(this.solver, this.turbines, dt);
+    spinRotors(this.turbines, dt);
+  }
+
+  destroy(): void {
+    this.layer.remove();
+    this.solver.setTurbines([]);
+  }
+}
+
 export class Challenge {
   private turbines: Turbine[] = [];
   private timeLeft = ROUND_SECONDS;
@@ -183,21 +302,18 @@ export class Challenge {
       this.sinceSample += dt;
       if (this.sinceSample >= SAMPLE_INTERVAL && this.turbines.length > 0) {
         this.sinceSample = 0;
-        this.samplePowers();
+        sampleTurbinePowers(this.solver, this.turbines);
       }
       let total = 0;
       for (const t of this.turbines) total += t.power;
       this.energy += total * dt;
       this.timeLeft -= dt;
-      this.shedTurbulence(dt);
+      shedTurbulence(this.solver, this.turbines, dt);
       if (this.computer) this.cpuTick(dt);
       this.updateHud(total);
       if (this.timeLeft <= 0) this.finish();
     }
-    for (const t of this.turbines) {
-      t.angle = (t.angle + t.speed * 6 * dt) % 360;
-      t.rotor.setAttribute('transform', `rotate(${t.angle})`);
-    }
+    spinRotors(this.turbines, dt);
   }
 
   /** Leave without a score (the Stop button). */
@@ -233,29 +349,7 @@ export class Challenge {
     y = clamp(y, MARGIN.y0, MARGIN.y1);
     if (this.turbines.some((t) => this.distance(x, y, t.x, t.y) < MIN_SPACING)) return false;
 
-    const el = document.createElement('div');
-    el.className = 'turbine';
-    el.style.left = `${x * 100}%`;
-    el.style.top = `${(1 - y) * 100}%`;
-    el.innerHTML = TURBINE_SVG;
-    const label = document.createElement('div');
-    label.className = 'turbine-power';
-    label.textContent = '0 kW';
-    el.appendChild(label);
-    this.layer.appendChild(el);
-
-    this.turbines.push({
-      x,
-      y,
-      el,
-      rotor: el.querySelector('.turbine-rotor')!,
-      label,
-      angle: Math.random() * 360,
-      speed: 0,
-      power: 0,
-      shedIn: randRange(0.05, 0.15),
-      shedSign: Math.random() < 0.5 ? 1 : -1,
-    });
+    this.turbines.push(createTurbine(this.layer, x, y));
     this.syncSolver();
     this.updateHud(0);
     return true;
@@ -263,37 +357,6 @@ export class Challenge {
 
   private syncSolver(): void {
     this.solver.setTurbines(this.turbines.map((t) => ({ x: t.x, y: t.y, r: TURBINE_R })));
-  }
-
-  private samplePowers(): void {
-    const v = this.solver.sampleVelocities(
-      this.turbines.map((t) => ({ x: Math.max(0.005, t.x - PROBE_UPSTREAM), y: t.y })),
-    );
-    this.turbines.forEach((t, i) => {
-      t.speed = Math.hypot(v[i * 2], v[i * 2 + 1]);
-      const frac = clamp(t.speed / FREE_WIND, 0, 1.1);
-      t.power = P_MAX * frac * frac * frac;
-      t.label.textContent = `${Math.round(t.power)} kW`;
-      t.el.style.opacity = String(0.4 + 0.6 * clamp(t.power / P_MAX, 0, 1));
-    });
-  }
-
-  /** Small alternating cross-wind puffs just downstream: wakes meander. */
-  private shedTurbulence(dt: number): void {
-    for (const t of this.turbines) {
-      t.shedIn -= dt;
-      if (t.shedIn > 0) continue;
-      t.shedIn = randRange(0.09, 0.16);
-      t.shedSign *= -1;
-      if (t.speed < 8) continue;
-      this.solver.splatVelocity(
-        t.x + 0.02,
-        t.y + (Math.random() - 0.5) * TURBINE_R,
-        0,
-        t.shedSign * t.speed * 0.4,
-        0.0008,
-      );
-    }
   }
 
   private cpuTick(dt: number): void {

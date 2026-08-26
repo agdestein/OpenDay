@@ -2,7 +2,7 @@
 // (Phase 2 game mode) on top of the same solver.
 import type { ArcadeGame, GameHost, GameInstance } from '../../shell/types';
 import { FluidSolver, type Obstacle } from './fluid';
-import { Challenge, type ChallengeNext } from './game';
+import { Challenge, WakeDemo, type ChallengeNext } from './game';
 import {
   delvePanel,
   delveToggle,
@@ -95,6 +95,7 @@ class FluidInstance implements GameInstance {
   private challengeBar!: HTMLElement;
   private delve: DelveHandle | null = null;
   private toggle: DelveToggleHandle | null = null;
+  private wakeDemo: WakeDemo | null = null;
 
   private onContextMenu = (e: Event) => e.preventDefault();
   private onPointerDown = (e: PointerEvent) => {
@@ -174,8 +175,10 @@ class FluidInstance implements GameInstance {
       }
       solver.step(dt);
       this.challenge?.tick(dt);
+      this.wakeDemo?.tick(dt);
     }
-    solver.render(this.challenge !== null);
+    // Wake view (wind-speed coloring) whenever turbines are on screen.
+    solver.render(this.challenge !== null || this.wakeDemo !== null);
 
     // One-time quality reduction if this machine can't hold ~50 fps.
     this.frameEma = 0.95 * this.frameEma + 0.05 * dt * 1000;
@@ -195,6 +198,8 @@ class FluidInstance implements GameInstance {
     this.challenge = null;
     this.delve?.dispose();
     this.delve = null;
+    this.wakeDemo?.destroy();
+    this.wakeDemo = null;
     this.solver?.destroy();
     this.solver = null;
   }
@@ -208,7 +213,7 @@ class FluidInstance implements GameInstance {
     this.delve = delvePanel({
       heading: pick(TEXT).delveHeading,
       chapters: windfarmDelve({ dropBlock: () => this.dropBlock() }),
-      onChapter: () => {},
+      onChapter: (i) => this.setDelveChapter(i),
       onExit: () => this.closeDelve(),
     });
     this.host.overlay.appendChild(this.delve.element);
@@ -219,7 +224,23 @@ class FluidInstance implements GameInstance {
     if (!this.delve) return;
     this.delve.dispose();
     this.delve = null;
+    this.wakeDemo?.destroy();
+    this.wakeDemo = null;
     this.toggle?.setOpen(false);
+  }
+
+  /** The "wakes are money" chapter runs a live two-turbine wake demo. */
+  private setDelveChapter(chapter: number): void {
+    if (chapter === 3 && !this.wakeDemo && this.solver) {
+      // Wind-farm view: clear the toy's blocks so only turbine wakes show.
+      this.obstacles = [];
+      this.solver.setObstacles([]);
+      this.setWind(true);
+      this.wakeDemo = new WakeDemo(this.host, this.solver);
+    } else if (chapter !== 3 && this.wakeDemo) {
+      this.wakeDemo.destroy();
+      this.wakeDemo = null;
+    }
   }
 
   /** Chapter-3 lab: an obstacle mid-stream, so a vortex street forms live. */

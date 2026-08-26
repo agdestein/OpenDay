@@ -347,6 +347,18 @@ body {
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
 }
 
+/* Caption above a delve wake-demo turbine ("full wind" / "wake"). */
+.turbine-caption {
+  position: absolute;
+  bottom: calc(100% + 0.15rem);
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 1.7vh;
+  font-weight: 700;
+  white-space: nowrap;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
+}
+
 .challenge-hud {
   position: absolute;
   top: 1rem;

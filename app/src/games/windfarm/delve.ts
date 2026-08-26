@@ -46,6 +46,7 @@ const CHAPTERS: Localized<ChapterText[]> = {
       title: 'Wakes are money',
       paragraphs: [
         'A turbine takes its power out of the wind by slowing it down — so behind every turbine hangs a wake of slow, tangled air. A turbine parked in a neighbor’s wake can lose a large slice of its power.',
+        '👉 It is happening live on the right: the front turbine drinks the full wind, while the one parked in its orange wake barely gets any — compare their kW labels.',
         'Worse: power grows with the cube of wind speed. Twice as slow means eight times less power, so every bite a wake takes hurts triple. Over a wind farm’s lifetime, wake losses are worth millions of euros.',
         'That is why the ⚡ challenge is a placement puzzle. And the 🤖 computer opponent doesn’t guess: it probes the simulated wind at dozens of spots and greedily takes the fastest one, dodging wakes automatically. Real wind-farm designers do the same with far bigger simulations — simulating wind for wind energy is part of our group’s daily work.',
       ],
@@ -81,6 +82,7 @@ const CHAPTERS: Localized<ChapterText[]> = {
       title: 'Zog is geld',
       paragraphs: [
         'Een turbine haalt zijn vermogen uit de wind door hem af te remmen — achter elke turbine hangt dus een zog van langzame, verwarde lucht. Een turbine die in het zog van zijn buurman staat, kan een flink deel van zijn vermogen verliezen.',
+        '👉 Het gebeurt rechts live: de voorste turbine drinkt de volle wind, terwijl die in zijn oranje zog bijna niets krijgt — vergelijk hun kW-labels.',
         'Erger nog: vermogen groeit met de derde macht van de windsnelheid. Twee keer zo langzaam betekent acht keer minder vermogen, dus elke hap die het zog neemt doet driedubbel pijn. Over de levensduur van een windmolenpark zijn zogverliezen miljoenen euro’s waard.',
         'Daarom is de ⚡-uitdaging een plaatsingspuzzel. En de 🤖 computertegenstander gokt niet: hij peilt de gesimuleerde wind op tientallen plekken en pakt gretig de snelste, waardoor hij zog vanzelf ontwijkt. Echte windparkontwerpers doen hetzelfde met veel grotere simulaties — wind simuleren voor windenergie is het dagelijkse werk van onze groep.',
       ],
@@ -116,6 +118,7 @@ const CHAPTERS: Localized<ChapterText[]> = {
       title: 'Kjølvann er penger',
       paragraphs: [
         'En turbin henter kraften sin ut av vinden ved å bremse den — bak hver turbin henger det derfor et kjølvann av langsom, sammenfiltret luft. En turbin som står i naboens kjølvann, kan miste en stor del av kraften sin.',
+        '👉 Det skjer live til høyre: den fremste turbinen drikker full vind, mens den som står i det oransje kjølvannet nesten ikke får noe — sammenlign kW-tallene deres.',
         'Verre: kraften vokser med tredje potens av vindfarten. Halvparten så fort betyr åtte ganger mindre kraft, så hver bit kjølvannet tar, svir trippelt. Over en vindparks levetid er kjølvannstap verdt millioner av euro.',
         'Derfor er ⚡-utfordringen et plasseringspuslespill. Og 🤖-datamotstanderen gjetter ikke: den måler den simulerte vinden på titalls steder og tar grådig den raskeste, så den unngår kjølvann helt av seg selv. Ekte vindparkdesignere gjør det samme med langt større simuleringer — å simulere vind for vindkraft er en del av gruppens daglige arbeid.',
       ],
