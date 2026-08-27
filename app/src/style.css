@@ -13,17 +13,27 @@ body,
   height: 100%;
 }
 
+/* Track the visible viewport on phones, where the URL bar grows and shrinks. */
+#app {
+  height: 100dvh;
+}
+
 body {
   background: #0b1020;
   color: #eef2ff;
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
   overflow: hidden;
+  overscroll-behavior: none;
   user-select: none;
   -webkit-user-select: none;
-  /* Keep mobile browsers from inflating text when the fixed-width viewport
-     is scaled down (see the viewport meta in index.html). */
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+}
+
+/* No double-tap-to-zoom delay or accidental zoom on any control. */
+button,
+input[type='range'] {
+  touch-action: manipulation;
 }
 
 .screen {
@@ -107,10 +117,16 @@ body {
     background 0.15s ease;
 }
 
-.tile:hover,
 .tile:focus-visible {
   transform: scale(1.06);
   background: rgba(255, 255, 255, 0.13);
+}
+
+@media (hover: hover) {
+  .tile:hover {
+    transform: scale(1.06);
+    background: rgba(255, 255, 255, 0.13);
+  }
 }
 
 .tile-emoji {
@@ -131,7 +147,7 @@ body {
 
 .menu-footer {
   position: absolute;
-  bottom: 1rem;
+  bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
   width: 100%;
   text-align: center;
   font-size: 0.85rem;
@@ -231,7 +247,7 @@ body {
 
 .game-toolbar {
   position: absolute;
-  bottom: 1rem;
+  bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -253,8 +269,10 @@ body {
   transition: background 0.15s ease;
 }
 
-.tool-button:hover {
-  background: rgba(255, 255, 255, 0.15);
+@media (hover: hover) {
+  .tool-button:hover {
+    background: rgba(255, 255, 255, 0.15);
+  }
 }
 
 .tool-button:disabled {
@@ -491,8 +509,10 @@ body {
   cursor: pointer;
 }
 
-.letter-grid button:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.18);
+@media (hover: hover) {
+  .letter-grid button:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.18);
+  }
 }
 
 .letter-grid button.ok {
@@ -558,8 +578,10 @@ body {
   transition: background 0.15s ease;
 }
 
-.arcade-button:hover {
-  background: rgba(255, 255, 255, 0.2);
+@media (hover: hover) {
+  .arcade-button:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
 }
 
 /* ---------- Delve layer: corner toggle pill (shared) + lab widgets ---------- */
@@ -583,8 +605,10 @@ body {
   transition: background 0.15s ease;
 }
 
-.delve-toggle:hover {
-  background: rgba(255, 255, 255, 0.15);
+@media (hover: hover) {
+  .delve-toggle:hover {
+    background: rgba(255, 255, 255, 0.15);
+  }
 }
 
 .delve-toggle.active {
@@ -696,8 +720,10 @@ body {
   transition: background 0.15s ease;
 }
 
-.corner-button:hover {
-  background: rgba(255, 255, 255, 0.15);
+@media (hover: hover) {
+  .corner-button:hover {
+    background: rgba(255, 255, 255, 0.15);
+  }
 }
 
 .back-button {
@@ -706,7 +732,7 @@ body {
 }
 
 .fullscreen-button {
-  bottom: 1rem;
+  bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
   right: 1rem;
 }
 
@@ -714,7 +740,7 @@ body {
 .lang-switcher {
   position: absolute;
   z-index: 30;
-  bottom: 1rem;
+  bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
   left: 1rem;
   display: flex;
   gap: 0.4rem;
@@ -734,9 +760,11 @@ body {
     opacity 0.15s ease;
 }
 
-.lang-button:hover {
-  background: rgba(255, 255, 255, 0.15);
-  opacity: 1;
+@media (hover: hover) {
+  .lang-button:hover {
+    background: rgba(255, 255, 255, 0.15);
+    opacity: 1;
+  }
 }
 
 .lang-button.active {
@@ -903,4 +931,129 @@ body {
   margin: 1rem auto 0;
   font-size: 0.95rem;
   padding: 0.55rem 1.3rem;
+}
+
+/* ---------- Narrow screens (phones) ----------
+   The stand's monitors are the real target; this keeps the app usable when
+   someone opens the link on their phone. */
+
+@media (max-width: 640px) {
+  /* Menu: two small tiles per row, scrollable instead of clipped. */
+  .menu-content {
+    justify-content: flex-start;
+    overflow-y: auto;
+    gap: 0.9rem;
+    /* Clear the "How does this work?" pill above and the corner chrome below. */
+    padding: 3.5rem 1rem 4.5rem;
+  }
+
+  .menu-content h1 {
+    font-size: 2rem;
+  }
+
+  .menu-subtitle {
+    font-size: 1rem;
+  }
+
+  .tile-grid {
+    width: 100%;
+    gap: 0.75rem;
+  }
+
+  .tile {
+    width: calc(50% - 0.375rem);
+    padding: 1rem 0.6rem;
+  }
+
+  .tile-emoji {
+    font-size: 2.5rem;
+  }
+
+  .tile-title {
+    font-size: 1.05rem;
+  }
+
+  .menu-footer {
+    font-size: 0.7rem;
+    padding: 0 1rem;
+  }
+
+  /* Game chrome: tighter, and let the tool bar wrap instead of overflowing. */
+  .game-toolbar {
+    left: 0.5rem;
+    right: 0.5rem;
+    transform: none;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.4rem;
+  }
+
+  .tool-button {
+    padding: 0.4rem 0.7rem;
+  }
+
+  .tool-emoji {
+    font-size: 1.3rem;
+  }
+
+  .creature-presets {
+    left: 0.5rem;
+    right: auto;
+    gap: 0.35rem;
+  }
+
+  /* Below the corner buttons and the delve pill, which need the top row. */
+  .challenge-hud {
+    top: 3.6rem;
+    gap: 1rem;
+    padding: 0.45rem 0.9rem;
+    font-size: 1rem;
+  }
+
+  .challenge-hint {
+    bottom: 6.5rem;
+    font-size: 0.9rem;
+    padding: 0 1rem;
+  }
+
+  .wake-legend,
+  .flood-legend {
+    top: 7rem;
+    right: 0.75rem;
+    font-size: 0.75rem;
+  }
+
+  .delve-toggle {
+    top: 0.75rem;
+    right: 0.75rem;
+    padding: 0.45rem 0.75rem;
+    font-size: 0.85rem;
+  }
+
+  .title-card-emoji {
+    font-size: 3.5rem;
+  }
+
+  .about-content {
+    padding: 4rem 1rem 2.5rem;
+  }
+
+  /* Score card: fit the screen instead of forcing a 24rem panel. */
+  .score-flow {
+    min-width: 0;
+    width: min(92vw, 26rem);
+    padding: 1.25rem 1rem;
+  }
+
+  /* Delve explainer: bottom sheet instead of a side panel. */
+  .delve-card {
+    left: 0.75rem;
+    right: 0.75rem;
+    top: auto;
+    bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+    transform: none;
+    width: auto;
+    max-height: 55vh;
+    padding: 1.1rem 1.2rem;
+  }
 }

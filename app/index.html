@@ -2,10 +2,10 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <!-- Fixed layout width: phones/tablets scale the desktop layout to fit the
-         screen instead of overflowing it (desktop browsers ignore this tag).
-         The app is designed for the stand's monitors, not for small screens. -->
-    <meta name="viewport" content="width=1200" />
+    <!-- The app targets the stand's monitors, but people who get the link open
+         it on their phones; render at device width (with style.css providing a
+         narrow-screen layout) instead of scaling the desktop layout down. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>CWI Science Arcade</title>
     <link
       rel="icon"
