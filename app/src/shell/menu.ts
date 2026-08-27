@@ -1,8 +1,8 @@
 import type { ArcadeGame, Screen } from './types';
 import { delveToggle } from './delve';
 import { renderAbout } from './about';
-import { toggleFullscreen } from '../lib/fullscreen';
-import { randRange } from '../lib/util';
+import { fullscreenSupported, toggleFullscreen } from '../lib/fullscreen';
+import { cappedDpr, randRange } from '../lib/util';
 import { LANGS, getLang, setLang, pick, type Localized } from '../lib/i18n';
 
 /** Drifting glow-dots behind the menu, so the stand looks alive from a distance. */
@@ -77,12 +77,14 @@ export function renderMenu(
   footer.textContent = T.footer;
   element.appendChild(footer);
 
-  const fullscreen = document.createElement('button');
-  fullscreen.className = 'corner-button fullscreen-button';
-  fullscreen.title = T.fullscreen;
-  fullscreen.textContent = '⛶';
-  fullscreen.addEventListener('click', toggleFullscreen);
-  element.appendChild(fullscreen);
+  if (fullscreenSupported) {
+    const fullscreen = document.createElement('button');
+    fullscreen.className = 'corner-button fullscreen-button';
+    fullscreen.title = T.fullscreen;
+    fullscreen.textContent = '⛶';
+    fullscreen.addEventListener('click', toggleFullscreen);
+    element.appendChild(fullscreen);
+  }
 
   // "How does this work?" layer: same pill as the in-game delve toggles, but
   // here it opens the big-picture cards (math -> simulation, CWI, our group).
@@ -130,7 +132,7 @@ export function renderMenu(
   const loop = (t: number) => {
     const dt = Math.min((t - last) / 1000, 0.05);
     last = t;
-    const dprNow = window.devicePixelRatio || 1;
+    const dprNow = cappedDpr();
     const w = element.clientWidth;
     const h = element.clientHeight;
     if (bg.width !== Math.round(w * dprNow)) bg.width = Math.max(1, Math.round(w * dprNow));

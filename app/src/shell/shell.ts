@@ -2,6 +2,7 @@ import type { ArcadeGame, GameInstance, Screen } from './types';
 import { renderMenu } from './menu';
 import { backButton, titleCard } from './hud';
 import { toggleFullscreen } from '../lib/fullscreen';
+import { cappedDpr } from '../lib/util';
 
 /** No input for this long inside a game -> back to the menu (kiosk reset). */
 const IDLE_LIMIT_MS = 90_000;
@@ -41,9 +42,9 @@ export class Shell {
     overlay.className = 'game-overlay';
     element.appendChild(overlay);
 
-    let dpr = window.devicePixelRatio || 1;
+    let dpr = cappedDpr();
     const resize = () => {
-      dpr = window.devicePixelRatio || 1;
+      dpr = cappedDpr();
       canvas.width = Math.max(1, Math.round(element.clientWidth * dpr));
       canvas.height = Math.max(1, Math.round(element.clientHeight * dpr));
     };
