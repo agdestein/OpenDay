@@ -35,7 +35,7 @@ const RACE_TIME = 12;
 const COUNTDOWN = 3;
 const SPEEDS = [1, 3, 10];
 const MAX_NODES = 12;
-const MAX_STICKS = 18;
+const MAX_STICKS = 20;
 const CHAMP_KEY = 'creature-champ-v1';
 
 /** Delve mini-evolution: smaller and faster than the real thing, same code. */
