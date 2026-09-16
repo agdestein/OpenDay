@@ -94,9 +94,10 @@ follows a beloved lineage: Karl Sims'
 (1994), [carykh](https://www.youtube.com/@carykh)'s Evolution Simulator
 videos, and Keiwan Donyagard's [Evolution](https://keiwan.itch.io/evolution).
 
-Save the Netherlands (`app/src/games/floodland/`) uses the virtual-pipes
-height-field shallow-water scheme (O'Brien & Hodgins 1995; Mei, Decaudin & Hu
-2007).
+Save the Netherlands (`app/src/games/floodland/`) uses a finite-volume shallow-water model with hydrostatic reconstruction,
+Rusanov fluxes, wetting and drying, and an ocean boundary.
+The new diorama includes dike previews, undo, repeatable storms, and a numerical
+model view. See [the remake notes](docs/floodland-remake.md) for scope and validation.
 
 ## Repository layout
 

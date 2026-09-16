@@ -1,0 +1,22 @@
+.delta-ui { position:absolute; inset:0; pointer-events:none; color:#eaf3ee; font-family:system-ui,sans-serif; }
+.delta-header { position:absolute; top:26px; left:90px; right:110px; display:flex; justify-content:space-between; align-items:center; gap:20px; }
+.delta-header small { font-size:11px; font-weight:800; letter-spacing:.2em; color:#9dd4ce; }
+.delta-header h1 { font-size:clamp(20px,2.6vw,34px); margin:5px 0; font-weight:750; letter-spacing:-.04em; }
+.delta-stats { font-size:14px; color:#e5e7cc; font-variant-numeric:tabular-nums; max-width:460px; line-height:1.8; }
+.delta-footer { position:absolute; bottom:20px; left:32px; right:32px; text-align:center; }
+.delta-status { font-size:15px; line-height:1.4; min-height:24px; margin:10px 0 4px; }
+.delta-inspection { font-size:13px; color:#b5dedc; min-height:18px; }
+.delta-tools { pointer-events:auto; display:flex; flex-wrap:wrap; justify-content:center; gap:8px; align-items:center; margin-top:12px; }
+.delta-tools button, .delta-tools select { font:600 13px system-ui; border:1px solid #547079; background:#203d48; color:#e7f2e9; border-radius:9px; padding:11px 13px; cursor:pointer; }
+.delta-tools button:first-child { background:#e5c579; color:#223735; border-color:#e5c579; }
+.delta-tools button[aria-pressed=true] { background:#486666; border-color:#c2e5ce; }
+.delta-tools button:hover:not(:disabled) { filter:brightness(1.18); }
+.delta-tools button:focus-visible, .delta-tools select:focus-visible { outline:3px solid #ffe0a4; outline-offset:3px; }
+.delta-tools button:disabled { opacity:.35; cursor:default; }
+.delta-tools button[hidden] { display:none; }
+.delta-tools label { display:flex; align-items:center; gap:8px; font-size:12px; color:#b6c9ca; }
+.delta-timeline { position:relative; max-width:520px; margin:auto; padding:8px 12px; font-size:11px; letter-spacing:.06em; border-bottom:3px solid #365661; background:linear-gradient(90deg,#548b8860 var(--progress),transparent var(--progress)); }
+@media(max-width:700px) { .delta-header { left:80px; top:18px; right:80px; display:block; } .delta-stats {font-size:11px;} .delta-footer {left:12px;right:12px;bottom:12px;} .delta-tools {gap:5px;margin-top:5px;} .delta-tools button,.delta-tools select {padding:8px;font-size:11px;} .delta-status {font-size:12px;} .delta-inspection {font-size:10px;} }
+/* The shared overlay enables pointer events on direct children. Only controls
+   should intercept input; drawing must reach the landscape canvas. */
+.game-overlay > .delta-ui { pointer-events:none; }

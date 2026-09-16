@@ -1,490 +1,88 @@
-// Height-field shallow water on a coarse grid (virtual-pipes scheme, explicit,
-// heavily damped: stability over accuracy) over a stylized map of the Dutch
-// coast. Sea on the left; a dune ridge with estuary gaps; polders below sea
-// level behind it; the Zeeland delta in the south; higher ground to the east.
-export const GRID_W = 160;
-export const GRID_H = 90;
-const N = GRID_W * GRID_H;
-
-/** Water shallower than this is treated as dry land. */
-export const DRY = 0.02;
-/** A house with more than this much water on its cell is flooded. */
-export const FLOOD_DEPTH = 0.35;
-const GRAVITY = 30;
-const FLUX_DAMP = 0.8; // per second
-const MAX_FLUX = 8;
-const MAX_TERRAIN = 5.2;
-
-/** Estuary gaps in the dune ridge (grid y), each with a river corridor. */
-const GAPS = [32, 58];
-const DELTA_Y = 68; // south of this: the Zeeland delta
-
-export interface House {
-  x: number;
-  y: number;
-  flooded: boolean;
-}
-
-export interface Village {
-  name: string;
-  /** Population in thousands. */
-  pop: number;
-  x: number;
-  y: number;
-  houses: House[];
-  oma?: boolean;
-}
-
-const smooth01 = (t: number) => {
-  const x = Math.min(1, Math.max(0, t));
-  return x * x * (3 - 2 * x);
-};
-
-/** Deterministic value noise so the map is identical every run. */
-const hash = (x: number, y: number) => {
-  const s = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
-  return s - Math.floor(s);
-};
-
-export const coastX = (y: number) => 40 + 8 * Math.sin(y * 0.09) + 5 * Math.sin(y * 0.033 + 1.7);
-
+/** First-order finite volumes: hydrostatic reconstruction + Rusanov flux.
+ * Bed-source corrections preserve lake-at-rest; a CFL step handles wet/dry fronts.
+ * Units: metres, seconds. Sea forcing exists only at the western boundary.
+ */
+export const GRID_W = 64;
+export const GRID_H = 40;
+export const DX = 10;
+const G = 9.81;
+const EPS = 1e-7;
 export class FloodSim {
-  terrain = new Float32Array(N);
-  water = new Float32Array(N);
-  /** How much the player has raised each cell (for sandbag coloring). */
-  built = new Float32Array(N);
-  /** Cells the sea would reach at the last computeRisk() level (1 = would flood). */
-  risk = new Uint8Array(N);
-  villages: Village[] = [];
-  /** Current sea level and wave amplitude at the western boundary. */
+  readonly terrain: Float64Array;
+  readonly water: Float64Array;
+  readonly mx: Float64Array;
+  readonly my: Float64Array;
+  private dh: Float64Array;
+  private du: Float64Array;
+  private dv: Float64Array;
   seaLevel = 0;
-  waveAmp = 0;
-
-  private fx = new Float32Array(N); // flux to the right neighbor
-  private fy = new Float32Array(N); // flux to the neighbor below
-  private scale = new Float32Array(N);
-  private time = 0;
-
-  constructor() {
-    this.generateTerrain();
-    this.placeVillages();
-    this.resetWater();
+  ocean = true;
+  boundaryVolume = 0;
+  constructor(readonly width = GRID_W, readonly height = GRID_H) {
+    const n = width * height;
+    this.terrain = new Float64Array(n);
+    this.water = new Float64Array(n);
+    this.mx = new Float64Array(n);
+    this.my = new Float64Array(n);
+    this.dh = new Float64Array(n);
+    this.du = new Float64Array(n);
+    this.dv = new Float64Array(n);
   }
-
-  /** Fresh map: undoes all player terraforming. */
-  resetAll(): void {
-    this.generateTerrain();
-    this.built.fill(0);
-    this.seaLevel = 0;
-    this.waveAmp = 0;
-    this.resetWater();
-  }
-
-  /**
-   * Calm start: sea at level 0 fills everything it can reach from the west
-   * (flood fill), so leveed polders below sea level start dry — that's the
-   * Netherlands. Also drains floods and repairs houses between storms.
-   */
-  resetWater(): void {
-    this.water.fill(0);
-    this.fx.fill(0);
-    this.fy.fill(0);
-    const queue: number[] = [];
-    const seen = new Uint8Array(N);
-    for (let y = 0; y < GRID_H; y++) {
-      const i = y * GRID_W;
-      if (this.terrain[i] < 0) {
-        queue.push(i);
-        seen[i] = 1;
+  volume(): number { return this.water.reduce((a, b) => a + b, 0) * DX * DX; }
+  /** Advance the requested physical duration using stable substeps. */
+  advance(duration: number): void {
+    while (duration > 1e-9) {
+      let speed = 0.1;
+      for (let i = 0; i < this.water.length; i++) {
+        const h = this.water[i];
+        if (h > EPS) speed = Math.max(speed, Math.abs(this.mx[i] / h) + Math.abs(this.my[i] / h) + 2 * Math.sqrt(G * h));
       }
-    }
-    while (queue.length > 0) {
-      const i = queue.pop()!;
-      this.water[i] = -this.terrain[i];
-      const x = i % GRID_W;
-      const y = (i - x) / GRID_W;
-      for (const [nx, ny] of [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]]) {
-        if (nx < 0 || nx >= GRID_W || ny < 0 || ny >= GRID_H) continue;
-        const j = ny * GRID_W + nx;
-        if (!seen[j] && this.terrain[j] < 0) {
-          seen[j] = 1;
-          queue.push(j);
-        }
-      }
-    }
-    for (const v of this.villages) for (const h of v.houses) h.flooded = false;
-  }
-
-  step(dt: number): void {
-    this.time += dt;
-    const { terrain, water, fx, fy, scale } = this;
-    const damp = Math.max(0, 1 - FLUX_DAMP * dt);
-    const g = GRAVITY * dt;
-
-    // The deep sea is an infinite reservoir: every cell below -3 m directly
-    // tracks the (wavy) sea level, so surge and waves start near the shore
-    // instead of having to propagate across the whole damped basin.
-    for (let y = 0; y < GRID_H; y++) {
-      const row = y * GRID_W;
-      for (let x = 0; x < GRID_W; x++) {
-        const i = row + x;
-        if (terrain[i] >= -3) continue;
-        // Two harmonics rolling shoreward (phase moves with +x) so the swell
-        // reads as waves approaching the beach, not horizontal bands.
-        const level =
-          this.seaLevel +
-          this.waveAmp *
-            (0.75 * Math.sin(x * 0.35 + y * 0.12 - this.time * 1.4) +
-              0.35 * Math.sin(x * 0.21 - y * 0.17 - this.time * 2.6 + 1.3));
-        water[i] = Math.max(0, level - terrain[i]);
-      }
-    }
-
-    for (let y = 0; y < GRID_H; y++) {
-      for (let x = 0; x < GRID_W; x++) {
-        const i = y * GRID_W + x;
-        const s = terrain[i] + water[i];
-        // Thin films carry little momentum (the depth factor); without it,
-        // nearly-dry cells beside deep water oscillate and blow up.
-        if (x < GRID_W - 1) {
-          const r = i + 1;
-          if (water[i] < DRY && water[r] < DRY) {
-            fx[i] = 0;
-          } else {
-            const k = Math.min(1, water[i] + water[r]);
-            const f = (fx[i] + g * k * (s - terrain[r] - water[r])) * damp;
-            fx[i] = Math.max(-MAX_FLUX, Math.min(MAX_FLUX, f));
-          }
-        }
-        if (y < GRID_H - 1) {
-          const b = i + GRID_W;
-          if (water[i] < DRY && water[b] < DRY) {
-            fy[i] = 0;
-          } else {
-            const k = Math.min(1, water[i] + water[b]);
-            const f = (fy[i] + g * k * (s - terrain[b] - water[b])) * damp;
-            fy[i] = Math.max(-MAX_FLUX, Math.min(MAX_FLUX, f));
-          }
-        }
-      }
-    }
-
-    // Limit each cell's total outflow to the water it actually has.
-    for (let y = 0; y < GRID_H; y++) {
-      for (let x = 0; x < GRID_W; x++) {
-        const i = y * GRID_W + x;
-        let out = 0;
-        if (x < GRID_W - 1 && fx[i] > 0) out += fx[i];
-        if (x > 0 && fx[i - 1] < 0) out -= fx[i - 1];
-        if (y < GRID_H - 1 && fy[i] > 0) out += fy[i];
-        if (y > 0 && fy[i - GRID_W] < 0) out -= fy[i - GRID_W];
-        out *= dt;
-        scale[i] = water[i] <= 0 ? 0 : out > water[i] ? water[i] / out : 1;
-      }
-    }
-    for (let y = 0; y < GRID_H; y++) {
-      for (let x = 0; x < GRID_W; x++) {
-        const i = y * GRID_W + x;
-        if (x < GRID_W - 1) {
-          const f = fx[i] * dt * (fx[i] > 0 ? scale[i] : scale[i + 1]);
-          water[i] -= f;
-          water[i + 1] += f;
-        }
-        if (y < GRID_H - 1) {
-          const f = fy[i] * dt * (fy[i] > 0 ? scale[i] : scale[i + GRID_W]);
-          water[i] -= f;
-          water[i + GRID_W] += f;
-        }
-      }
-    }
-    for (let i = 0; i < N; i++) if (water[i] < 0) water[i] = 0;
-  }
-
-  /**
-   * Raise terrain in a small brush (dike building). `budget` caps the spent
-   * sand (1 sand = 1 meter·cell); returns how much was actually spent.
-   */
-  raise(cx: number, cy: number, amount: number, budget: number): number {
-    let spent = 0;
-    const r = 2;
-    for (let y = Math.max(0, Math.floor(cy - r)); y <= Math.min(GRID_H - 1, Math.ceil(cy + r)); y++) {
-      for (let x = Math.max(0, Math.floor(cx - r)); x <= Math.min(GRID_W - 1, Math.ceil(cx + r)); x++) {
-        const d2 = (x - cx) ** 2 + (y - cy) ** 2;
-        if (d2 > r * r) continue;
-        const i = y * GRID_W + x;
-        // Sharp falloff: a dike only needs to be ~2 cells wide to hold, and a
-        // narrow brush makes every unit of the sand budget go further.
-        const want = Math.min(amount * Math.exp(-d2 / 0.7), MAX_TERRAIN - this.terrain[i]);
-        const dh = Math.min(want, budget - spent);
-        if (dh <= 0) continue;
-        this.terrain[i] += dh;
-        this.built[i] += dh;
-        // Sand dumped into water fills it up rather than lifting it.
-        this.water[i] = Math.max(0, this.water[i] - dh);
-        spent += dh;
-      }
-    }
-    return spent;
-  }
-
-  /**
-   * Raise terrain toward a target crest height (game-mode dike building).
-   * One brush pass lifts the core of the stroke straight to `target`, so a
-   * single drag leaves a storm-proof dike and never over-builds: the cost is
-   * exactly the height deficit. Returns the sand spent.
-   */
-  raiseToward(cx: number, cy: number, target: number, budget: number): number {
-    let spent = 0;
-    const r = 2;
-    for (let y = Math.max(0, Math.floor(cy - r)); y <= Math.min(GRID_H - 1, Math.ceil(cy + r)); y++) {
-      for (let x = Math.max(0, Math.floor(cx - r)); x <= Math.min(GRID_W - 1, Math.ceil(cx + r)); x++) {
-        const d2 = (x - cx) ** 2 + (y - cy) ** 2;
-        if (d2 > r * r) continue;
-        const i = y * GRID_W + x;
-        // Flat-top kernel: cells within ~0.7 of the stroke reach the full
-        // target in one pass (a drag between cell centers still seals), with
-        // a sharp shoulder so the dike stays narrow and cheap.
-        const k = Math.exp(-Math.max(0, d2 - 0.5) / 0.45);
-        const want = k * (target - this.terrain[i]);
-        const dh = Math.min(want, budget - spent);
-        if (dh <= 0) continue;
-        this.terrain[i] += dh;
-        this.built[i] += dh;
-        this.water[i] = Math.max(0, this.water[i] - dh);
-        spent += dh;
-      }
-    }
-    return spent;
-  }
-
-  /**
-   * Lower terrain (digging). Returns the sand refunded: only material the
-   * player placed comes back, so digging natural dunes is not a sand mine.
-   */
-  lower(cx: number, cy: number, amount: number): number {
-    let refund = 0;
-    const r = 2;
-    for (let y = Math.max(0, Math.floor(cy - r)); y <= Math.min(GRID_H - 1, Math.ceil(cy + r)); y++) {
-      for (let x = Math.max(0, Math.floor(cx - r)); x <= Math.min(GRID_W - 1, Math.ceil(cx + r)); x++) {
-        const d2 = (x - cx) ** 2 + (y - cy) ** 2;
-        if (d2 > r * r) continue;
-        const i = y * GRID_W + x;
-        const drop = Math.min(amount * Math.exp(-d2 / 2), this.terrain[i] + 6);
-        if (drop <= 0) continue;
-        this.terrain[i] -= drop;
-        const fromBuilt = Math.min(drop, this.built[i]);
-        this.built[i] -= fromBuilt;
-        refund += fromBuilt;
-      }
-    }
-    return refund;
-  }
-
-  /**
-   * Flood-fill from the open sea over all terrain below `level` and mark the
-   * currently-dry cells the water would reach. Drives the striped "this will
-   * flood" overlay: raising a dike above `level` cuts the fill, so the stripes
-   * behind a finished dike disappear — instant feedback that it will hold.
-   */
-  computeRisk(level: number): void {
-    const { terrain, water, risk } = this;
-    risk.fill(0);
-    const seen = new Uint8Array(N);
-    const queue: number[] = [];
-    for (let i = 0; i < N; i++) {
-      if (terrain[i] < -3) {
-        seen[i] = 1;
-        queue.push(i);
-      }
-    }
-    while (queue.length > 0) {
-      const i = queue.pop()!;
-      const x = i % GRID_W;
-      const y = (i - x) / GRID_W;
-      for (const [nx, ny] of [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]]) {
-        if (nx < 0 || nx >= GRID_W || ny < 0 || ny >= GRID_H) continue;
-        const j = ny * GRID_W + nx;
-        if (!seen[j] && terrain[j] < level) {
-          seen[j] = 1;
-          queue.push(j);
-        }
-      }
-    }
-    for (let i = 0; i < N; i++) {
-      if (seen[i] && water[i] < 0.15 && level - terrain[i] > 0.05) risk[i] = 1;
+      const dt = Math.min(duration, 0.38 * DX / speed);
+      this.step(dt);
+      duration -= dt;
     }
   }
-
-  clearRisk(): void {
-    this.risk.fill(0);
-  }
-
-  /** Dump a blob of water (toy mode splashing). */
-  splash(cx: number, cy: number): void {
-    const r = 3;
-    for (let y = Math.max(0, Math.floor(cy - r)); y <= Math.min(GRID_H - 1, Math.ceil(cy + r)); y++) {
-      for (let x = Math.max(0, Math.floor(cx - r)); x <= Math.min(GRID_W - 1, Math.ceil(cx + r)); x++) {
-        const d2 = (x - cx) ** 2 + (y - cy) ** 2;
-        if (d2 > r * r) continue;
-        this.water[y * GRID_W + x] += 2.2 * Math.exp(-d2 / 4);
-      }
+  private step(dt: number): void {
+    this.dh.fill(0); this.du.fill(0); this.dv.fill(0);
+    const { width: w, height: h } = this;
+    for (let y = 0; y < h; y++) for (let x = 0; x <= w; x++) {
+      this.face(x > 0 ? y * w + x - 1 : -1, x < w ? y * w + x : -1, true, dt, x === 0 && this.ocean);
+    }
+    for (let y = 0; y <= h; y++) for (let x = 0; x < w; x++) {
+      this.face(y > 0 ? (y - 1) * w + x : -1, y < h ? y * w + x : -1, false, dt, false);
+    }
+    for (let i = 0; i < this.water.length; i++) {
+      this.water[i] += this.dh[i];
+      if (this.water[i] < -1e-8) throw new Error('Negative shallow-water depth');
+      this.water[i] = Math.max(0, this.water[i]);
+      const friction = 1 / (1 + 0.018 * dt);
+      this.mx[i] = (this.mx[i] + this.du[i]) * friction;
+      this.my[i] = (this.my[i] + this.dv[i]) * friction;
+      if (this.water[i] < EPS) this.mx[i] = this.my[i] = 0;
     }
   }
-
-  /** Mark houses standing in deep water as flooded (sticky until resetWater). */
-  updateFlooding(): void {
-    for (const v of this.villages) {
-      for (const h of v.houses) {
-        if (!h.flooded && this.water[h.y * GRID_W + h.x] > FLOOD_DEPTH) h.flooded = true;
-      }
-    }
-  }
-
-  /** People currently dry, in thousands (villages count fractionally). */
-  savedStats(): { saved: number; total: number; omaDry: boolean } {
-    let saved = 0;
-    let total = 0;
-    let omaDry = true;
-    for (const v of this.villages) {
-      total += v.pop;
-      const dry = v.houses.filter((h) => !h.flooded).length / v.houses.length;
-      saved += v.pop * dry;
-      if (v.oma && dry < 1) omaDry = false;
-    }
-    return { saved: Math.round(saved), total, omaDry };
-  }
-
-  flux(i: number): number {
-    return Math.abs(this.fx[i]) + Math.abs(this.fy[i]);
-  }
-
-  // ---- map generation ----
-
-  private generateTerrain(): void {
-    // Sharp mask (σ well inside the ±3-row river structure): the dunes are
-    // only low where the river visibly runs, so damming what you can see
-    // seals the gap — no hidden low shoulders just outside it.
-    const gapMask = (y: number) => {
-      let m = 0;
-      for (const gy of GAPS) m += Math.exp(-(((y - gy) / 1.6) ** 2));
-      return m;
-    };
-    for (let y = 0; y < GRID_H; y++) {
-      const xc = coastX(y);
-      // Dune crest = -0.5 base + amp: ~2.3 m in the north (falls in storm 2),
-      // ~3.3 m near Den Haag (falls in storm 3), ~4.2 m elsewhere (holds).
-      let duneAmp = y < 20 ? 2.8 : y >= 42 && y <= 52 ? 3.8 : 4.7;
-      duneAmp *= Math.max(0.06, 1 - gapMask(y));
-      for (let x = 0; x < GRID_W; x++) {
-        const d = x - xc;
-        let t: number;
-        if (d < 0) {
-          t = -5.5 + 5 * smooth01((d + 9) / 9); // sea floor shelving up to the beach
-        } else if (d < 6) {
-          t = -0.5;
-        } else {
-          t = -1.2 + 0.3 * (hash(x, y) - 0.5); // polders below sea level
-        }
-        t += duneAmp * Math.exp(-(((d - 3) / 2.2) ** 2));
-        t += 6.5 * smooth01((d - 46) / 28); // higher ground in the east
-        this.terrain[y * GRID_W + x] = t;
-      }
-    }
-    // River corridors through the gaps: low levees beside them and an end cap,
-    // so calm sea fills the corridor but stays out of the polders. A surge
-    // overtops the 0.7 m levees unless the player reinforces or dams them.
-    for (const gy of GAPS) {
-      for (let y = gy - 3; y <= gy + 3; y++) {
-        const xc = coastX(y);
-        const off = Math.abs(y - gy);
-        for (let d = 0; d <= 21; d++) {
-          const i = y * GRID_W + Math.round(xc + d);
-          if (d >= 19) this.terrain[i] = Math.max(this.terrain[i], 0.7);
-          else if (off <= 1) this.terrain[i] = Math.min(this.terrain[i], -0.9);
-          else if (d >= 2) this.terrain[i] = Math.max(this.terrain[i], 0.7);
-        }
-      }
-    }
-    // The Zeeland delta: open water with a couple of low islands, held back
-    // from the polders by low banks along its north and east edges.
-    for (let y = DELTA_Y; y < GRID_H; y++) {
-      const xc = coastX(y);
-      for (let x = 0; x < GRID_W; x++) {
-        const d = x - xc;
-        const i = y * GRID_W + x;
-        if (d < 18) this.terrain[i] = Math.min(this.terrain[i], -3.3 + 0.3 * hash(x, y));
-        else if (d < 20) this.terrain[i] = Math.max(this.terrain[i], 2.4);
-      }
-    }
-    for (let y = DELTA_Y - 2; y < DELTA_Y; y++) {
-      const xc = coastX(y);
-      for (let d = 3; d < 20; d++) {
-        const i = y * GRID_W + Math.round(xc + d);
-        this.terrain[i] = Math.max(this.terrain[i], 2.4);
-      }
-    }
-    const island = (cx: number, cy: number, r: number, h: number) => {
-      for (let y = Math.max(0, cy - r - 2); y <= Math.min(GRID_H - 1, cy + r + 2); y++) {
-        for (let x = Math.max(0, cx - r - 2); x <= Math.min(GRID_W - 1, cx + r + 2); x++) {
-          const d2 = ((x - cx) ** 2 + (y - cy) ** 2) / (r * r);
-          const i = y * GRID_W + x;
-          // Decay to the delta floor so the island fades out smoothly instead
-          // of leaving a visible square plateau on the sea bed.
-          this.terrain[i] = Math.max(this.terrain[i], -3.4 + (h + 3.4) * Math.exp(-d2 * 1.8));
-        }
-      }
-    };
-    island(48, 73, 6, 1.7); // Middelburg's island
-    island(35, 79, 4, 1.3); // Oma's island
-  }
-
-  private placeVillages(): void {
-    const make = (
-      name: string,
-      pop: number,
-      x: number,
-      y: number,
-      count: number,
-      oma = false,
-      /** House scatter radius factor: island villages huddle so a small ring fort can enclose them. */
-      spread = 1,
-    ): Village => {
-      const houses: House[] = [];
-      for (let k = 0; k < count; k++) {
-        const angle = (k / count) * Math.PI * 2 + 0.8;
-        const r = (k === 0 ? 0 : 1.6 + (k % 2)) * spread;
-        let hx = Math.round(x + Math.cos(angle) * r);
-        let hy = Math.round(y + Math.sin(angle) * r * 0.8);
-        // Nobody builds a house in the river: nudge onto the driest nearby cell.
-        if (this.terrain[hy * GRID_W + hx] < -0.2) {
-          let best = -10;
-          for (let dy = -2; dy <= 2; dy++) {
-            for (let dx = -2; dx <= 2; dx++) {
-              const t = this.terrain[(hy + dy) * GRID_W + hx + dx];
-              if (t > best && t < 3) {
-                best = t;
-                if (t > -0.2) {
-                  hx += dx;
-                  hy += dy;
-                  dy = dx = 3;
-                }
-              }
-            }
-          }
-        }
-        houses.push({ x: hx, y: hy, flooded: false });
-      }
-      return { name, pop, x, y, houses, oma };
-    };
-    const at = (dInland: number, y: number) => Math.round(coastX(y) + dInland);
-    this.villages = [
-      make('Groningen', 230, at(14, 10), 10, 4),
-      make('Amsterdam', 900, at(18, 30), 30, 8),
-      make('Den Haag', 550, at(7, 47), 47, 6),
-      make('Utrecht', 360, at(54, 44), 44, 5),
-      make('Rotterdam', 650, at(15, 55), 55, 7),
-      make('Middelburg', 50, 48, 73, 3, false, 0.6),
-      make('Oma 👵', 1, 35, 79, 1, true),
-    ];
+  private face(a: number, b: number, horizontal: boolean, dt: number, sea: boolean): void {
+    const ai = a < 0 ? b : a, bi = b < 0 ? a : b;
+    const za = this.terrain[ai], zb = this.terrain[bi];
+    let ha = this.water[ai], hb = this.water[bi];
+    const normal = horizontal ? this.mx : this.my;
+    const tangent = horizontal ? this.my : this.mx;
+    let ua = ha > EPS ? normal[ai] / ha : 0;
+    let ub = hb > EPS ? normal[bi] / hb : 0;
+    const va = ha > EPS ? tangent[ai] / ha : 0;
+    const vb = hb > EPS ? tangent[bi] / hb : 0;
+    if (a < 0) { if (sea) { ha = Math.max(0, this.seaLevel - za); ua = ub; } else ua = -ub; }
+    if (b < 0) ub = -ua;
+    const z = Math.max(za, zb);
+    const l = Math.max(0, ha + za - z), r = Math.max(0, hb + zb - z);
+    const speed = Math.max(Math.abs(ua) + Math.sqrt(G * l), Math.abs(ub) + Math.sqrt(G * r));
+    const mass = (l * ua + r * ub - speed * (r - l)) / 2;
+    const mom = (l * ua * ua + r * ub * ub + G * (l * l + r * r) / 2 - speed * (r * ub - l * ua)) / 2;
+    const cross = (l * ua * va + r * ub * vb - speed * (r * vb - l * va)) / 2;
+    const f = dt / DX;
+    const dn = horizontal ? this.du : this.dv, dc = horizontal ? this.dv : this.du;
+    if (a >= 0) { this.dh[a] -= f * mass; dn[a] -= f * (mom + G * (ha * ha - l * l) / 2); dc[a] -= f * cross; }
+    if (b >= 0) { this.dh[b] += f * mass; dn[b] += f * (mom + G * (hb * hb - r * r) / 2); dc[b] += f * cross; }
+    if (sea) this.boundaryVolume += mass * dt * DX;
   }
 }
