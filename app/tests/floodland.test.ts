@@ -1,3 +1,4 @@
+import { FloodRecording, RECORD_FPS } from '../src/games/floodland/recording.ts';
 import { FloodSim, GRID_W as W, GRID_H as H } from '../src/games/floodland/water.ts';
 import { makeScene, resetWater, dikePlan, surge, STORM_DURATION, HOMES, BUDGET } from '../src/games/floodland/scene.ts';
 import assert from 'node:assert/strict';
@@ -39,3 +40,22 @@ assert.ok(low.flooded>0,'Low dike overtops');
 const replay=run(2.4); assert.deepEqual(replay.water,high.water);
 assert.equal(makeScene().terrain.length,W*H);
 console.log(`PASS: lake at rest; closed-basin volume; wet/dry dam break; boundary accounting; replay. Homes flooded: open ${open.flooded}, low ${low.flooded}, high ${high.flooded}.`);
+
+// The timeline restores all dynamic fields and historical damage, not just water.
+const recordingScene = makeScene();
+const recording = new FloodRecording(recordingScene.terrain, W, H);
+assert.ok(recording.values.byteLength < 40 * 1024 * 1024);
+assert.equal(recording.restore(STORM_DURATION, recordingScene), 255);
+assert.ok(recordingScene.water.every((h,i)=>Math.abs(h-open.water[i])<1e-6));
+recording.restore(18.123, recordingScene);
+const middle = [recordingScene.water.slice(),recordingScene.mx.slice(),recordingScene.my.slice()];
+assert.equal(recording.restore(0, recordingScene), 0);
+assert.equal(recordingScene.seaLevel,0);
+assert.equal(recordingScene.water[20*W+40],0);
+assert.ok(recording.maximumThrough(0)[20*W+40]===0);
+recording.restore(18.123, recordingScene);
+assert.deepEqual(recordingScene.water,middle[0]);
+assert.deepEqual(recordingScene.mx,middle[1]);
+assert.deepEqual(recordingScene.my,middle[2]);
+assert.equal(recording.frames, STORM_DURATION*RECORD_FPS+1);
+console.log('PASS: recording memory bound, full-run agreement, backward/forward seeking, momentum, historical damage and flood extent.');

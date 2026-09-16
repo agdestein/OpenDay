@@ -1,7 +1,8 @@
 import type { ArcadeGame, GameHost, GameInstance } from '../../shell/types';
 import { fmtNumber, pick } from '../../lib/i18n';
 import { GRID_W as W, GRID_H as H } from './water';
-import { BUDGET, HOMES, STORM_DURATION, dikePlan, makeScene, resetWater, surge, type Point } from './scene';
+import { BUDGET, HOMES, STORM_DURATION, dikePlan, makeScene, resetWater, type Point } from './scene';
+import { FloodRecording, RECORD_FPS } from './recording';
 import { text } from './text';
 import './style.css';
 
@@ -22,7 +23,7 @@ class FloodInstance implements GameInstance {
   private plan = new Map<number, number>();
   private pointer: Point | null = null;
   private flooded = new Set<number>();
-  private maximum = new Float64Array(W * H);
+  private recording: FloodRecording | null = null;
   private previous: Float64Array | null = null;
   private showPrevious = false;
   private error = '';
@@ -31,18 +32,20 @@ class FloodInstance implements GameInstance {
   private status!: HTMLElement;
   private stats!: HTMLElement;
   private timebar!: HTMLElement;
+  private timeline!: HTMLInputElement;
   private inspection!: HTMLElement;
   private down = (e: PointerEvent) => {
     const p = this.hit(e);
     if (!p) return;
     this.pointer = p;
-    if (this.phase !== 'build' || this.model) return;
+    if (this.phase !== 'build') return;
     this.host.canvas.setPointerCapture(e.pointerId);
     this.path = [p]; this.error = ''; this.preview();
   };
   private move = (e: PointerEvent) => {
     const p = this.hit(e); this.pointer = p;
-    if (this.path.length && p) { this.path.push(p); this.preview(); }
+    if (this.path.length && p) this.path.push(p);
+    this.preview();
   };
   private up = () => {
     if (!this.path.length) return;
@@ -55,7 +58,8 @@ class FloodInstance implements GameInstance {
     } else if (cost > this.budget) this.error = text().expensive;
     this.cancel();
   };
-  private cancel = () => { this.path = []; this.plan.clear(); };
+  private cancel = () => { this.path = []; this.plan.clear(); this.pointer = null; };
+  private leave = () => { if (!this.path.length) this.cancel(); };
   constructor(private host: GameHost) {}
   start(): void {
     this.ctx = this.host.canvas.getContext('2d')!;
@@ -75,7 +79,7 @@ class FloodInstance implements GameInstance {
       b.addEventListener('click', () => { this.cancel(); fn(); this.updateUI(); });
       tools.appendChild(b); this.buttons[key] = b; return b;
     };
-    button('storm', text().storm, () => { this.phase = 'storm'; this.elapsed = 0; this.paused = false; this.flooded.clear(); this.maximum.fill(0); resetWater(this.sim); });
+    button('storm', text().storm, () => { this.phase = 'storm'; this.elapsed = 0; this.paused = false; this.flooded.clear(); resetWater(this.sim); this.recording = null; this.recording = new FloodRecording(this.sim.terrain, W, H); });
     button('rewind', text().rewind, () => this.rewind());
     button('undo', text().undo, () => { const s = this.strokes.pop(); if (s) { this.sim.terrain.set(s.terrain); this.budget = s.budget; resetWater(this.sim); } });
     const label = document.createElement('label'); label.textContent = text().crest;
@@ -83,39 +87,51 @@ class FloodInstance implements GameInstance {
     for (const [value, title] of [['2.4', text().high], ['1', text().low]]) { const o = document.createElement('option'); o.value = value; o.textContent = title; select.appendChild(o); }
     select.addEventListener('change', () => { this.crest = Number(select.value); this.preview(); }); label.appendChild(select); tools.appendChild(label);
     button('pause', text().pause, () => { this.paused = !this.paused; });
-    button('step', text().step, () => this.tick(1 / 600));
+    button('step', text().step, () => this.tick(1 / RECORD_FPS));
     button('slow', text().slow, () => { this.slow = !this.slow; });
     button('model', text().model, () => { this.model = !this.model; });
     button('previous', text().previous, () => { this.showPrevious = !this.showPrevious; });
-    button('reset', text().reset, () => { this.sim = makeScene(); this.budget = BUDGET; this.strokes = []; this.previous = null; this.showPrevious = false; this.phase = 'build'; this.flooded.clear(); this.elapsed = 0; this.error = ''; });
+    button('reset', text().reset, () => { this.sim = makeScene(); this.budget = BUDGET; this.strokes = []; this.previous = null; this.showPrevious = false; this.phase = 'build'; this.flooded.clear(); this.elapsed = 0; this.error = ''; this.recording = null; });
     const footer = document.createElement('footer'); footer.className = 'delta-footer';
     this.status = document.createElement('div'); this.status.className = 'delta-status'; this.status.setAttribute('role', 'status');
     this.timebar = document.createElement('div'); this.timebar.className = 'delta-timeline';
+    this.timeline = document.createElement('input');
+    this.timeline.type = 'range'; this.timeline.min = '0'; this.timeline.max = String(STORM_DURATION);
+    this.timeline.step = '0.01'; this.timeline.value = '0'; this.timeline.className = 'delta-scrubber';
+    this.timeline.setAttribute('aria-label', text().scrub);
+    this.timeline.addEventListener('input', () => { this.paused = true; this.seek(Number(this.timeline.value)); this.updateUI(); });
     this.inspection = document.createElement('div'); this.inspection.className = 'delta-inspection';
-    footer.append(this.timebar, this.status, this.inspection, tools);
+    footer.append(this.timebar, this.timeline, this.status, this.inspection, tools);
     this.ui.append(header, footer); this.host.overlay.appendChild(this.ui);
     this.host.canvas.addEventListener('pointerdown', this.down);
     this.host.canvas.addEventListener('pointermove', this.move);
     this.host.canvas.addEventListener('pointerup', this.up);
+    this.host.canvas.addEventListener('pointerleave', this.leave);
     this.host.canvas.addEventListener('pointercancel', this.cancel);
     this.host.canvas.addEventListener('lostpointercapture', this.cancel);
     this.updateUI();
   }
   private rewind(): void {
-    this.previous = this.maximum.slice(); this.showPrevious = true;
+    this.previous = this.recording?.maximumThrough(this.elapsed) ?? null; this.showPrevious = !!this.previous;
+    this.recording = null;
     this.phase = 'build'; this.elapsed = 0; this.flooded.clear(); this.paused = false;
     resetWater(this.sim); this.error = '';
   }
   private cost(): number { let c = 0; for (const d of this.plan.values()) c += d; return c; }
-  private preview(): void { this.plan = dikePlan(this.sim, this.path, this.crest); }
+  private preview(): void {
+    this.plan = this.phase === 'build' ? dikePlan(this.sim, this.path.length ? this.path : this.pointer ? [this.pointer] : [], this.crest) : new Map();
+  }
+  private seek(time: number): void {
+    if (!this.recording) return;
+    this.elapsed = Math.max(0, Math.min(STORM_DURATION, time));
+    const mask = this.recording.restore(this.elapsed, this.sim);
+    this.flooded.clear();
+    HOMES.forEach((_, k) => { if (mask & (1 << k)) this.flooded.add(k); });
+    this.phase = this.elapsed >= STORM_DURATION ? 'end' : 'storm';
+  }
   private tick(dt: number): void {
     if (this.phase !== 'storm') return;
-    this.elapsed = Math.min(STORM_DURATION, this.elapsed + dt);
-    this.sim.seaLevel = surge(this.elapsed);
-    this.sim.advance(dt * 24);
-    for (let i = 0; i < W * H; i++) this.maximum[i] = Math.max(this.maximum[i], this.sim.water[i]);
-    HOMES.forEach(([x,y], k) => { if (this.sim.water[y * W + x] > .3) this.flooded.add(k); });
-    if (this.elapsed >= STORM_DURATION) this.phase = 'end';
+    this.seek(this.elapsed + dt);
   }
   frame(dt: number): void {
     if (!this.paused) this.tick(Math.min(dt, .05) * (this.slow ? .25 : 1));
@@ -124,7 +140,7 @@ class FloodInstance implements GameInstance {
   private updateUI(): void {
     const t = text();
     this.stats.textContent = `${t.homes}  ${HOMES.length - this.flooded.size}/${HOMES.length}    ·    ${t.budget}  ${Math.floor(this.budget)}    ·    ${t.sea}  +${fmtNumber(this.sim.seaLevel, { maximumFractionDigits: 1 })} m`;
-    this.status.textContent = this.error || (this.path.length ? `${t.cost}: ${Math.ceil(this.cost())} / ${Math.floor(this.budget)}` : this.model ? t.modelHint : this.phase === 'build' ? t.draw : this.phase === 'end' ? (this.flooded.size ? t.ended : `${t.safe} ${t.ended}`) : this.flooded.size ? t.blocked : t.running);
+    this.status.textContent = this.error || (this.plan.size ? `${t.cost}: ${Math.ceil(this.cost())} / ${Math.floor(this.budget)}` : this.model ? t.modelHint : this.phase === 'build' ? t.draw : this.phase === 'end' ? (this.flooded.size ? t.ended : `${t.safe} ${t.ended}`) : this.flooded.size ? t.blocked : t.running);
     this.buttons.storm.hidden = this.phase !== 'build';
     this.buttons.rewind.hidden = this.phase === 'build';
     this.buttons.undo.disabled = this.phase !== 'build' || !this.strokes.length;
@@ -140,6 +156,9 @@ class FloodInstance implements GameInstance {
     this.buttons.previous.setAttribute('aria-pressed', String(this.showPrevious));
     this.timebar.style.setProperty('--progress', `${100 * this.elapsed / STORM_DURATION}%`);
     this.timebar.textContent = this.phase === 'build' ? t.ready : `${t.stormTime}   ${this.elapsed.toFixed(0)} / ${STORM_DURATION} s`;
+    this.timeline.hidden = this.phase === 'build';
+    this.timeline.value = String(this.elapsed);
+    this.timeline.setAttribute('aria-valuetext', `${this.elapsed.toFixed(2)} s`);
     const p = this.pointer;
     if (p && this.model) {
       const i = Math.floor(p.y) * W + Math.floor(p.x), h = this.sim.water[i];
@@ -244,15 +263,6 @@ class FloodInstance implements GameInstance {
       if (this.showPrevious && this.previous && this.previous[i] > .3 && x > 24 && (x+y)%3===0) {
         const p = this.project(x+.5,y+.5,z+h+.03); c.fillStyle = '#f4c1a2'; c.fillRect(p.x-1.4,p.y-1.4,2.8,2.8);
       }
-      if (this.plan.has(i)) this.tile(x,y,z+this.plan.get(i)!,this.cost()<=this.budget?'#ffdc8499':'#ff736eaa','#fff1bd');
-      if (h > .035 && x%4===0 && y%4===0) {
-        const u = this.sim.mx[i]/h, v = this.sim.my[i]/h, speed = Math.hypot(u,v);
-        if (speed > .025) {
-          const len = Math.min(1.8, .6 + speed), p = this.project(x+.5,y+.5,z+h+.05), q = this.project(x+.5+u/speed*len,y+.5+v/speed*len,z+h+.05);
-          const angle = Math.atan2(q.y-p.y,q.x-p.x);
-          c.strokeStyle = '#e0ffffb0'; c.lineWidth = this.model?1.5:1; c.beginPath(); c.moveTo(p.x,p.y); c.lineTo(q.x,q.y); c.lineTo(q.x-4*Math.cos(angle-.5),q.y-4*Math.sin(angle-.5)); c.moveTo(q.x,q.y); c.lineTo(q.x-4*Math.cos(angle+.5),q.y-4*Math.sin(angle+.5)); c.stroke();
-        }
-      }
     }
     if (!this.model) {
       // Small lanes and trees give the polder a human scale without hiding flow.
@@ -280,6 +290,28 @@ class FloodInstance implements GameInstance {
     if (this.pointer && this.model) {
       const {x,y} = this.pointer; this.tile(Math.floor(x),Math.floor(y),0,'#ffffff22','#fff');
     }
+    const ghostColor = this.cost() <= this.budget ? '#ffdc8480' : '#ff736eaa';
+    for (const [i, rise] of this.plan) {
+      if (rise <= 0) continue;
+      const x = i % W, y = Math.floor(i / W), z = this.sim.terrain[i];
+      if (!this.model) {
+        this.poly([this.project(x,y+1,z+rise),this.project(x+1,y+1,z+rise),this.project(x+1,y+1,z),this.project(x,y+1,z)],ghostColor);
+        this.poly([this.project(x+1,y,z+rise),this.project(x+1,y+1,z+rise),this.project(x+1,y+1,z),this.project(x+1,y,z)],ghostColor);
+      }
+      this.tile(x,y,z+rise,ghostColor,'#fff1bd');
+    }
+    // Final overlay pass: neighbouring water tiles and buildings cannot cover arrows.
+    for (let y = 0; y < H; y += 4) for (let x = 0; x < W; x += 4) {
+      const i = y * W + x, z = this.sim.terrain[i], h = this.sim.water[i];
+      if (h > .035 && x%4===0 && y%4===0) {
+        const u = this.sim.mx[i]/h, v = this.sim.my[i]/h, speed = Math.hypot(u,v);
+        if (speed > .025) {
+          const len = Math.min(1.8, .6 + speed), p = this.project(x+.5,y+.5,z+h+.05), q = this.project(x+.5+u/speed*len,y+.5+v/speed*len,z+h+.05);
+          const angle = Math.atan2(q.y-p.y,q.x-p.x);
+          c.strokeStyle = '#efffff'; c.lineWidth = this.model?1.6:1.2; c.beginPath(); c.moveTo(p.x,p.y); c.lineTo(q.x,q.y); c.lineTo(q.x-4*Math.cos(angle-.5),q.y-4*Math.sin(angle-.5)); c.moveTo(q.x,q.y); c.lineTo(q.x-4*Math.cos(angle+.5),q.y-4*Math.sin(angle+.5)); c.stroke();
+        }
+      }
+    }
     c.setTransform(dpr,0,0,dpr,0,0);
     if (this.model && width > 850) this.section(width-270,top+15);
   }
@@ -297,7 +329,9 @@ class FloodInstance implements GameInstance {
   }
   destroy(): void {
     const c=this.host.canvas;
+    c.removeEventListener('pointerleave',this.leave);
     c.removeEventListener('pointerdown',this.down); c.removeEventListener('pointermove',this.move); c.removeEventListener('pointerup',this.up); c.removeEventListener('pointercancel',this.cancel); c.removeEventListener('lostpointercapture',this.cancel);
+    this.recording = null;
     this.ui?.remove();
   }
 }

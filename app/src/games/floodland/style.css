@@ -20,3 +20,6 @@
 /* The shared overlay enables pointer events on direct children. Only controls
    should intercept input; drawing must reach the landscape canvas. */
 .game-overlay > .delta-ui { pointer-events:none; }
+.delta-scrubber { display:block; width:min(520px,100%); margin:4px auto 0; height:24px; pointer-events:auto; cursor:ew-resize; accent-color:#e5c579; }
+.delta-scrubber[hidden] { display:none; }
+.delta-scrubber:focus-visible { outline:2px solid #ffe0a4; outline-offset:3px; }
