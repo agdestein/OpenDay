@@ -1,20 +1,24 @@
 import type { ArcadeGame, GameHost, GameInstance } from '../../shell/types';
 import { fmtNumber, pick } from '../../lib/i18n';
 import { GRID_W as W, GRID_H as H } from './water';
-import { BUDGET, HOMES, STORM_DURATION, dikePlan, makeScene, resetWater, type Point } from './scene';
+import { BUDGET, HOMES, PUMP, scenarioBudget, stormDuration, totalDuration, dikePlan, makeScene, resetWater, type Scenario, type Point } from './scene';
 import { FloodRecording, RECORD_FPS } from './recording';
 import { text } from './text';
 import './style.css';
 
 class FloodInstance implements GameInstance {
+  private scenario: Scenario = 'surge';
   private sim = makeScene();
+  private get duration(): number { return totalDuration(this.scenario); }
+  private get recovering(): boolean { return this.elapsed >= stormDuration(this.scenario); }
   private base = this.sim.terrain.slice();
   private ctx!: CanvasRenderingContext2D;
   private ui!: HTMLDivElement;
-  private phase: 'build' | 'storm' | 'end' = 'build';
+  private phase: 'build' | 'calculating' | 'storm' | 'end' = 'build';
   private elapsed = 0;
   private paused = false;
   private slow = false;
+  private fast = false;
   private model = false;
   private budget = BUDGET;
   private crest = 2.4;
@@ -24,6 +28,7 @@ class FloodInstance implements GameInstance {
   private pointer: Point | null = null;
   private flooded = new Set<number>();
   private recording: FloodRecording | null = null;
+  private recordingJob: AbortController | null = null;
   private previous: Float64Array | null = null;
   private showPrevious = false;
   private error = '';
@@ -79,24 +84,32 @@ class FloodInstance implements GameInstance {
       b.addEventListener('click', () => { this.cancel(); fn(); this.updateUI(); });
       tools.appendChild(b); this.buttons[key] = b; return b;
     };
-    button('storm', text().storm, () => { this.phase = 'storm'; this.elapsed = 0; this.paused = false; this.flooded.clear(); resetWater(this.sim); this.recording = null; this.recording = new FloodRecording(this.sim.terrain, W, H); });
+    button('storm', text().storm, () => { void this.startStorm(); });
     button('rewind', text().rewind, () => this.rewind());
     button('undo', text().undo, () => { const s = this.strokes.pop(); if (s) { this.sim.terrain.set(s.terrain); this.budget = s.budget; resetWater(this.sim); } });
+    const scenarioLabel = document.createElement('label'); scenarioLabel.textContent = text().scenario;
+    const scenarioSelect = document.createElement('select'); scenarioSelect.setAttribute('aria-label', text().scenario);
+    for (const [value, title] of [['surge', text().surgeMode], ['waves', text().wavesMode]]) {
+      const option = document.createElement('option'); option.value = value; option.textContent = title; scenarioSelect.appendChild(option);
+    }
+    scenarioSelect.addEventListener('change', () => { this.scenario = scenarioSelect.value as Scenario; this.newScene(); this.updateUI(); });
+    scenarioLabel.appendChild(scenarioSelect); tools.appendChild(scenarioLabel);
     const label = document.createElement('label'); label.textContent = text().crest;
-    const select = document.createElement('select');
+    const select = document.createElement('select'); select.setAttribute('aria-label', text().crest);
     for (const [value, title] of [['2.4', text().high], ['1', text().low]]) { const o = document.createElement('option'); o.value = value; o.textContent = title; select.appendChild(o); }
     select.addEventListener('change', () => { this.crest = Number(select.value); this.preview(); }); label.appendChild(select); tools.appendChild(label);
     button('pause', text().pause, () => { this.paused = !this.paused; });
     button('step', text().step, () => this.tick(1 / RECORD_FPS));
-    button('slow', text().slow, () => { this.slow = !this.slow; });
+    button('slow', text().slow, () => { this.slow = !this.slow; this.fast = false; });
+    button('fast', text().fast, () => { this.fast = !this.fast; this.slow = false; });
     button('model', text().model, () => { this.model = !this.model; });
     button('previous', text().previous, () => { this.showPrevious = !this.showPrevious; });
-    button('reset', text().reset, () => { this.sim = makeScene(); this.budget = BUDGET; this.strokes = []; this.previous = null; this.showPrevious = false; this.phase = 'build'; this.flooded.clear(); this.elapsed = 0; this.error = ''; this.recording = null; });
+    button('reset', text().reset, () => this.newScene());
     const footer = document.createElement('footer'); footer.className = 'delta-footer';
     this.status = document.createElement('div'); this.status.className = 'delta-status'; this.status.setAttribute('role', 'status');
     this.timebar = document.createElement('div'); this.timebar.className = 'delta-timeline';
     this.timeline = document.createElement('input');
-    this.timeline.type = 'range'; this.timeline.min = '0'; this.timeline.max = String(STORM_DURATION);
+    this.timeline.type = 'range'; this.timeline.min = '0'; this.timeline.max = String(this.duration);
     this.timeline.step = '0.01'; this.timeline.value = '0'; this.timeline.className = 'delta-scrubber';
     this.timeline.setAttribute('aria-label', text().scrub);
     this.timeline.addEventListener('input', () => { this.paused = true; this.seek(Number(this.timeline.value)); this.updateUI(); });
@@ -111,10 +124,34 @@ class FloodInstance implements GameInstance {
     this.host.canvas.addEventListener('lostpointercapture', this.cancel);
     this.updateUI();
   }
+  private async startStorm(): Promise<void> {
+    this.recordingJob?.abort();
+    const controller = new AbortController(); this.recordingJob = controller;
+    this.phase = 'calculating'; this.elapsed = 0; this.paused = false; this.flooded.clear(); this.error = '';
+    resetWater(this.sim); this.recording = null;
+    this.updateUI();
+    try {
+      const recording = await FloodRecording.create(this.sim.terrain.slice(), W, H, this.scenario, controller.signal);
+      if (!recording || controller.signal.aborted) return;
+      this.recording = recording; this.seek(0);
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      console.error(error); this.phase = 'build'; this.error = text().calculationFailed;
+    }
+    this.updateUI();
+  }
+  private newScene(): void {
+    this.recordingJob?.abort();
+    this.cancel(); this.recording = null; this.sim = makeScene(this.scenario); this.base = this.sim.terrain.slice();
+    this.budget = scenarioBudget(this.scenario); this.strokes = []; this.previous = null; this.showPrevious = false;
+    this.phase = 'build'; this.flooded.clear(); this.elapsed = 0; this.error = ''; this.paused = false; this.fast = false;
+    this.timeline.max = String(this.duration);
+  }
   private rewind(): void {
+    this.recordingJob?.abort();
     this.previous = this.recording?.maximumThrough(this.elapsed) ?? null; this.showPrevious = !!this.previous;
     this.recording = null;
-    this.phase = 'build'; this.elapsed = 0; this.flooded.clear(); this.paused = false;
+    this.phase = 'build'; this.elapsed = 0; this.flooded.clear(); this.paused = false; this.fast = false;
     resetWater(this.sim); this.error = '';
   }
   private cost(): number { let c = 0; for (const d of this.plan.values()) c += d; return c; }
@@ -123,47 +160,52 @@ class FloodInstance implements GameInstance {
   }
   private seek(time: number): void {
     if (!this.recording) return;
-    this.elapsed = Math.max(0, Math.min(STORM_DURATION, time));
+    this.elapsed = Math.max(0, Math.min(this.duration, time));
     const mask = this.recording.restore(this.elapsed, this.sim);
     this.flooded.clear();
     HOMES.forEach((_, k) => { if (mask & (1 << k)) this.flooded.add(k); });
-    this.phase = this.elapsed >= STORM_DURATION ? 'end' : 'storm';
+    this.phase = this.elapsed >= this.duration ? 'end' : 'storm';
   }
   private tick(dt: number): void {
     if (this.phase !== 'storm') return;
+    const wasRecovering = this.recovering;
     this.seek(this.elapsed + dt);
+    // Finish an unattended round within the kiosk idle window; visitors can slow it down.
+    if (!wasRecovering && this.recovering && !this.paused && !this.slow) this.fast = true;
   }
   frame(dt: number): void {
-    if (!this.paused) this.tick(Math.min(dt, .05) * (this.slow ? .25 : 1));
+    if (!this.paused) this.tick(Math.min(dt, .05) * (this.slow ? .25 : this.fast ? 4 : 1));
     this.updateUI(); this.draw();
   }
   private updateUI(): void {
     const t = text();
-    this.stats.textContent = `${t.homes}  ${HOMES.length - this.flooded.size}/${HOMES.length}    ·    ${t.budget}  ${Math.floor(this.budget)}    ·    ${t.sea}  +${fmtNumber(this.sim.seaLevel, { maximumFractionDigits: 1 })} m`;
-    this.status.textContent = this.error || (this.plan.size ? `${t.cost}: ${Math.ceil(this.cost())} / ${Math.floor(this.budget)}` : this.model ? t.modelHint : this.phase === 'build' ? t.draw : this.phase === 'end' ? (this.flooded.size ? t.ended : `${t.safe} ${t.ended}`) : this.flooded.size ? t.blocked : t.running);
+    this.stats.textContent = `${t.homes}  ${HOMES.length - this.flooded.size}/${HOMES.length}    ·    ${t.budget}  ${Math.floor(this.budget)}    ·    ${this.scenario === 'waves' ? t.incomingWave : t.sea}  +${fmtNumber(this.sim.seaLevel, { maximumFractionDigits: 1 })} m`;
+    this.status.textContent = this.phase === 'calculating' ? t.calculating : this.error || (this.plan.size ? `${t.cost}: ${Math.ceil(this.cost())} / ${Math.floor(this.budget)}` : this.model ? t.modelHint : this.phase === 'build' ? (this.scenario === 'waves' ? t.waveHint : t.draw) : this.phase === 'end' ? (this.flooded.size ? t.ended : `${t.safe} ${t.ended}`) : this.recovering ? (this.scenario === 'surge' ? t.recoveryGateHint : t.recoveryHint) : this.flooded.size ? t.blocked : t.running);
     this.buttons.storm.hidden = this.phase !== 'build';
     this.buttons.rewind.hidden = this.phase === 'build';
     this.buttons.undo.disabled = this.phase !== 'build' || !this.strokes.length;
-    (this.ui.querySelector('select') as HTMLSelectElement).disabled = this.phase !== 'build';
+    this.ui.querySelectorAll('select').forEach(select => { select.disabled = this.phase !== 'build'; });
     this.buttons.pause.hidden = this.phase !== 'storm';
     this.buttons.pause.textContent = this.paused ? t.resume : t.pause;
     this.buttons.step.hidden = this.phase !== 'storm' || !this.paused;
+    this.buttons.fast.hidden = this.phase === 'build';
+    this.buttons.fast.setAttribute('aria-pressed', String(this.fast));
     this.buttons.slow.hidden = this.phase === 'build';
     this.buttons.slow.setAttribute('aria-pressed', String(this.slow));
     this.buttons.model.textContent = this.model ? t.landscape : t.model;
     this.buttons.model.setAttribute('aria-pressed', String(this.model));
     this.buttons.previous.hidden = !this.previous;
     this.buttons.previous.setAttribute('aria-pressed', String(this.showPrevious));
-    this.timebar.style.setProperty('--progress', `${100 * this.elapsed / STORM_DURATION}%`);
-    this.timebar.textContent = this.phase === 'build' ? t.ready : `${t.stormTime}   ${this.elapsed.toFixed(0)} / ${STORM_DURATION} s`;
-    this.timeline.hidden = this.phase === 'build';
+    this.timebar.style.setProperty('--progress', `${100 * this.elapsed / this.duration}%`);
+    this.timebar.textContent = this.phase === 'calculating' ? t.calculating : this.phase === 'build' ? t.ready : `${this.recovering ? t.recovery : this.scenario === 'waves' ? t.wavesMode : t.stormTime}   ${this.elapsed.toFixed(0)} / ${this.duration} s`;
+    this.timeline.hidden = !this.recording;
     this.timeline.value = String(this.elapsed);
     this.timeline.setAttribute('aria-valuetext', `${this.elapsed.toFixed(2)} s`);
     const p = this.pointer;
-    if (p && this.model) {
+    if (p) {
       const i = Math.floor(p.y) * W + Math.floor(p.x), h = this.sim.water[i];
       this.inspection.textContent = `${t.ground}: ${this.sim.terrain[i].toFixed(1)} m · ${t.depth}: ${h.toFixed(2)} m · ${t.speed}: ${(h > 1e-5 ? Math.hypot(this.sim.mx[i], this.sim.my[i]) / h : 0).toFixed(2)} m/s`;
-    } else this.inspection.textContent = '';
+    } else this.inspection.textContent = this.recovering && this.recording ? `${t.pumped}: ${fmtNumber(Math.round(this.recording.pumpedAt(this.elapsed)))} m³ · ${t.pumpRate}: ${this.recording.pumpRateAt(this.elapsed).toFixed(1)} m³/s` : '';
   }
   private project(x: number, y: number, z = 0): Point {
     return this.model ? { x: x * 13, y: y * 13 } : { x: x * 12 - y * 8, y: x * 3.4 + y * 7 - z * 11 };
@@ -210,7 +252,7 @@ class FloodInstance implements GameInstance {
     this.poly([{x:p.x-w-2,y:p.y-h},{x:p.x-1,y:p.y-h-9},{x:p.x+w+2,y:p.y-h},{x:p.x,y:p.y-h+6}],wet?'#a16c57':'#c46e4e');
     c.fillStyle = wet ? '#74c8df' : '#fff3b4'; c.fillRect(p.x+3,p.y-h+7,3,5);
     c.restore();
-    if (wet) { c.strokeStyle = '#9ce7f4'; c.beginPath(); c.ellipse(p.x,p.y+3-depth*11,14,5,0,0,Math.PI*2); c.stroke(); }
+    if (wet && depth > .05) { c.strokeStyle = '#9ce7f4'; c.beginPath(); c.ellipse(p.x,p.y+3-depth*11,14,5,0,0,Math.PI*2); c.stroke(); }
   }
   private draw(): void {
     const c = this.ctx, dpr = this.host.dpr;
@@ -247,7 +289,8 @@ class FloodInstance implements GameInstance {
       this.tile(x,y,z,land,this.model?'#ffffff25':undefined);
       if (h > .012) {
         const deep = Math.min(1,h/3);
-        const waterColor = `rgb(${Math.round(64-35*deep)},${Math.round(167-64*deep)},${Math.round(178-43*deep)})`;
+        const opacity = Math.min(1, h / .18);
+        const waterColor = `rgba(${Math.round(64-35*deep)},${Math.round(167-64*deep)},${Math.round(178-43*deep)},${opacity})`;
         if (!this.model) {
           // Join unequal neighbouring surfaces so a moving front has no cracks.
           const front = y < H-1 ? Math.max(z, this.sim.terrain[i+W]+this.sim.water[i+W]) : z;
@@ -255,7 +298,7 @@ class FloodInstance implements GameInstance {
           if (z+h > front) this.poly([this.project(x,y+1,z+h),this.project(x+1,y+1,z+h),this.project(x+1,y+1,front),this.project(x,y+1,front)],waterColor);
           if (z+h > right) this.poly([this.project(x+1,y,z+h),this.project(x+1,y+1,z+h),this.project(x+1,y+1,right),this.project(x+1,y,right)],waterColor);
         }
-        this.tile(x,y,z+h,waterColor,this.model?'#b4f1f33a':undefined);
+        this.tile(x,y,z+h,waterColor,`rgba(180,241,243,${.29 * opacity})`);
         if ((x*7+y*11)%19===0 && !this.model) {
           const p = this.project(x+.2,y+.5,z+h); c.strokeStyle = '#b9eeef60'; c.lineWidth = .7; c.beginPath(); c.moveTo(p.x,p.y); c.lineTo(p.x+7,p.y+1); c.stroke();
         }
@@ -277,11 +320,13 @@ class FloodInstance implements GameInstance {
       }
     }
     HOMES.forEach(([x,y],k) => this.house(x,y,this.flooded.has(k),k===6));
+    this.drawDrainage();
+    if (!this.model) this.drawLevelPosts();
     if (!this.model) {
       this.label(8,12,1,text().northsea,'#b9e9ed',14);
       this.label(43,10,0,text().village);
       this.label(43,33,0,text().polder,'#e8efcd',10);
-      if (this.phase === 'build' && !this.strokes.length) this.label(23,19,3,text().opening,'#ffde92',15);
+      if (this.phase === 'build' && !this.strokes.length) this.label(23,19,3,this.scenario === 'waves' ? text().lowDike : text().opening,'#ffde92',15);
       // A tiny windmill on high ground.
       const p = this.project(58,10,1), t = this.elapsed*.3;
       c.fillStyle = '#e2d6b8'; c.fillRect(p.x-4,p.y-23,8,25); c.strokeStyle = '#eee6cd'; c.lineWidth = 3;
@@ -315,6 +360,43 @@ class FloodInstance implements GameInstance {
     c.setTransform(dpr,0,0,dpr,0,0);
     if (this.model && width > 850) this.section(width-270,top+15);
   }
+  private drawLevelPosts(): void {
+    const c = this.ctx;
+    for (const [x,y] of [[35,25],[48,16]]) {
+      const i = y * W + x, z = this.sim.terrain[i], h = this.sim.water[i];
+      const foot = this.project(x,y,z), top = this.project(x,y,z+3);
+      c.strokeStyle = '#f8eed1'; c.lineWidth = 2; c.beginPath(); c.moveTo(foot.x,foot.y); c.lineTo(top.x,top.y); c.stroke();
+      for (let level=0;level<=3;level++) {
+        const p = this.project(x,y,z+level); c.beginPath(); c.moveTo(p.x-3,p.y); c.lineTo(p.x+3,p.y); c.stroke();
+      }
+      const surface = this.project(x,y,z+h);
+      c.strokeStyle = '#ffd585'; c.lineWidth = 3; c.beginPath(); c.moveTo(surface.x-6,surface.y); c.lineTo(surface.x+6,surface.y); c.stroke();
+      this.label(x,y,z+3.5,`${text().depth} ${h.toFixed(1)} m`,'#fff0c1',10);
+    }
+  }
+  private drawDrainage(): void {
+    const c = this.ctx, rate = this.recording?.pumpRateAt(this.elapsed) ?? 0;
+    // Exposed pipe route explains the transfer across the dike to the sea.
+    c.strokeStyle = '#d8d4b5'; c.lineWidth = 2.5; c.setLineDash([5,4]);
+    c.lineDashOffset = rate > 0 ? -(this.recording?.pumpedAt(this.elapsed) ?? 0) / 250 : 0;
+    c.beginPath();
+    for (let x=PUMP.x;x>=PUMP.outletX;x--) {
+      const i=PUMP.y*W+x, p=this.project(x+.5,PUMP.y+.5,Math.max(this.sim.terrain[i]+.15,this.sim.terrain[i]+this.sim.water[i]+.1));
+      if(x===PUMP.x)c.moveTo(p.x,p.y);else c.lineTo(p.x,p.y);
+    }
+    c.stroke(); c.setLineDash([]); c.lineDashOffset=0;
+    const i=PUMP.y*W+PUMP.x, p=this.project(PUMP.x+.5,PUMP.y+.5,Math.max(0,this.sim.terrain[i]+this.sim.water[i]));
+    c.fillStyle='#1a4556';c.fillRect(p.x-10,p.y-17,20,19);c.strokeStyle='#cfe7dd';c.lineWidth=1.5;c.strokeRect(p.x-10,p.y-17,20,19);
+    c.beginPath();c.arc(p.x,p.y-7,6,0,Math.PI*2);c.stroke();
+    const angle=rate>0?(this.recording?.pumpedAt(this.elapsed)??0)/100:0;
+    c.beginPath();c.moveTo(p.x-5*Math.cos(angle),p.y-7-5*Math.sin(angle));c.lineTo(p.x+5*Math.cos(angle),p.y-7+5*Math.sin(angle));c.stroke();
+    this.label(PUMP.x,PUMP.y+3,1,`${text().pump} ${rate.toFixed(0)} m³/s`,'#d7eee7',10);
+    if (this.scenario === 'surge' && this.recovering) {
+      const a=this.project(23,17,2.8),b=this.project(23,23,2.8),d=this.project(23,23,-.8),e=this.project(23,17,-.8);
+      this.poly([a,b,d,e],'#b9aa67','#f3e3a4');
+      this.label(23,19,3.5,text().gateClosed,'#ffe2a2',10);
+    }
+  }
   private section(left: number,top: number): void {
     const c=this.ctx, t=text(), w=240, h=100;
     c.fillStyle='#0b202bea'; c.fillRect(left-12,top-24,w+24,h+48);
@@ -331,6 +413,7 @@ class FloodInstance implements GameInstance {
     const c=this.host.canvas;
     c.removeEventListener('pointerleave',this.leave);
     c.removeEventListener('pointerdown',this.down); c.removeEventListener('pointermove',this.move); c.removeEventListener('pointerup',this.up); c.removeEventListener('pointercancel',this.cancel); c.removeEventListener('lostpointercapture',this.cancel);
+    this.recordingJob?.abort();
     this.recording = null;
     this.ui?.remove();
   }

@@ -96,8 +96,8 @@ videos, and Keiwan Donyagard's [Evolution](https://keiwan.itch.io/evolution).
 
 Save the Netherlands (`app/src/games/floodland/`) uses a finite-volume shallow-water model with hydrostatic reconstruction,
 Rusanov fluxes, wetting and drying, and an ocean boundary.
-The new diorama includes dike previews, undo, repeatable storms, and a numerical
-model view. See [the remake notes](docs/floodland-remake.md) for scope and validation.
+The diorama includes dike previews, undo, scrubbable surge and three-wave challenges,
+a pump-driven recovery phase, and a numerical model view. See [the remake notes](docs/floodland-remake.md) for scope and validation.
 
 ## Repository layout
 

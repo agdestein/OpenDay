@@ -12,23 +12,48 @@ export class FloodSim {
   readonly water: Float64Array;
   readonly mx: Float64Array;
   readonly my: Float64Array;
+  /** Closed vertical faces, indexed by the cell on their right. */
+  readonly gates: Uint8Array;
+  friction = 0.018;
+  /** Prescribe the incoming long-wave characteristic; let reflections exit. */
+  waveBoundary = false;
   private dh: Float64Array;
   private du: Float64Array;
   private dv: Float64Array;
   seaLevel = 0;
   ocean = true;
   boundaryVolume = 0;
+  pumpedVolume = 0;
+  pumpConfig: { intakes: readonly number[]; outlet: number; capacity: number } | null = null;
   constructor(readonly width = GRID_W, readonly height = GRID_H) {
     const n = width * height;
     this.terrain = new Float64Array(n);
     this.water = new Float64Array(n);
     this.mx = new Float64Array(n);
     this.my = new Float64Array(n);
+    this.gates = new Uint8Array(n);
     this.dh = new Float64Array(n);
     this.du = new Float64Array(n);
     this.dv = new Float64Array(n);
   }
   volume(): number { return this.water.reduce((a, b) => a + b, 0) * DX * DX; }
+  /** A pump transfers only available intake water to an explicit outlet.
+   * Momentum leaves with extracted water; outlet water is mixed at rest.
+   * Return transferred volume (m³), bounded by capacity × elapsed time.
+   */
+  pump(intakes: readonly number[], outlet: number, capacity: number, dt: number): number {
+    const available = intakes.reduce((sum, i) => sum + this.water[i], 0);
+    if (available <= 0) return 0;
+    const volume = Math.min(available * DX * DX, capacity * dt);
+    const fraction = volume / (available * DX * DX);
+    for (const i of intakes) {
+      this.water[i] *= 1 - fraction;
+      this.mx[i] *= 1 - fraction;
+      this.my[i] *= 1 - fraction;
+    }
+    this.water[outlet] += volume / (DX * DX);
+    return volume;
+  }
   /** Advance the requested physical duration using stable substeps. */
   advance(duration: number): void {
     while (duration > 1e-9) {
@@ -39,6 +64,10 @@ export class FloodSim {
       }
       const dt = Math.min(duration, 0.38 * DX / speed);
       this.step(dt);
+      if (this.pumpConfig) {
+        const { intakes, outlet, capacity } = this.pumpConfig;
+        this.pumpedVolume += this.pump(intakes, outlet, capacity, dt);
+      }
       duration -= dt;
     }
   }
@@ -55,13 +84,18 @@ export class FloodSim {
       this.water[i] += this.dh[i];
       if (this.water[i] < -1e-8) throw new Error('Negative shallow-water depth');
       this.water[i] = Math.max(0, this.water[i]);
-      const friction = 1 / (1 + 0.018 * dt);
+      const friction = 1 / (1 + this.friction * dt);
       this.mx[i] = (this.mx[i] + this.du[i]) * friction;
       this.my[i] = (this.my[i] + this.dv[i]) * friction;
       if (this.water[i] < EPS) this.mx[i] = this.my[i] = 0;
     }
   }
   private face(a: number, b: number, horizontal: boolean, dt: number, sea: boolean): void {
+    if (horizontal && a >= 0 && b >= 0 && this.gates[b]) {
+      this.face(a, -1, horizontal, dt, false);
+      this.face(-1, b, horizontal, dt, false);
+      return;
+    }
     const ai = a < 0 ? b : a, bi = b < 0 ? a : b;
     const za = this.terrain[ai], zb = this.terrain[bi];
     let ha = this.water[ai], hb = this.water[bi];
@@ -71,7 +105,17 @@ export class FloodSim {
     let ub = hb > EPS ? normal[bi] / hb : 0;
     const va = ha > EPS ? tangent[ai] / ha : 0;
     const vb = hb > EPS ? tangent[bi] / hb : 0;
-    if (a < 0) { if (sea) { ha = Math.max(0, this.seaLevel - za); ua = ub; } else ua = -ub; }
+    if (a < 0) {
+      if (sea) {
+        ha = Math.max(0, this.seaLevel - za); ua = ub;
+        if (this.waveBoundary) {
+          const incoming = 4 * Math.sqrt(G * ha) - 2 * Math.sqrt(G * Math.max(0, -za));
+          const outgoing = ub - 2 * Math.sqrt(G * hb);
+          ua = (incoming + outgoing) / 2;
+          ha = Math.max(0, (incoming - outgoing) / 4) ** 2 / G;
+        }
+      } else ua = -ub;
+    }
     if (b < 0) ub = -ua;
     const z = Math.max(za, zb);
     const l = Math.max(0, ha + za - z), r = Math.max(0, hb + zb - z);
