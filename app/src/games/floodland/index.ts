@@ -228,7 +228,15 @@ class FloodInstance implements GameInstance {
       this.tile(x,y,z,land,this.model?'#ffffff25':undefined);
       if (h > .012) {
         const deep = Math.min(1,h/3);
-        this.tile(x,y,z+h,`rgb(${Math.round(64-35*deep)},${Math.round(167-64*deep)},${Math.round(178-43*deep)})`,this.model?'#b4f1f33a':undefined);
+        const waterColor = `rgb(${Math.round(64-35*deep)},${Math.round(167-64*deep)},${Math.round(178-43*deep)})`;
+        if (!this.model) {
+          // Join unequal neighbouring surfaces so a moving front has no cracks.
+          const front = y < H-1 ? Math.max(z, this.sim.terrain[i+W]+this.sim.water[i+W]) : z;
+          const right = x < W-1 ? Math.max(z, this.sim.terrain[i+1]+this.sim.water[i+1]) : z;
+          if (z+h > front) this.poly([this.project(x,y+1,z+h),this.project(x+1,y+1,z+h),this.project(x+1,y+1,front),this.project(x,y+1,front)],waterColor);
+          if (z+h > right) this.poly([this.project(x+1,y,z+h),this.project(x+1,y+1,z+h),this.project(x+1,y+1,right),this.project(x+1,y,right)],waterColor);
+        }
+        this.tile(x,y,z+h,waterColor,this.model?'#b4f1f33a':undefined);
         if ((x*7+y*11)%19===0 && !this.model) {
           const p = this.project(x+.2,y+.5,z+h); c.strokeStyle = '#b9eeef60'; c.lineWidth = .7; c.beginPath(); c.moveTo(p.x,p.y); c.lineTo(p.x+7,p.y+1); c.stroke();
         }
