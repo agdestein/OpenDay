@@ -169,6 +169,7 @@ uniform int uCount;
 uniform vec3 uObstacles[${MAX_OBSTACLES}];
 uniform vec2 uWind; // wind vector, reference-grid cells/sec; zero = no wind
 uniform vec2 uWindDir; // unit wind direction on screen (isotropic units)
+uniform float uRelax;  // rate (1/s) of the gentle pull toward uniform wind
 uniform float uDt;
 uniform vec2 uTexel;
 uniform int uTurbineCount;
@@ -191,7 +192,7 @@ void main() {
           smoothstep(0.94, 1.0, vUv.x) * clamp(-2.0 * dir.x, 0.0, 1.0)),
       max(smoothstep(0.1, 0.0, vUv.y) * clamp(2.0 * dir.y, 0.0, 1.0),
           smoothstep(0.9, 1.0, vUv.y) * clamp(-2.0 * dir.y, 0.0, 1.0)));
-    velocity = mix(velocity, uWind, min(1.0, uDt * (0.6 + inflow * 10.0)));
+    velocity = mix(velocity, uWind, min(1.0, uDt * (uRelax + inflow * 10.0)));
   }
   // Edges are open outflow: an edge texel must never hold more inward
   // velocity than the wind itself blows in. Advection clamps its backtrace at

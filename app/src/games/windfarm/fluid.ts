@@ -135,6 +135,13 @@ export class FluidSolver {
    * ugly in the wake view, where it shreds the smooth wakes into confetti.
    */
   curlStrength = 25;
+  /**
+   * Rate (1/s) at which the flow everywhere relaxes toward the uniform wind.
+   * It stands in for the turbulent mixing that makes real turbine wakes
+   * recover downstream; it also damps the instability that makes a block
+   * shed a vortex street, so the toy uses less of it.
+   */
+  windRelax = 0.6;
   /** Show (and advect) the tracer particles: the wake view's moving wind streaks. */
   tracers = false;
 
@@ -313,6 +320,7 @@ export class FluidSolver {
     gl.uniform3fv(p.constrain.loc('uObstacles[0]'), this.obstacleData);
     const [wx, wy] = this.windVector();
     gl.uniform2f(p.constrain.loc('uWind'), wx, wy);
+    gl.uniform1f(p.constrain.loc('uRelax'), this.windRelax);
     gl.uniform2f(p.constrain.loc('uWindDir'), Math.cos(this.windAngle), Math.sin(this.windAngle));
     gl.uniform1f(p.constrain.loc('uDt'), dt);
     gl.uniform1i(p.constrain.loc('uTurbineCount'), this.turbineCount);

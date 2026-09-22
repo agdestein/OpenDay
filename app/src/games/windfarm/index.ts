@@ -65,9 +65,22 @@ const OBSTACLE_RADIUS = 0.07; // fraction of screen height
 const MAX_PLACED_OBSTACLES = 12;
 const WIND_SPEED = 60; // reference-grid cells/sec (256 across the screen)
 const TOY_STREAKS = 6;
-/** Vorticity confinement: lively swirls for stirring, clean wakes for turbines. */
+/** Shoulder dye of the blocks: [side (+1 top, -1 bottom), color]. */
+const SHOULDER_COLORS: [number, [number, number, number]][] = [
+  [1, [1.0, 0.5, 0.15]],
+  [-1, [0.2, 0.75, 1.0]],
+];
+/**
+ * Vorticity confinement: lively swirls for stirring; gentler in the wind so
+ * a block's shear layers roll up into clean swirls instead of grid-scale
+ * speckle; gentlest for smooth turbine wakes.
+ */
 const TOY_CURL = 25;
+const WIND_CURL = 8;
 const WAKE_CURL = 6;
+/** Pull toward uniform wind (1/s): recovering turbine wakes vs. free vortex streets. */
+const TOY_RELAX = 0.1;
+const WAKE_RELAX = 0.6;
 
 type Mode = 'stir' | 'blocks';
 
@@ -186,14 +199,18 @@ class FluidInstance implements GameInstance {
     solver.windAngle = this.challenge?.windAngle ?? 0;
     // Wake view (wind-speed coloring) whenever turbines are on screen.
     const wakeView = this.challenge !== null || this.wakeDemo !== null;
-    solver.curlStrength = wakeView ? WAKE_CURL : TOY_CURL;
+    solver.curlStrength = wakeView ? WAKE_CURL : solver.wind > 0 ? WIND_CURL : TOY_CURL;
+    solver.windRelax = wakeView ? WAKE_RELAX : TOY_RELAX;
     // In the wake view, tracer streaks show the wind moving (and slowing in
     // wakes); dye ribbons are for the toy.
     solver.tracers = wakeView;
     const steps = this.challenge?.fastForward && !this.lowTier ? 2 : 1;
     for (let i = 0; i < steps; i++) {
       this.time += dt;
-      if (solver.wind > 0 && !wakeView) this.injectStreaks(dt, TOY_STREAKS);
+      if (solver.wind > 0 && !wakeView) {
+        this.injectStreaks(dt, TOY_STREAKS);
+        this.injectShoulderDye(dt);
+      }
       solver.step(dt);
       this.challenge?.tick(dt);
       this.wakeDemo?.tick(dt);
@@ -268,7 +285,7 @@ class FluidInstance implements GameInstance {
   private dropBlock(): void {
     this.setWind(true);
     if (this.obstacles.length >= MAX_PLACED_OBSTACLES) this.obstacles.shift();
-    this.obstacles.push({ x: 0.62, y: randRange(0.3, 0.7), r: OBSTACLE_RADIUS });
+    this.obstacles.push({ x: 0.55, y: randRange(0.35, 0.65), r: OBSTACLE_RADIUS });
     this.solver?.setObstacles(this.obstacles);
   }
 
@@ -322,6 +339,25 @@ class FluidInstance implements GameInstance {
       const [r, g, b] = hsvToRgb((i / count + this.time * 0.02) % 1, 0.7, 1);
       const gain = 4 * dt;
       this.solver!.splatDye(0.01, y, r * gain, g * gain, b * gain, 0.0004);
+    }
+  }
+
+  /**
+   * Dye released at each block's two shoulders, where the flow peels off —
+   * warm on one side, cool on the other — so the alternating swirls of the
+   * vortex street behind the block show up as interleaving colors.
+   */
+  private injectShoulderDye(dt: number): void {
+    const aspect = this.host.canvas.clientWidth / Math.max(1, this.host.canvas.clientHeight);
+    for (const o of this.obstacles) {
+      for (const [side, [r, g, b]] of SHOULDER_COLORS) {
+        // Just outside the rim, a little past the top/bottom point.
+        const a = side * 1.4;
+        const x = o.x + (Math.cos(a) * o.r * 1.1) / aspect;
+        const y = o.y + Math.sin(a) * o.r * 1.1;
+        const gain = 5 * dt;
+        this.solver!.splatDye(x, y, r * gain, g * gain, b * gain, 0.0002);
+      }
     }
   }
 
