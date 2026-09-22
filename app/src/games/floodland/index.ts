@@ -109,11 +109,17 @@ class FloodInstance implements GameInstance {
     this.stormDialog.addEventListener('keydown', e => { if (e.key === 'Escape') e.stopPropagation(); });
     const dialogTitle = document.createElement('h2'); dialogTitle.id = 'delta-storm-title'; dialogTitle.textContent = text().scenario;
     this.stormDialog.append(dialogTitle);
+    const choices = document.createElement('div'); choices.className = 'delta-storm-choices'; this.stormDialog.append(choices);
     for (const [value, label] of [['surge', text().surgeMode], ['waves', text().wavesMode]] as const) {
-      button(value, label, () => {
+      const choice = button(value, label, () => {
         this.scenario = value; this.timeline.max = String(this.duration);
         this.stormDialog.close(); void this.startStorm();
-      }, this.stormDialog);
+      }, choices);
+      choice.setAttribute('aria-label', label);
+      const name = document.createElement('strong'); name.textContent = label;
+      const description = document.createElement('span'); description.textContent = value === 'surge' ? text().surgeDescription : text().wavesDescription;
+      description.id = `delta-${value}-description`; choice.setAttribute('aria-describedby', description.id);
+      choice.replaceChildren(name, description);
     }
     button('cancelStorm', text().cancel, () => this.stormDialog.close(), this.stormDialog);
     button('model', text().model, () => { this.model = !this.model; });

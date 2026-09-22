@@ -49,9 +49,21 @@
 .delta-playback button { min-width:50px; font-size:19px; border-radius:0; padding:6px 12px; }
 .delta-playback button:first-child { background:#203d48;color:#e7f2e9;border-color:#547079;border-radius:10px 0 0 10px; }
 .delta-playback button:last-child { border-radius:0 10px 10px 0; }
-.delta-storm-dialog { pointer-events:auto; color:#eaf3ee; background:#142e39; border:1px solid #547079; border-radius:18px; padding:28px; max-width:calc(100vw - 48px); }
-.delta-storm-dialog::backdrop { background:#05151cb0; backdrop-filter:blur(4px); }
-.delta-storm-dialog h2 { margin:0 0 20px; font-size:22px; }
-.delta-storm-dialog button { display:block; width:100%; margin-top:10px; padding:15px 24px; background:#203d48; color:#eaf3ee; border:1px solid #547079; border-radius:10px; font:600 15px system-ui; cursor:pointer; }
-.delta-storm-dialog button:last-child { background:transparent;border-color:transparent; }
-.delta-storm-dialog button:focus-visible { outline:3px solid #e5c579;outline-offset:2px; }
+/* Explicit centering overrides the arcade's global margin reset. */
+.delta-storm-dialog { position:fixed; inset:0; margin:auto; box-sizing:border-box; width:680px; max-width:calc(100vw - 32px); max-height:calc(100dvh - 32px); overflow:auto; pointer-events:auto; color:#eaf3ee; background:#142e39; border:1px solid #547079; border-radius:22px; padding:36px; text-align:center; }
+.delta-storm-dialog::backdrop { background:#05151cb0; backdrop-filter:blur(5px); }
+.delta-storm-dialog h2 { margin:0 0 28px; font-size:22px; font-weight:500; }
+.delta-storm-choices { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.delta-storm-dialog button { color:inherit; font:inherit; cursor:pointer; }
+.delta-storm-choices button { display:flex; flex-direction:column; justify-content:center; gap:18px; min-height:220px; padding:30px 24px; background:#1c3943; border:1px solid #49636a; border-radius:16px; text-align:left; transition:background .2s,border-color .2s; }
+.delta-storm-choices button:hover { background:#264851; border-color:#a1c7bf; }
+.delta-storm-choices strong { font-size:24px; font-weight:550; letter-spacing:-.03em; }
+.delta-storm-choices span { color:#b9d0cb; font-size:14px; line-height:1.65; }
+.delta-storm-dialog > button { margin:24px auto 0; padding:10px 24px; background:transparent; border:0; color:#b9d0cb; font-size:14px; }
+.delta-storm-dialog button:focus-visible { outline:2px solid #e5c579;outline-offset:4px; }
+@media(max-width:560px) {
+ .delta-storm-dialog {padding:24px;}
+ .delta-storm-choices {grid-template-columns:1fr;gap:12px;}
+ .delta-storm-choices button {min-height:150px;padding:24px;gap:12px;}
+ .delta-storm-choices strong {font-size:22px;}
+}
