@@ -17,6 +17,9 @@ import {
   displaySrc,
   divergenceSrc,
   gradientSubtractSrc,
+  particleFragmentSrc,
+  particleUpdateSrc,
+  particleVertexSrc,
   pressureSrc,
   probeSrc,
   splatSrc,
@@ -47,6 +50,11 @@ const REF_H = 144;
 /** Quality tiers: [grid width, grid height, pressure iterations]. */
 const TIER_HIGH: [number, number, number] = [384, 216, 24];
 const TIER_LOW: [number, number, number] = [256, 144, 16];
+/** Tracer particles for the wake view: one texel each. */
+const PARTICLES_W = 64;
+const PARTICLES_H = 40;
+/** Tracer streak length, in seconds of travel at the local wind speed. */
+const TRAIL_SECONDS = 0.12;
 const DYE_W = 1024;
 const DYE_H = 576;
 
@@ -127,6 +135,8 @@ export class FluidSolver {
    * ugly in the wake view, where it shreds the smooth wakes into confetti.
    */
   curlStrength = 25;
+  /** Show (and advect) the tracer particles: the wake view's moving wind streaks. */
+  tracers = false;
 
   private gl!: WebGL2RenderingContext;
   private programs!: Record<
@@ -140,7 +150,9 @@ export class FluidSolver {
     | 'gradientSubtract'
     | 'constrain'
     | 'probe'
-    | 'display',
+    | 'display'
+    | 'particleUpdate'
+    | 'particleDraw',
     Program
   >;
   private velocity!: DoubleTarget;
@@ -149,6 +161,8 @@ export class FluidSolver {
   private curl!: Target;
   private divergence!: Target;
   private probeTarget!: Target;
+  private particles!: DoubleTarget;
+  private frameCount = 0;
   private probePoints = new Float32Array(MAX_TURBINES * 2);
   private probePixels = new Float32Array(MAX_TURBINES * 4);
   private obstacleData = new Float32Array(MAX_OBSTACLES * 3);
@@ -186,6 +200,7 @@ export class FluidSolver {
     gl.disable(gl.BLEND);
 
     const vertex = compileShader(gl, gl.VERTEX_SHADER, vertexSrc);
+    const particleVertex = compileShader(gl, gl.VERTEX_SHADER, particleVertexSrc);
     this.programs = {
       advection: new Program(gl, vertex, advectionSrc),
       splat: new Program(gl, vertex, splatSrc),
@@ -198,13 +213,20 @@ export class FluidSolver {
       constrain: new Program(gl, vertex, constrainSrc),
       probe: new Program(gl, vertex, probeSrc),
       display: new Program(gl, vertex, displaySrc),
+      particleUpdate: new Program(gl, vertex, particleUpdateSrc),
+      particleDraw: new Program(gl, particleVertex, particleFragmentSrc),
     };
     gl.deleteShader(vertex);
+    gl.deleteShader(particleVertex);
 
     this.dye = this.createDouble(DYE_W, DYE_H, gl.RGBA16F, gl.RGBA);
     this.createSimTargets(...(lowQuality ? TIER_LOW : TIER_HIGH));
     // RGBA32F so readPixels(RGBA, FLOAT) is guaranteed; never sampled, so NEAREST.
     this.probeTarget = this.createTarget(MAX_TURBINES, 1, gl.RGBA32F, gl.RGBA, gl.FLOAT, gl.NEAREST);
+    // Cleared to zero lifetime, so every particle respawns on the first update.
+    const particleTarget = () =>
+      this.createTarget(PARTICLES_W, PARTICLES_H, gl.RGBA32F, gl.RGBA, gl.FLOAT, gl.NEAREST);
+    this.particles = { read: particleTarget(), write: particleTarget() };
   }
 
   setObstacles(obstacles: Obstacle[]): void {
@@ -347,6 +369,17 @@ export class FluidSolver {
     this.bindTexture(p.advection.loc('uSource'), this.dye.read.tex, 1);
     this.blit(this.dye.write);
     this.swap(this.dye);
+
+    if (this.tracers) {
+      p.particleUpdate.bind();
+      gl.uniform2f(p.particleUpdate.loc('uVelToUv'), 1 / REF_W, 1 / REF_H);
+      gl.uniform1f(p.particleUpdate.loc('uDt'), dt);
+      gl.uniform1ui(p.particleUpdate.loc('uFrame'), ++this.frameCount);
+      this.bindTexture(p.particleUpdate.loc('uParticles'), this.particles.read.tex, 0);
+      this.bindTexture(p.particleUpdate.loc('uVelocity'), this.velocity.read.tex, 1);
+      this.blit(this.particles.write);
+      this.swap(this.particles);
+    }
   }
 
   /** Draw to the canvas; wakeView colors by wind-speed deficit instead of dye. */
@@ -362,6 +395,32 @@ export class FluidSolver {
     this.bindTexture(p.loc('uDye'), this.dye.read.tex, 0);
     this.bindTexture(p.loc('uVelocity'), this.velocity.read.tex, 1);
     this.blit(null);
+    if (this.tracers) this.drawTracers();
+  }
+
+  /** Additive soft streaks over the displayed field, one quad per particle. */
+  private drawTracers(): void {
+    const gl = this.gl;
+    const p = this.programs.particleDraw;
+    p.bind();
+    const w = gl.drawingBufferWidth;
+    const h = gl.drawingBufferHeight;
+    gl.uniform2f(p.loc('uVelToUv'), 1 / REF_W, 1 / REF_H);
+    gl.uniform2f(p.loc('uCanvas'), w, h);
+    gl.uniform1f(p.loc('uTrail'), TRAIL_SECONDS);
+    // About 2 px on a 1080p screen, scaling with the canvas.
+    gl.uniform1f(p.loc('uWidth'), Math.max(1.5, h / 520));
+    gl.uniform1f(p.loc('uOpacity'), 0.4);
+    this.bindTexture(p.loc('uParticles'), this.particles.read.tex, 0);
+    this.bindTexture(p.loc('uVelocity'), this.velocity.read.tex, 1);
+    // The streaks are built from gl_VertexID alone; the shared quad attribute
+    // must be off, or WebGL would range-check 4 quad vertices against ours.
+    gl.disableVertexAttribArray(0);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ONE, gl.ONE);
+    gl.drawArrays(gl.TRIANGLES, 0, PARTICLES_W * PARTICLES_H * 6);
+    gl.disable(gl.BLEND);
+    gl.enableVertexAttribArray(0);
   }
 
   /**

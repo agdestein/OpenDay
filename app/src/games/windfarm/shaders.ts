@@ -315,3 +315,101 @@ void main() {
   frag = vec4(color, 1.0);
 }
 `;
+
+// ---- Tracer particles (wake view) ----
+// Particle state lives in a float texture, one texel per particle:
+// (x, y) in uv, age and lifetime in seconds.
+
+/**
+ * Advects every particle one step (midpoint rule). A particle blown off the
+ * screen wraps around to the opposite edge — that is exactly the inflow of
+ * fresh particles the upstream edge needs, whatever the wind direction, so
+ * the density stays even. Particles whose lifetime ends respawn at random
+ * spots, so none linger forever in a dead zone.
+ */
+export const particleUpdateSrc = `${header}
+// The hash needs full 32-bit integer math; fragment shaders default to mediump.
+precision highp int;
+uniform sampler2D uParticles;
+uniform sampler2D uVelocity;
+uniform vec2 uVelToUv;
+uniform float uDt;
+uniform uint uFrame;
+// PCG-style integer hash: well-distributed random numbers on any GPU (the
+// classic fract(sin(...)) trick loses precision on some mobile chips).
+float rand(inout uint s) {
+  s = s * 747796405u + 2891336453u;
+  uint w = ((s >> ((s >> 28u) + 4u)) ^ s) * 277803737u;
+  return float((w >> 22u) ^ w) / 4294967295.0;
+}
+void main() {
+  vec4 p = texelFetch(uParticles, ivec2(gl_FragCoord.xy), 0);
+  vec2 pos = p.xy;
+  vec2 v1 = texture(uVelocity, pos).xy * uVelToUv;
+  vec2 v2 = texture(uVelocity, pos + 0.5 * uDt * v1).xy * uVelToUv;
+  pos += uDt * v2;
+  float age = p.z + uDt;
+  pos = fract(pos);
+  if (p.w <= 0.0 || age > p.w) {
+    uint s = uint(gl_FragCoord.x) * 1973u + uint(gl_FragCoord.y) * 9277u + uFrame * 26699u;
+    pos = vec2(rand(s), rand(s));
+    age = 0.0;
+    // Staggered lifetimes, so particles don't all respawn at once.
+    p.w = mix(1.5, 3.5, rand(s));
+  }
+  frag = vec4(pos, age, p.w);
+}
+`;
+
+/**
+ * Draws each particle as a soft streak from its position back along the
+ * local velocity: long streaks in full wind, short stubby ones in a wake.
+ * No vertex buffers: six vertices (two triangles) per particle, built from
+ * gl_VertexID and the particle texture.
+ */
+export const particleVertexSrc = `#version 300 es
+precision highp float;
+precision highp sampler2D;
+uniform sampler2D uParticles;
+uniform sampler2D uVelocity;
+uniform vec2 uVelToUv;
+uniform vec2 uCanvas;   // canvas size in pixels
+uniform float uTrail;   // streak length, in seconds of travel
+uniform float uWidth;   // streak width in pixels
+out float vAlpha;
+out float vAlong;       // 0 at the tail, 1 at the head
+out float vSide;        // -1..1 across the streak
+void main() {
+  int id = gl_VertexID / 6;
+  int corner = gl_VertexID % 6;
+  int texW = textureSize(uParticles, 0).x;
+  vec4 p = texelFetch(uParticles, ivec2(id % texW, id / texW), 0);
+  vec2 v = texture(uVelocity, p.xy).xy * uVelToUv;
+  vec2 head = p.xy * uCanvas;
+  vec2 tail = (p.xy - v * uTrail) * uCanvas;
+  vec2 d = head - tail;
+  float len = length(d);
+  vec2 dir = len > 1e-3 ? d / len : vec2(1.0, 0.0);
+  float atHead = (corner == 1 || corner == 2 || corner == 4) ? 1.0 : 0.0;
+  float side = (corner == 2 || corner == 4 || corner == 5) ? 1.0 : -1.0;
+  vec2 px = mix(tail, head + dir * uWidth * 0.5, atHead) + vec2(-dir.y, dir.x) * side * uWidth * 0.5;
+  gl_Position = vec4(px / uCanvas * 2.0 - 1.0, 0.0, 1.0);
+  // Fade in after birth and out before death, so respawns never pop.
+  vAlpha = p.w > 0.0 ? smoothstep(0.0, 0.4, p.z) * (1.0 - smoothstep(p.w - 0.6, p.w, p.z)) : 0.0;
+  vAlong = atHead;
+  vSide = side;
+}
+`;
+
+export const particleFragmentSrc = `#version 300 es
+precision highp float;
+in float vAlpha;
+in float vAlong;
+in float vSide;
+out vec4 frag;
+uniform float uOpacity;
+void main() {
+  float a = vAlpha * vAlong * vAlong * (1.0 - smoothstep(0.3, 1.0, abs(vSide))) * uOpacity;
+  frag = vec4(vec3(0.8, 0.9, 1.0) * a, 0.0);
+}
+`;

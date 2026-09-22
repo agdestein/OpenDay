@@ -68,9 +68,6 @@ const TOY_STREAKS = 6;
 /** Vorticity confinement: lively swirls for stirring, clean wakes for turbines. */
 const TOY_CURL = 25;
 const WAKE_CURL = 6;
-const CHALLENGE_STREAKS = 9;
-/** Seconds per dash + gap of the wake-view streaks. */
-const DASH_PERIOD = 0.6;
 
 type Mode = 'stir' | 'blocks';
 
@@ -190,12 +187,13 @@ class FluidInstance implements GameInstance {
     // Wake view (wind-speed coloring) whenever turbines are on screen.
     const wakeView = this.challenge !== null || this.wakeDemo !== null;
     solver.curlStrength = wakeView ? WAKE_CURL : TOY_CURL;
+    // In the wake view, tracer streaks show the wind moving (and slowing in
+    // wakes); dye ribbons are for the toy.
+    solver.tracers = wakeView;
     const steps = this.challenge?.fastForward && !this.lowTier ? 2 : 1;
     for (let i = 0; i < steps; i++) {
       this.time += dt;
-      if (solver.wind > 0) {
-        this.injectStreaks(dt, wakeView ? CHALLENGE_STREAKS : TOY_STREAKS, wakeView);
-      }
+      if (solver.wind > 0 && !wakeView) this.injectStreaks(dt, TOY_STREAKS);
       solver.step(dt);
       this.challenge?.tick(dt);
       this.wakeDemo?.tick(dt);
@@ -317,13 +315,8 @@ class FluidInstance implements GameInstance {
 
   // ---- toy mode ----
 
-  /**
-   * Colored ribbons entering with the wind, so the flow field is visible. In
-   * the wake view they are dashed: dashes ride the wind, so they visibly slow
-   * down and bunch up inside a wake instead of drawing static stripes.
-   */
-  private injectStreaks(dt: number, count: number, dashed: boolean): void {
-    if (dashed && this.time % DASH_PERIOD > DASH_PERIOD * 0.5) return;
+  /** Colored ribbons entering with the wind, so the flow field is visible. */
+  private injectStreaks(dt: number, count: number): void {
     for (let i = 0; i < count; i++) {
       const y = 0.12 + (0.76 * i) / (count - 1);
       const [r, g, b] = hsvToRgb((i / count + this.time * 0.02) % 1, 0.7, 1);
