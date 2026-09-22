@@ -1,5 +1,5 @@
 import { FloodSim } from './water';
-import { HOMES, INTAKES, PUMP, physicalRate, resetWater, seaLevelAt, setRecoveryGate, stormDuration, totalDuration, type Scenario } from './scene';
+import { HOMES, physicalRate, resetWater, seaLevelAt, totalDuration, type Scenario } from './scene';
 
 export const RECORD_FPS = 15;
 /** Bounded recording: depth and momenta only, with interpolation for playback. */
@@ -10,6 +10,7 @@ export class FloodRecording {
   readonly pumped: Float64Array;
   readonly pumpRates: Float32Array;
   readonly boundary: Float64Array;
+  readonly sources: Float64Array;
   private flooded: Uint16Array;
   private readonly cells: number;
   constructor(terrain: Float64Array, width: number, height: number, readonly scenario: Scenario = 'surge', pumpEnabled = true, deferred = false) {
@@ -21,6 +22,7 @@ export class FloodRecording {
     this.pumped = new Float64Array(this.frames);
     this.pumpRates = new Float32Array(this.frames);
     this.boundary = new Float64Array(this.frames);
+    this.sources = new Float64Array(this.frames);
     if (!deferred) for (const _frame of this.compute(terrain, width, height, pumpEnabled)) { /* synchronous numerical tests */ }
   }
   /** Yield regularly while calculating so kiosk controls and cancellation work. */
@@ -41,15 +43,13 @@ export class FloodRecording {
     sim.terrain.set(terrain);
     resetWater(sim);
     let mask = 0;
-    const pumpConfig = { intakes: INTAKES, outlet: PUMP.outletY * width + PUMP.outletX, capacity: PUMP.capacity };
+    if (!pumpEnabled) sim.pumpConfig = null;
     for (let frame = 0; frame < this.frames; frame++) {
       const time = frame / RECORD_FPS;
       if (frame) {
         const dt = physicalRate((frame - .5) / RECORD_FPS, scenario) / RECORD_FPS;
         sim.seaLevel = seaLevelAt(time, scenario);
-        setRecoveryGate(sim, (frame - .5) / RECORD_FPS, scenario);
         const previousPumped = sim.pumpedVolume;
-        sim.pumpConfig = pumpEnabled && time > stormDuration(scenario) ? pumpConfig : null;
         // Keep the existing 30 Hz forcing cadence for surge comparisons.
         for (let half = 0; half < 2; half++) {
           sim.seaLevel = seaLevelAt((frame - .5 + half * .5) / RECORD_FPS, scenario);
@@ -65,6 +65,7 @@ export class FloodRecording {
       this.values.set(sim.my, offset + this.cells * 2);
       this.pumped[frame] = sim.pumpedVolume;
       this.boundary[frame] = sim.boundaryVolume;
+      this.sources[frame] = sim.sourceVolume;
       HOMES.forEach(([x, y], k) => { if (sim.water[y * width + x] > .3) mask |= 1 << k; });
       this.flooded[frame] = mask;
       yield frame;
@@ -82,7 +83,6 @@ export class FloodRecording {
       fields[field][i] = left + (this.values[b + offset] - left) * blend;
     }
     sim.seaLevel = seaLevelAt(position / RECORD_FPS, this.scenario);
-    setRecoveryGate(sim, position / RECORD_FPS, this.scenario);
     return this.flooded[frame];
   }
   pumpedAt(time: number): number { return this.pumped[this.frameAt(time)]; }

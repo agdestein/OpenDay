@@ -1,6 +1,6 @@
 import { FloodRecording, RECORD_FPS } from '../src/games/floodland/recording.ts';
 import { FloodSim, GRID_W as W, GRID_H as H } from '../src/games/floodland/water.ts';
-import { makeScene, resetWater, dikePlan, surge, STORM_DURATION, HOMES, BUDGET, totalDuration, scenarioBudget } from '../src/games/floodland/scene.ts';
+import { makeScene, resetWater, dikePlan, surge, STORM_DURATION, HOMES, BUDGET, totalDuration, scenarioBudget, POOL, PUMP, placeSand, SAND_RATE } from '../src/games/floodland/scene.ts';
 import assert from 'node:assert/strict';
 // Closed basin with varying bed: hydrostatic equilibrium and conservation.
 const lake = new FloodSim(16,12); lake.ocean = false;
@@ -30,7 +30,7 @@ function run(crest?:number) {
   HOMES.forEach(([x,y],j)=>{if(s.water[y*W+x]>.3)flooded.add(j);});
  }
  assert.ok(s.water.every(h=>Number.isFinite(h)&&h>=0));
- assert.ok(Math.abs(s.volume()-initial-s.boundaryVolume)<1e-5);
+ assert.ok(Math.abs(s.volume()-initial-s.boundaryVolume-s.sourceVolume)<1e-5);
  return {flooded:flooded.size,water:s.water};
 }
 const open=run(), high=run(2.4), low=run(1);
@@ -60,11 +60,6 @@ assert.deepEqual(recordingScene.my,middle[2]);
 assert.equal(recording.frames, totalDuration('surge')*RECORD_FPS+1);
 console.log('PASS: recording memory bound, full-run agreement, backward/forward seeking, momentum, historical damage and flood extent.');
 
-// A closed emergency gate exchanges neither water nor momentum between pools.
-const gated = new FloodSim(12,8); gated.ocean=false;
-for(let y=0;y<8;y++) {gated.gates[y*12+6]=1;for(let x=0;x<12;x++)gated.water[y*12+x]=x<6?2:.3;}
-const gateWater=gated.water.slice();gated.advance(60);
-assert.ok(gated.water.every((h,i)=>Math.abs(h-gateWater[i])<1e-10));
 // Pump capacity, availability, momentum removal and explicit outlet accounting.
 const pump = new FloodSim(8,8); pump.ocean=false;pump.water[10]=.5;pump.mx[10]=1;
 const pumpVolume=pump.volume();
@@ -78,12 +73,12 @@ function polderVolume(sim: FloodSim) {
 recording.restore(STORM_DURATION,recordingScene);const startRecovery=polderVolume(recordingScene);
 recording.restore(recording.duration,recordingScene);const cleared=polderVolume(recordingScene);
 assert.ok(cleared < startRecovery*.08, `Recovery remaining ${cleared/startRecovery}`);
-assert.ok(recording.pumpedAt(recording.duration)>150000);
+assert.ok(recording.pumpedAt(recording.duration)>startRecovery-cleared,'Pump removes the retained floodwater');
+assert.ok(recording.pumpedAt(2)>0,'Pump operates before the flood arrives');
 assert.ok(recording.pumpRates.every(rate=>rate>=0&&rate<=35.00001));
 const initialVolume=makeScene().volume();
-assert.ok(Math.abs(recordingScene.volume()-initialVolume-recording.boundary.at(-1)!)<.1,'Pump transfer preserves total volume');
-recording.restore(20,recordingScene);assert.equal(recordingScene.gates[20*W+23],0);
-recording.restore(60,recordingScene);assert.equal(recordingScene.gates[20*W+23],1);
+assert.ok(Math.abs(recordingScene.volume()-initialVolume-recording.boundary.at(-1)!-recording.sources.at(-1)!)<.1,'Pump transfer preserves total volume');
+
 const unpumpedScene=makeScene();const unpumped=new FloodRecording(unpumpedScene.terrain,W,H,'surge',false);
 unpumped.restore(unpumped.duration,unpumpedScene);
 assert.ok(polderVolume(unpumpedScene)>cleared*5,'Recovery is caused by the pump, not a hidden sink');
@@ -92,14 +87,40 @@ assert.ok(waves.values.byteLength<64*1024*1024);
 const amounts:number[]=[];
 for(const time of [0,25,42,62]){waves.restore(time,waveScene);amounts.push(polderVolume(waveScene));}
 for(let i=1;i<amounts.length;i++)assert.ok(amounts[i]-amounts[i-1]>3000,`Wave ${i} overtopping adds water`);
-assert.ok(amounts[3]<startRecovery*.3,'Pulses deliver limited flood volume');
+assert.ok(amounts[3]<startRecovery*.7,'Pulses deliver limited flood volume');
 waves.restore(20,waveScene);const arrival=waveScene.water[20*W+40];waves.restore(30,waveScene);
 assert.ok(arrival-waveScene.water[20*W+40]>.1,'A pulse passes the village rather than simply filling it');
-waves.restore(waves.duration,waveScene);assert.ok(polderVolume(waveScene)<amounts[3]*.05);
-assert.ok(Math.abs(waveScene.volume()-makeScene('waves').volume()-waves.boundary.at(-1)!)<.1,'Wave boundary and recovery account for all water');
+waves.restore(waves.duration,waveScene);assert.ok(polderVolume(waveScene)<amounts[3]*.2);
+assert.ok(Math.abs(waveScene.volume()-makeScene('waves').volume()-waves.boundary.at(-1)!-waves.sources.at(-1)!)<.1,'Wave boundary and recovery account for all water');
 const defense=dikePlan(waveScene,[{x:22.5,y:11},{x:22.5,y:29}],2.4);
 assert.ok([...defense.values()].reduce((a,b)=>a+b,0)<=scenarioBudget('waves'));
 for(const[i,rise]of defense)waveScene.terrain[i]+=rise;
 const defendedWaves=new FloodRecording(waveScene.terrain,W,H,'waves');
 assert.equal(defendedWaves.restore(defendedWaves.duration,waveScene),0,'Affordable defense protects against all three waves');
-console.log('PASS: conservative gate and pump; capacity and availability; recovery versus pump-off; three overtopping pulses; traveling front; affordable wave defense; recovery seek and bounded storage.');
+console.log('PASS: conservative regulated pump; capacity and availability; recovery versus pump-off; three overtopping pulses; traveling front; affordable wave defense; recovery seek and bounded storage.');
+
+// The permanent sill separates the calm sea from a wet, regulated drainage system.
+const calm=makeScene(), calmInitial=calm.volume();
+assert.ok(calm.terrain[20*W+22]>0);
+assert.ok(POOL.every(i=>calm.water[i]>0));
+calm.advance(3600);
+assert.ok(calm.pumpedVolume>1000,'Automatic pump runs before any storm');
+assert.ok(POOL.every(i=>calm.water[i]>.4),'Pump retains the pond');
+assert.ok(POOL.every(i=>Math.abs(calm.terrain[i]+calm.water[i]-PUMP.targetLevel)<.03));
+assert.ok(HOMES.every(([x,y])=>calm.water[y*W+x]<.001));
+assert.ok(Math.abs(calm.volume()-calmInitial-calm.boundaryVolume-calm.sourceVolume)<1e-5);
+const regulated=new FloodSim(8,8);regulated.terrain[10]=-2;regulated.water[10]=1.5;
+assert.equal(regulated.pump([10],20,100,10,-1),50);
+assert.equal(regulated.water[10],1);
+// Hold duration controls height, with a hard height cap and a partial final layer.
+const brushPoint=[{x:22.5,y:20.5}];
+function paint(fps:number){const sim=makeScene();let budget=210;for(let k=0;k<fps;k++)budget-=placeSand(sim,brushPoint,SAND_RATE/fps,budget);return {sim,budget};}
+const brush30=paint(30),brush120=paint(120);
+assert.ok(brush30.sim.terrain.every((h,i)=>Math.abs(h-brush120.sim.terrain[i])<1e-12));
+assert.ok(Math.abs(brush30.budget-brush120.budget)<1e-10);
+assert.ok(Math.abs(brush30.sim.terrain[20*W+22]-(.7+SAND_RATE))<1e-10);
+const limited=makeScene();assert.equal(placeSand(limited,brushPoint,10,.5),.5);
+const before=limited.terrain.slice();assert.equal(placeSand(limited,brushPoint,10,0),0);assert.deepEqual(limited.terrain,before);
+placeSand(limited,brushPoint,100,1000);assert.equal(limited.terrain[20*W+22],4);
+const pond=limited.terrain.slice();placeSand(limited,[{x:51.5,y:31.5}],10,1000);assert.ok(POOL.every(i=>limited.terrain[i]===pond[i]));
+console.log('PASS: calm isolated polder, permanent pond, automatic level control, source accounting, progressive sand, frame-rate independence, height cap and limited budget.');

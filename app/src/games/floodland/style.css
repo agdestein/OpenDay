@@ -23,3 +23,20 @@
 .delta-scrubber { display:block; width:min(520px,100%); margin:4px auto 0; height:24px; pointer-events:auto; cursor:ew-resize; accent-color:#e5c579; }
 .delta-scrubber[hidden] { display:none; }
 .delta-scrubber:focus-visible { outline:2px solid #ffe0a4; outline-offset:3px; }
+.delta-tools > label[hidden] { display:none; }
+.delta-more { position:relative; text-align:left; }
+.delta-more > summary { list-style:none; font:600 13px system-ui; border:1px solid #547079; border-radius:9px; padding:11px 15px; cursor:pointer; color:#d4e5df; background:#203d48; }
+.delta-more > summary::-webkit-details-marker { display:none; }
+.delta-more > summary:focus-visible { outline:3px solid #ffe0a4; outline-offset:3px; }
+.delta-more-panel { position:absolute; right:0; bottom:calc(100% + 12px); width:340px; max-width:calc(100vw - 40px); padding:20px; border:1px solid #547079; border-radius:12px; background:#142e39; box-shadow:0 10px 40px #00101880; z-index:30; }
+.delta-more-panel p { margin:0 0 16px; color:#cbded7; font-size:13px; line-height:1.6; }
+.delta-extra-controls { display:flex; gap:8px; flex-wrap:wrap; }
+.delta-extra-controls button:first-child { background:#203d48; color:#e7f2e9; border-color:#547079; }
+.delta-header h1 { font-size:clamp(20px,2.2vw,30px); }
+.delta-status {font-size:13px;color:#c2d9d3;}
+.delta-inspection {font-size:12px;color:#9abbb7;}
+@media(max-width:700px) {
+ .delta-more {position:static;}
+ .delta-more-panel {right:0;left:0;margin:auto;bottom:calc(100% + 8px);width:auto;}
+ .delta-more > summary {padding:8px;font-size:11px;}
+}

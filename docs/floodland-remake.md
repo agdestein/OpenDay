@@ -6,16 +6,20 @@ English, Dutch and Norwegian controls are provided.
 
 ## Playing and reading the water
 
-Draw dikes in either view; hovering previews a single click's footprint, height and cost.
+Hold to add sand in either view: height increases at 1.4 m per second, up to 4 m.
+A tap adds a small layer; slow dragging builds a higher ridge. Hovering previews the next layer.
 Drawing near the existing ridge snaps to its centreline.
-An unaffordable stroke is rejected as a whole; undo restores terrain and budget.
+The final layer uses the remaining budget proportionally; undo restores the entire stroke.
+The pond and homes are protected from sand placement.
 Choose the challenge before building; changing it starts a fresh landscape.
 Construction is paused during a run so comparisons remain repeatable.
 
 All water surfaces have fine cell outlines, including flooded land in the 3D view.
 Shallow films are translucent so nearly drained land reads differently from deep water.
 Two village level posts measure depth above the local ground, with metre ticks.
-A desktop cross-section shows ground, crest, water surface and the zero datum.
+Opening More in the overhead desktop view reveals a cross-section with ground, crest,
+water surface and the zero datum. Floating scene labels are omitted; inspection stays in
+the footer. More also holds playback speeds, single-frame stepping, comparison and reset.
 Pointing at a cell shows ground elevation, depth and flow speed in either view.
 The overhead model view exposes the numerical grid.
 Velocity arrows are drawn last so neighbouring water tiles cannot hide them.
@@ -25,7 +29,8 @@ The homes are fictional and the landscape is illustrative, not a Dutch hazard fo
 
 ## Challenges
 
-**Storm surge** retains the opening in the coastal dike and a budget of 210 sand.
+**Storm surge** starts with a permanent low sill (0.7 m crest) and a budget of 210 sand.
+The sill stands above the calm sea but overtops during the storm.
 The sea rises to 2.2 m and retreats over 42 display seconds.
 A 2.4 m defense across the opening protects the village; a 1.0 m defense overtops.
 One display second represents 24 physical seconds during the surge.
@@ -46,17 +51,19 @@ Recovery represents 120 physical seconds per recorded second.
 Normal playback switches to Fast ×4 on entering recovery to finish within the kiosk's
 90-second unattended timeout; slow motion, pause and scrubbing remain available.
 
-In the surge scene, a visible emergency gate closes the opening before pumping.
-Otherwise the below-sea-level polder would continue admitting seawater.
-The gate blocks flux through grid faces without changing terrain or deleting water.
-In the wave scene the intact dike already isolates the polder from the calm sea.
+The defenses, wet drainage canal, storage pond and automatic pump form one permanent
+system. No structure appears or closes after a flood. The low sill keeps the calm sea
+out while still allowing overtopping and outward flow when water levels permit it.
 
-A canal leads to a local intake basin and a pump with a maximum capacity of 35 m³/s.
-The pump removes only available intake water and transfers the same volume to a
-visible sea outlet; extraction removes the corresponding local momentum.
-It operates on each stable solver step, avoiding large artificial discharge bursts.
-The pipe's moving dashes point toward the sea; pump flow and cumulative volume
-are shown during recovery and restored correctly when scrubbing.
+The pond begins at -0.9 m and the pump regulates it toward -0.95 m. It operates during
+building and throughout the recorded run, removing only water above its target level.
+A small explicit background inflow of 0.3 m³/s represents ongoing drainage/seepage.
+The pump has a maximum capacity of 35 m³/s: useful for normal drainage but unable to
+keep up with the reference flood. It transfers extracted water and its proportional
+momentum out of the intake cells, adding the same water volume at the sea outlet.
+Both pumping and background inflow run on each stable solver step and have cumulative
+volume accounting. Moving pipe dashes and the rotor show pumping; its rate is available
+in the More inspection footer. The pond remains wet after recovery.
 No infiltration or evaporation sink is used.
 Water isolated from the canal by a player's defenses can remain trapped.
 The final residual films and wet canals are not promised to be perfectly dry.
@@ -78,9 +85,10 @@ A status message remains visible and the controls remain responsive during calcu
 The solver uses Float64 arithmetic; recordings store depth and both momenta as Float32.
 At 15 recorded frames per second, the surge plus recovery uses about 45 MiB of field
 storage and the wave scenario about 54 MiB, both below the tested 64 MiB bound.
-Additional small arrays store historical house flooding, pump discharge and boundary accounting.
+Additional small arrays store historical house flooding, pump discharge, external inflow
+and boundary accounting.
 Playback linearly interpolates fields; it never integrates backwards.
-Pause and One step advance one recorded frame, not one solver substep.
+Pause and One frame advance one recorded frame, not one solver substep.
 Rewind, reset and leaving the game cancel calculations and release recordings.
 The previous-flood overlay covers the recording through the selected rewind time.
 
@@ -93,10 +101,11 @@ The numerical suite covers:
 - Wet/dry dam-break spreading, stable depths and ocean boundary accounting.
 - Open, low and high defenses against the reference surge.
 - Deterministic recording, depth/momentum seeking and historical damage restoration.
-- Gate isolation without water loss; pump capacity, water availability and momentum removal.
+- Calm-sea isolation, a retained pond, automatic level regulation and background inflow.
+- Pump capacity, water availability and momentum removal.
 - Recovery with and without pumping, including conservation across the sea outlet.
 - Three separate overtopping pulses, a passing inland wave and affordable wave protection.
-- Bounded recording storage and gate state restoration across recovery.
+- Bounded recording storage and progressive brush height, budget, cap and frame-rate independence.
 
 Browser verification covers hover/click agreement, overhead drawing, undo, scenario
 switching, a drawn wave defense, calculation cancellation, timeline dragging, pause,
@@ -111,6 +120,6 @@ Hardware performance and child playtests at the stand remain necessary.
 - https://www.rijnland.net/over-rijnland/wat-doet-rijnland/in-uw-buurt/poldergemalen/
 - https://www.deltares.nl/expertise/publicaties/infragravity-waves-in-dutch-tidal-basins-and-estuaries-implications-for-flood-risk-assessment
 
-The gate and pump are fixed recovery infrastructure, not yet player-placeable tools.
+The pond and pump are fixed infrastructure, not player-placeable tools.
 Additional landscapes, dedicated storage-area controls, selectable grid resolution,
 structural dike failure and a leaderboard remain future extensions.
