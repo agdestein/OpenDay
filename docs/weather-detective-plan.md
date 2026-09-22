@@ -1,276 +1,198 @@
 # Weather Detective — plan
 
-A new arcade game loosely based on our KNMI project: *Leveraging crowdsourced
-weather data across Europe with scalable multi-fidelity Gaussian Process
-regression* (Klein, Mücke, Hoekstra, Agdestein, …, Crommelin, Garcia-Marti;
-paper draft in `~/Projects/KNMI/Paper/main.tex`). Last year's Science Day game
-about the same project,
-[CWI_gp_temp_scienceday](https://github.com/rik-stra/CWI_gp_temp_scienceday),
-is its starting point.
+A new arcade game, loosely based on our KNMI project on multi-fidelity Gaussian
+process regression with crowdsourced weather stations, and on last year's
+Science Day game about it,
+[CWI_gp_temp_scienceday](https://github.com/rik-stra/CWI_gp_temp_scienceday)
+by Rik Hoekstra. The only goals are those of [message.md](message.md); the
+paper is inspiration, not a spec. Data may be adapted (and is) whenever that
+makes the game more fun or clearer; no paper figures are used.
 
-Status: **plan**. Nothing is built yet.
+Status: **plan, being built**.
 
-## Why this game, and why in this arcade
+## The idea in one breath
 
-Every game in the arcade is a *forward* simulation: set up the world, run the
-physics, watch what happens. None of them asks the question that comes first in
-real work: **how do we know what the world looks like right now?** A model is
-only as good as its measurements, and there are never enough of them.
+The weather is hiding in the fog. Every thermometer you place lets the
+computer see a little more, and it *imagines* the rest. Where it has no
+thermometers, its imagined weather keeps changing ("maybe hot here… or maybe
+cold…"). Where you measured, the weather holds still. Your job, detective:
+find the hottest place, make the weather map for the evening news, and catch
+the weather stations that lie.
 
-Weather Detective turns that around. The real weather map is hidden. You get a
-few thermometers. The computer guesses the temperature everywhere else and also
-shows **how sure it is**. That fills gaps the arcade has now:
+## Why it belongs in this arcade
 
-| | Existing games | Weather Detective |
-|---|---|---|
-| Domain | energy, health, water, AI, physics, space | **weather** (the first word of our message line: "the same mathematics that predicts the weather…"; the chaos-twins idea that would cover it is unbuilt) |
-| Method | PDEs, agent-based models, evolution, ODEs | **statistics / machine learning from data**: interpolation with uncertainty |
-| Data | all synthetic | **real KNMI maps** of real days in the Netherlands |
-| Partner story | Deltares (dikes), epidemics | **KNMI**, plus citizens: "Do you have a weather station in your garden? Stations like yours make these maps." |
-| Uncertainty | Outbreak's forecast fan | uncertainty is the **main mechanic**: you play against the fog |
+- **Variety is the message.** Every other game simulates *forward* (fluid,
+  epidemic, flood, walking, gravity). This one simulates the weather the
+  computer *can't see*, from a few measurements, and says how sure it is.
+  New domain (weather, the first word of our message line), new method
+  (statistics and learning from data), real data (KNMI maps of real days).
+- **"The computer imagines many possible weathers"** is a simulation that kids
+  can watch: an animated field of possible weathers that settles wherever a
+  thermometer is placed. It is the same idea as Outbreak's many futures and
+  the ensemble forecasts that parents see on TV.
+- **Parent hook:** "Do you have a weather station in your garden? Stations
+  like yours help make these maps." CWI + KNMI.
 
-It is also the quietest game on the stand: a calm, thinking game next to
-Swirl Lab and Creature Lab. Parents can play it together with older kids.
+## Look
 
-## What last year's game did, and what to change
+- A big map of the Netherlands, with land in weather-map colours (blue → green
+  → yellow → red) and the sea and IJsselmeer dark. A few city names.
+- **Dreams (default in free play):** the computer's imagined weather, animated.
+  These are posterior samples of a Gaussian process that drift slowly through
+  time. Far from thermometers the colours roll like lava-lamp weather. Near a
+  thermometer they are pinned. A five-year-old who wiggles the mouse and clicks
+  sees the weather *freeze* around their thermometer.
+- **Best guess + fog (default in the challenge):** the posterior mean,
+  covered by drifting cloud-fog whose thickness is the posterior standard
+  deviation. A big button switches between the two views.
+- Thermometers are big and readable from two metres, with a mercury column
+  and the reading (`31.4°`). Home stations are small house icons. The cursor
+  is a hovering thermometer.
 
-Last year's game was Streamlit + folium + GPyTorch. You clicked to place a
-thermometer on a map of the Netherlands, a GP was retrained (50 Adam steps), the
-map redrew, and the score was the mean error against the KNMI map, plotted
-against the number of thermometers. It also had a "KNMI stations" mode that
-placed the 33 real station locations.
+## Free play (toy mode)
 
-Keep: real KNMI maps of four days (the data files are small and public in that
-repo, and in `~/Projects/KNMI/toy_GP/data/`), click to place a thermometer,
-error against the real map, the error-versus-thermometers curve.
+- **Hover:** the cursor thermometer shows the *real* temperature under it, so
+  the mercury rises and falls as you wiggle.
+- **Click** to plant it. The map reacts in the same frame.
+- **Drag** a planted thermometer and the whole map follows live.
+  **Right-click** (or drag it off the map) to remove it.
+- **🏡 Home stations:** about 150 home stations rain down into the towns
+  (where people live). Detail appears, but everything reads a bit too warm and
+  a few are wildly off. The computer figures out the warm bias by itself (see
+  the model).
+- **👁 Peek:** hold to see the real map.
+- **Day buttons:** four real moments, adapted. Heatwave (1 July 2025, up to
+  40 °C in the cities), Sea breeze (14 July 2025, cool coast, warm inland),
+  New Year's night (1 January 2025) and Frosty morning (18 February 2025, a
+  frost pocket on the Veluwe).
+- **🧹 Clear.**
 
-Change:
+## Challenge: three cases
 
-- **Slow.** Each click took a server round-trip and a GP retrain. Here the GP
-  runs in the browser with fixed per-day hyperparameters, so the map updates in
-  one frame and you can *drag* a thermometer and watch the map follow. That is
-  the arcade's rule: react within a frame.
-- **The error was visible all the time**, so the game became hot-and-cold with
-  the answer on the screen. In the challenge the error is hidden until the
-  reveal. What you see is the model's own uncertainty. Deciding where to measure
-  when you don't know the answer is exactly the real problem.
-- **Uncertainty was a separate tab.** Here it is fog over the map, always on
-  and impossible to miss.
-- **Only one kind of thermometer.** The paper's point is *multi-fidelity*:
-  a few accurate official stations plus many cheap, noisy, biased home
-  stations. That becomes the game's main choice.
-- No kiosk robustness, no i18n, no explainer. Here it plugs into the arcade
-  shell like the other games.
+Each case uses a different real day, a different lesson and a different
+mechanic. Each is worth up to 100 points. The total goes on the daily board.
+Each case ends by comparing you with the computer, who plays the same case.
 
-## The game
+1. **🔥 The hottest place** (heatwave). You have 6 thermometers. Find the
+   hottest spot in the Netherlands. A seeded "heat dome" is hidden somewhere
+   inland on top of the real heatwave, so the answer moves every game. The
+   guess map and the fog help: go where it is probably hot, or check where
+   nobody knows yet. Score: how close your hottest reading is to the true
+   hottest place. The computer plays the same case with **Bayesian
+   optimisation** (upper confidence bound: mean + 2·spread), which is the real
+   method for "find the best with few expensive tries".
+   Lesson: explore vs exploit.
+2. **📺 The weather map** (New Year's night). Make tonight's weather map
+   for the news. You have 20 coins: an official station costs 4 and is exact;
+   a home station costs 1, reads too warm and wobbles. Place what you like,
+   then press **Make the map**. The real map wipes in, and an error view shows
+   red where you were wrong. Score: how much better your map is than guessing
+   one temperature everywhere. The computer spends its coins on evenly spread
+   official stations. Lesson: spread out, and many cheap stations can beat a
+   few good ones if you know they read warm.
+3. **🕵️ The lying stations** (frosty morning). The map already has 60 home
+   stations and 3 official ones. Six home stations lie: they hang against a
+   warm house wall and read much too warm. Click a station to accuse it. It
+   goes grey, the computer stops listening to it, and the map heals live (a fake
+   warm blob disappears). You have 8 accusations. Score: liars caught, minus
+   innocents accused. The computer's pick: stations that disagree most with
+   what their neighbours predict (leave-one-out check), which is real quality
+   control, a section of the paper. Lesson: data can be wrong, and the model
+   can tell you which data to doubt.
 
-### Look
+End of the challenge: total score → initials → daily board (shared
+`scoreflow.ts`).
 
-A map of the Netherlands (coastline, IJsselmeer, a handful of city names),
-first covered in soft grey **fog**. Where the computer has a guess, the fog
-lifts and shows the familiar blue → yellow → red weather-map colours. Fog
-opacity is the posterior standard deviation relative to the prior (fully foggy
-= "no idea", clear = "sure"). Thermometers are big icons with their reading
-(`24.3°`) readable from two metres. Official stations are white/orange (KNMI
-style), garden stations are small green house-shaped dots.
+## Explainer ("How does this work?")
 
-### Free play (toy mode, zero reading)
+The shared chaptered card on the left, a live demo on the canvas on the right.
 
-- **Click** anywhere: a thermometer drops in with a little bounce and shows
-  its reading. Colour spreads out around it and the fog lifts in a circle about
-  one length scale wide.
-- **Drag** a thermometer and the whole map moves with it, live. This is the
-  30-second wow.
-- **Right-click / drag off the map** removes one. **Clear** resets.
-- **🏡 Garden stations:** sprinkle ~150 citizen stations into the towns (placed
-  by urban fraction). Suddenly the map has city detail, but it runs a bit too
-  warm and a few stations are wildly off. That is the multi-fidelity story in
-  one button.
-- **👁 Peek:** hold to see the real map through the fog and compare.
-- **Day picker:** the four KNMI moments (hot July afternoon, early July,
-  frosty New Year's night, February morning). Each one looks clearly different:
-  sea-breeze coast, cities warmer at night, and so on.
+1. **Guessing between thermometers.** A 1D strip ("a walk from the beach to
+   the city") with draggable thermometers: the best guess, the band of
+   uncertainty, and dream curves. "The computer imagines every weather that
+   fits your thermometers; the band shows how much they disagree."
+2. **How far does one thermometer reach?** A reach slider on the same strip:
+   too short gives spikes, too long gives a stiff ruler. The computer picks the
+   reach by hiding one thermometer and guessing it.
+3. **The computer also knows the map.** Cities are warmer, water is cooler
+   (on a summer day). With the same three thermometers, turn map knowledge on
+   and off on the Netherlands map.
+4. **Home stations: cheap but wobbly.** A thousand home stations make the
+   map sharp, but they read warm. A switch turns bias correction off (the map
+   turns too red) and on again. "The real map in this game was made by KNMI
+   from 31 official stations and 729 home stations."
+5. **Too many thermometers.** A dot map of Europe (≈5,000 official and many
+   thousands of synthetic home stations shaped like the project's data,
+   coloured by temperature). Every station must be compared with every other
+   station: the pair count grows as N². Our group's tricks, in words: only
+   compare with neighbours, and summarise with a thousand landmark points. The
+   result is a weather map of all of Europe on one computer.
+6. **Where this is used.** KNMI weather maps, heat in cities, feeding data
+   to AI weather forecasting. CWI + KNMI.
 
-Only these five controls. The advanced switches (bias correction, map
-knowledge, reach) live in the explainer's live demos, not on the toy screen.
+**Science line:** "Together with KNMI we turn thousands of official and home
+weather stations into one weather map of Europe, and the maths tells us how
+sure we are."
 
-### Challenge: "Beat the weather computer"
+## The model (free to differ from the paper)
 
-Three rounds, each a different real day with its own lesson. Each round has a
-**budget of coins**. An official station costs 5, a garden station costs 1. You
-place measurements, watching only the fog and the colours, then press
-**Make the map**.
+A Gaussian process whose kernel is a sum of simple pieces:
 
-1. **Heatwave afternoon** (14 July 2025): officials only, 8 of them. The lesson:
-   spread out, and the coast is different (sea breeze). Clumping thermometers
-   in one spot leaves the rest of the country in fog.
-2. **New Year's night** (1 January 2025): 20 coins, garden stations available.
-   Cities are warmer at night and garden stations sit in cities. The lesson:
-   many cheap stations beat a few good ones *if the computer knows they read
-   warm*. The model corrects the bias automatically in this round, and the end
-   card shows what the map would have looked like without the correction.
-3. **Broken stations** (18 February 2025) *(stretch)*: many garden stations are
-   already on the map and a few are broken (in the sun, indoors). The model
-   rings stations that disagree with their neighbours. Tap the ones you think
-   are broken to ignore them. That is quality control, a whole section of the
-   paper.
+    k(x, x') = c² + a_u² u(x)u(x') + a_w² w(x)w(x') + θ² exp(−|x−x'|² / 2ℓ²)
 
-**Reveal.** The true map wipes across the fog. Then comes an error view, with
-red where the guess was wrong, and a verdict: "Your map was off by 0.9 °C on
-average." **Score** per round = points from mean absolute error over land
-(e.g. `round(100 · 2 / (1 + MAE))`, tuned so a good round gives about 100);
-the three rounds are summed for the daily leaderboard (existing
-`scores.ts` / `scoreflow.ts`).
+The first three terms are the "map knowledge": a constant, and random slopes
+for urban fraction `u` and water fraction `w`. The last is the smooth weather.
+Observations add their noise σ² (official ≈ 0.1 °C, home ≈ 1 °C), and home
+stations share one extra random offset `b²·[home][home']`. That offset is
+the warm bias: it is learned from the data without any fitting code, and it
+is left out of the prediction. Putting the covariates and the bias in the
+kernel (not a separate regression) keeps everything stable with only two
+thermometers. Hyperparameters are fixed per day.
 
-**The computer's map.** During the intro card the computer spends the same
-budget with a standard strategy: always put the next thermometer where the fog
-is thickest (greedy maximum-variance design, a real sensor-placement method).
-The end card shows the two maps and errors side by side ("You 0.9° — Computer
-1.1°"), like Swirl Lab's computer player and Outbreak's do-nothing futures. The
-greedy design only looks at the fog, never at the readings. A kid who notices
-"the coast is cooler, the cities are warmer" can beat it. That is the point:
-the model plus human judgement beats either alone. The headless sweep below
-checks that it is beatable but not trivially.
+- **Coordinates** in km. **Grid:** every other cell of KNMI's 386×280
+  (≈ 1 km) grid for the mean and colours, and a quarter-resolution grid for
+  the spread, fog and dreams (both are soft by nature).
+- **Dreams:** random Fourier features give a prior sample of the smooth part,
+  with slowly rotating phases so it drifts in time. It is conditioned on the
+  thermometers by pathwise conditioning (Matheron's rule). Per frame this is a
+  few million multiply-adds.
+- **Cost:** N ≤ ~200. The Cholesky is cheap. Kernel columns to the grid are
+  cached per station, so dragging one thermometer recomputes one column.
+- **Truth:** the KNMI field (half resolution) plus per-case seeded features
+  (heat dome, liars). The colour scale is per day.
 
-### Explainer ("How does this work?")
+## Data
 
-Chapters, each with a small live demo, in the style of the other games'
-explainers:
+`tools/detective/prep.jl` (Julia, run once, not shipped) reads the four KNMI
+NetCDF files from last year's game and the project's European station arrays.
+It writes `app/src/games/detective/data.ts`, loaded by dynamic import (its own
+chunk, offline):
 
-1. **Guessing between thermometers.** A 1D strip with two or three draggable
-   thermometers, the computer's guess curve and a shaded band that pinches at
-   each thermometer. A "What might it be?" button draws a few random curves that
-   all pass through the thermometers (GP posterior samples): "the computer
-   imagines many possible weathers that agree with your thermometers and shows
-   you the average and the spread." This links to Outbreak's many futures and
-   to the E-OBS 100-member ensemble.
-2. **How far does one thermometer reach?** A length-scale slider on the real
-   map: too short gives polka dots, too long gives a blur. The computer picks the
-   reach by testing itself: hide one thermometer, guess it, and see how wrong it
-   was (cross-validation, as in the paper's hyperparameter tuning).
-3. **The computer also knows the map.** A toggle adds covariates (sea, city,
-   green fractions) to the mean. With the same thermometers the coastline and
-   cities appear at once. The paper uses elevation, slope, aspect and land-use
-   fractions the same way.
-4. **Cheap but wobbly: garden stations.** Official vs. home stations: accuracy,
-   placement (cities, sunny walls), the warm bias. A toggle for bias correction
-   shows the map too warm, then fixed. Real numbers from the paper: Netatmo
-   reads about 1.3 °C warm on average, with ~1.6 °C scatter vs ~0.1 °C for
-   official stations. Across Europe there are 20× more home stations than
-   official ones.
-5. **Too many thermometers.** Every thermometer has to be compared with every
-   other. An animation draws the pair lines: 10 stations → 45 pairs, 100 → 4,950,
-   100,000 (Netatmo in Europe) → 5 billion. The paper's two tricks: only compare
-   with neighbours (the compactly supported Wendland kernel, which makes the
-   matrix mostly zeros) and summarise with ~1000 landmark points (Nyström).
-   Result: a map of all of Europe on one workstation.
-6. **Where this is used.** KNMI weather maps, heat stress in cities (urban
-   heat islands), feeding data to AI weather forecasting. CWI + KNMI.
-   "Next: wind and rain."
+- per day: temperature at half resolution (193×140), quantised to Uint8 with
+  a per-day offset and scale;
+- shared: land mask, urban and water fractions (Uint8);
+- Europe: ~5k official station positions (jittered by a few km) and ~20k
+  synthetic home stations, with temperatures, for the explainer.
 
-**Science line (tile / title card):** "Together with KNMI we turn thousands of
-official and home weather stations into one weather map of all of Europe, and
-the maths tells us how sure we are."
+## Validation
 
-## Technical design
+`npm run test:detective` (like `test:outbreak`):
 
-Module: `app/src/games/detective/`, registered in `registry.ts`.
+- the GP reproduces a hand-computed 2-point case, and posterior samples match
+  the mean and variance;
+- **case 1:** Bayesian optimisation beats random by a clear margin and is
+  beatable;
+- **case 2:** an even spread beats a clump; bias correction lowers the error
+  with home stations;
+- **case 3:** the leave-one-out check finds most liars;
+- timing of an update at N = 20/60/150.
 
-```
-detective/
-  index.ts     # ArcadeGame: toy mode, challenge, UI
-  gp.ts        # kernel, Cholesky, GLS mean, predict mean/var on a grid
-  data.ts      # load a day: temperature, mask, covariates, hyperparameters
-  stations.ts  # garden-station simulator (placement, noise, bias, broken)
-  render.ts    # colour map, fog, coastline, thermometer sprites, reveal wipe
-  rounds.ts    # challenge rounds, budgets, computer opponent
-  delve.ts     # explainer chapters
-  text.ts      # en / nl / no strings
-```
+## Build order
 
-### Data
-
-- A one-off Python script (`tools/weather_prep.py`, not shipped) reads the
-  four KNMI NetCDF files (386×280 grid over the Netherlands with temperature,
-  land mask, water/urban/vegetation fractions and distance to coast; the
-  temperature is itself KNMI's fusion of 31 official and ~730 WOW citizen
-  stations) and writes one small binary per day to `app/public/detective/`:
-  temperature as Uint16 (0.01 °C steps), mask and three covariates as Uint8,
-  at full or half resolution. That is about 100–300 KB per day, bundled, so it
-  works offline.
-- The same script fits fixed hyperparameters per day (length scale, amplitude,
-  noise σ_H and σ_L, covariate coefficients) against the true field and stores
-  them in the file header. The game never trains during play.
-- A coastline path for the outline is drawn from the land mask.
-- Honesty note for the explainer: the "real map" is KNMI's best estimate from
-  hundreds of stations, not the truth itself. Kids reconstruct it from a
-  handful.
-
-### The GP in the browser
-
-- Exact GP, Matérn 5/2 or squared-exponential kernel in (lon, lat·scale), with
-  explicit basis functions (intercept + optional covariates + the
-  garden-station indicator for bias) solved by generalised least squares.
-  Per-observation noise: σ_H for official, σ_L for garden stations. This is
-  the paper's model at small N, without the scalability tricks. Those are
-  explained, not needed.
-- **Cost.** N ≤ ~200 observations. Cholesky of N³/3 ≈ 3M flops takes about a
-  millisecond. Mean on the grid is `h(x)ᵀβ + Σ αᵢ k(x, xᵢ)`: G × N, so fine at
-  full resolution. Variance needs a triangular solve per grid point (G × N²/2),
-  so it is computed on a coarse grid (~100×70) and upscaled with smoothing.
-  Soft fog is a feature. While dragging, mean and variance use the coarse grid;
-  on release, the fine one. Target: < 16 ms per update at N = 150 on the stand
-  laptops. Fallback if too slow: move the grid prediction into a Web Worker, or
-  use a compactly supported kernel (the paper's trick, which makes a good
-  explainer tie-in).
-- Seeded RNG for garden stations and broken stations, so rounds are
-  repeatable and testable.
-
-### Garden-station simulator
-
-Positions sampled ∝ urban fraction (plus a small uniform share). Reading =
-true temperature + bias (≈ +1.3 °C, more at night in cities) + N(0, σ_L) with
-σ_L ≈ 1.5 °C; ~3 % broken (+5 to +12 °C, or a flat 20 °C "indoors"). Real
-Netatmo data can't be redistributed, so these are simulated, and the explainer
-says so.
-
-### Validation (`npm run test:detective`)
-
-Like `test:outbreak`: a headless sweep per round over seeds and strategies:
-random, clumped, uniform grid, greedy max-variance (the computer), and
-greedy-with-hindsight (an upper bound). It checks that spreading out clearly
-beats clumping, the computer is beaten by the hindsight strategy by a
-reachable margin, bias correction clearly helps in round 2, ignoring broken
-stations clearly helps in round 3, and the GP reproduces a small hand-computed
-case. It also times the update at N = 50/150/200.
-
-## Schedule
-
-The event is Saturday 3 October, 11 days from now, and other games are still
-being polished. So the game is scoped to be **shippable after day 3** and
-everything after that is optional.
-
-| Day | Deliverable | Playable? |
-|---|---|---|
-| 1 | Data prep script + one day bundled; `gp.ts` with test; free play: place / drag / remove thermometers, colour + fog, peek | yes, toy mode |
-| 2 | Garden stations + bias; day picker; coastline and city labels; tile, title card, en/nl/no | yes, full free play |
-| 3 | Challenge rounds 1–2, reveal wipe, computer opponent, score + leaderboard; headless sweep and tuning | **shippable** |
-| 4 | Explainer chapters 1, 2, 4 (the core story) | |
-| 5+ | Round 3 (broken stations), explainer 3, 5, 6; polish after a playtest | stretch |
-
-Freeze by 30 September, like the rest of the arcade.
-
-## Open questions
-
-1. **Netherlands or Europe?** The plan uses the Netherlands. The data is
-   there and public, kids recognise it ("where do you live?"), and the grid is
-   small. Europe appears in the explainer as pictures from the paper. Is it OK
-   to show figures from the unpublished paper at a public event? (Check with
-   the co-authors / KNMI.)
-2. **Reusing last year's data and idea:** check with Rik and credit the
-   original game in the README.
-3. **Name.** "Weather Detective" (NL *Weerdetective*, NO *Værdetektiv*). Other
-   options: "Clear the Fog", "Thermometer Hunt".
-4. **Also temperature only?** The files also have wind speed and humidity. A
-   "wind day" is an easy later addition, and it matches the paper's future
-   work (wind and rain).
+1. Data prep + GP core + tests.
+2. Free play: map, dreams/fog, thermometers (hover, place, drag, remove), days,
+   peek, home stations.
+3. Challenge: the three cases, reveal, computer player, score flow.
+4. Explainer chapters.
+5. README (credit Rik Hoekstra's 2025 game and KNMI), i18n en/nl/no
+   throughout, remake-style notes.
