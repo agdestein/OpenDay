@@ -31,7 +31,7 @@ per-audience message, and [docs/ideas.md](docs/ideas.md) for the catalog of game
 
 One self-contained web app (the "arcade"): a launcher menu where each game is a tile.
 Games are independent modules sharing a small common shell (fullscreen kiosk mode,
-idle-reset back to the menu, local high scores). Runs offline in a browser on any
+optional idle-reset back to the menu, local high scores). Runs offline in a browser on any
 laptop — nothing to break on the day.
 
 The menu's "🔬 How does this work?" button opens a card layer with the big picture —
@@ -76,7 +76,9 @@ Useful at the stand:
   coarse grid from the start (`?quality=high` pins the fine grid). By default
   it starts fine and drops to coarse by itself if the first seconds stutter.
 - Press `F` (or the corner button) for fullscreen; `Esc` returns to the menu.
-- A game with no input for 90 seconds resets to the menu automatically.
+- Add `?idle` to reset a game back to the menu after 90 seconds without input
+  (`?idle=120` for a different number of seconds). Off by default, so nobody
+  reading a science explainer gets kicked out mid-sentence.
 
 ## Credits
 

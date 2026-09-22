@@ -4,8 +4,19 @@ import { backButton, titleCard } from './hud';
 import { toggleFullscreen } from '../lib/fullscreen';
 import { cappedDpr } from '../lib/util';
 
-/** No input for this long inside a game -> back to the menu (kiosk reset). */
-const IDLE_LIMIT_MS = 90_000;
+/**
+ * Kiosk reset: no input for this long inside a game -> back to the menu. Off
+ * by default (people reading a science explainer shouldn't get kicked out);
+ * `?idle` turns it on at 90 seconds, `?idle=120` sets the seconds.
+ */
+const IDLE_LIMIT_MS = idleLimitFromUrl();
+
+function idleLimitFromUrl(): number {
+  const param = new URLSearchParams(location.search).get('idle');
+  if (param === null) return Infinity;
+  const seconds = Number(param);
+  return (param === '' || !(seconds > 0) ? 90 : seconds) * 1000;
+}
 /** Clamp dt so a backgrounded tab doesn't produce a huge physics step. */
 const MAX_DT = 0.05;
 
