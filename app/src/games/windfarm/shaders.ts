@@ -246,14 +246,26 @@ void main() {
 }
 `;
 
+/** Display lenses (magnifier insets) supported by the display pass. */
+export const MAX_LENSES = 3;
+
 export const displaySrc = `${header}
 uniform sampler2D uDye;
 uniform sampler2D uVelocity;
+uniform sampler2D uPressure;
+uniform sampler2D uCurl;
 uniform float uAspect;
 uniform int uCount;
 uniform vec3 uObstacles[${MAX_OBSTACLES}];
-uniform float uWakeMode;
-uniform float uWind; // wind speed
+uniform int uView;       // 0 dye, 1 wind speed (wake view), 2 pressure, 3 swirl
+uniform float uWind;     // wind speed
+uniform float uPressureScale;
+uniform float uCurlScale;
+uniform vec2 uCells;     // cells across/down for the discretization view; 0 = off
+uniform vec2 uCanvas;    // canvas size in pixels
+uniform int uLensCount;
+uniform vec4 uLens[${MAX_LENSES}];    // screen center (uv), radius (screen heights), zoom
+uniform vec3 uLensSrc[${MAX_LENSES}]; // source center (uv), grid lines on (1) / off (0)
 
 // Cubic B-spline texture lookup from four bilinear taps (Sigg & Hadwiger,
 // GPU Gems 2 ch. 20). The coarse velocity grid is stretched ~8x onto the
@@ -278,31 +290,70 @@ vec4 textureBSpline(sampler2D tex, vec2 uv) {
        + g1.y * (g0.x * texture(tex, vec2(h0.x, h1.y)) + g1.x * texture(tex, h1));
 }
 
-void main() {
-  vec3 color;
-  if (uWakeMode > 0.5) {
+// Diverging colormap: cool blue (-1) through the dark background (0) to warm
+// red (+1). A small dead zone keeps grid-scale noise from speckling the calm.
+vec3 diverging(float v, vec3 background, vec3 neg, vec3 pos) {
+  float a = clamp((abs(v) - 0.06) / 0.94, 0.0, 1.0);
+  a = a * (2.0 - a);
+  return mix(background, v < 0.0 ? neg : pos, a);
+}
+
+vec3 shade(vec2 uv) {
+  vec3 background = mix(vec3(0.02, 0.03, 0.08), vec3(0.05, 0.07, 0.14), uv.y);
+  vec3 dye = texture(uDye, uv).rgb;
+  if (uView == 1) {
     // Wake view (wind-farm challenge): hue encodes local wind speed relative
     // to the free stream, so the momentum-deficit wake behind each rotor
     // glows warm against the cool full-speed flow. One continuous ramp
     // (deep red -> orange -> sea blue) rather than narrow bands, so small
     // speed ripples read as gentle shading, not hard-edged blotches.
-    float frac = length(textureBSpline(uVelocity, vUv).xy) / max(uWind, 1.0);
+    float frac = length(textureBSpline(uVelocity, uv).xy) / max(uWind, 1.0);
     float t = clamp((frac - 0.2) / 0.8, 0.0, 1.0);
     vec3 slow = vec3(0.55, 0.07, 0.07);
     vec3 mid = vec3(0.94, 0.55, 0.12);
     vec3 fast = vec3(0.05, 0.27, 0.44);
-    color = mix(mix(slow, mid, smoothstep(0.0, 0.55, t)), fast, smoothstep(0.35, 1.0, t));
+    vec3 color = mix(mix(slow, mid, smoothstep(0.0, 0.55, t)), fast, smoothstep(0.35, 1.0, t));
     // Keep the dye streaks as brightness only, so the motion of the flow
     // stays visible without recoloring the wake map.
-    color += vec3(dot(texture(uDye, vUv).rgb, vec3(0.2126, 0.7152, 0.0722)) * 0.12);
-  } else {
-    // Dark blue background with a soft vertical gradient.
-    vec3 background = mix(vec3(0.02, 0.03, 0.08), vec3(0.05, 0.07, 0.14), vUv.y);
-    color = background + texture(uDye, vUv).rgb;
+    return color + vec3(dot(dye, vec3(0.2126, 0.7152, 0.0722)) * 0.12);
   }
+  if (uView == 2) {
+    // Pressure: red where air piles up, blue where it is sucked thin.
+    float p = textureBSpline(uPressure, uv).x * uPressureScale;
+    return diverging(p, background, vec3(0.15, 0.45, 1.0), vec3(1.0, 0.3, 0.2));
+  }
+  if (uView == 3) {
+    // Swirl (vorticity): orange spinning one way, cyan the other.
+    float c = textureBSpline(uCurl, uv).x * uCurlScale;
+    return diverging(c, background, vec3(0.1, 0.8, 1.0), vec3(1.0, 0.55, 0.1));
+  }
+  return background + dye;
+}
+
+void main() {
+  // Magnifier lenses show a zoomed-in copy of another spot.
+  vec2 uv = vUv;
+  int lens = -1;
+  float lensRim = 0.0;
+  for (int i = 0; i < ${MAX_LENSES}; i++) {
+    if (i >= uLensCount) break;
+    vec2 d = (vUv - uLens[i].xy) * vec2(uAspect, 1.0);
+    float dist = length(d);
+    float r = uLens[i].z;
+    if (dist < r * 1.04) {
+      lens = i;
+      uv = uLensSrc[i].xy + (vUv - uLens[i].xy) / uLens[i].w;
+      lensRim = smoothstep(r * 0.985, r, dist);
+    }
+  }
+  // Discretization view: every cell shows the one value it stores.
+  bool cells = uCells.x > 0.0 && lens < 0;
+  vec2 sampleUv = cells ? (floor(uv * uCells) + 0.5) / uCells : uv;
+  vec3 color = shade(sampleUv);
+
   for (int i = 0; i < ${MAX_OBSTACLES}; i++) {
     if (i >= uCount) break;
-    vec2 d = vUv - uObstacles[i].xy;
+    vec2 d = uv - uObstacles[i].xy;
     d.x *= uAspect;
     float dist = length(d);
     float r = uObstacles[i].z;
@@ -311,8 +362,21 @@ void main() {
     color = mix(color, vec3(0.16, 0.19, 0.26), inside);
     color += rim * vec3(0.25, 0.3, 0.4);
   }
+
+  // Grid lines, one screen pixel wide: of the discretization cells, or of the
+  // simulation's own cells inside a lens that asks for them.
+  vec2 gridCount = cells ? uCells : (lens >= 0 && uLensSrc[lens].z > 0.5 ? vec2(textureSize(uVelocity, 0)) : vec2(0.0));
+  if (gridCount.x > 0.0) {
+    vec2 g = uv * gridCount;
+    vec2 perPixel = fwidth(g);
+    vec2 line = 1.0 - smoothstep(vec2(0.0), perPixel * 1.2, min(fract(g), 1.0 - fract(g)));
+    color = mix(color, vec3(0.75, 0.85, 1.0), (cells ? 0.35 : 0.6) * max(line.x, line.y));
+  }
+
   // Soft tone map so bright dye doesn't clip harshly.
   color = color / (1.0 + 0.35 * color);
+  // Lens rim: a bright ring.
+  if (lens >= 0) color = mix(color, vec3(0.85, 0.92, 1.0), lensRim);
   frag = vec4(color, 1.0);
 }
 `;
@@ -412,5 +476,74 @@ uniform float uOpacity;
 void main() {
   float a = vAlpha * vAlong * vAlong * (1.0 - smoothstep(0.3, 1.0, abs(vSide))) * uOpacity;
   frag = vec4(vec3(0.8, 0.9, 1.0) * a, 0.0);
+}
+`;
+
+// ---- Arrow field (delve: "wind is a field of arrows") ----
+
+/**
+ * One arrow per grid point, pointing along the local velocity, its length
+ * growing with speed (saturating). Nine vertices per arrow — a shaft quad and
+ * a head triangle — built from gl_VertexID, no vertex buffers.
+ */
+export const arrowVertexSrc = `#version 300 es
+precision highp float;
+precision highp sampler2D;
+uniform sampler2D uVelocity;
+uniform vec2 uGrid;     // arrows across, down
+uniform vec2 uCanvas;   // canvas size in pixels
+uniform float uWidth;   // shaft width in pixels
+uniform float uRefSpeed;
+uniform float uOutline; // extra pixels on every side (outline pass)
+out float vAlpha;
+void main() {
+  int id = gl_VertexID / 9;
+  int corner = gl_VertexID % 9;
+  int nx = int(uGrid.x);
+  vec2 cell = vec2(float(id % nx), float(id / nx));
+  vec2 uv = (cell + 0.5) / uGrid;
+  // Sample the value the discretized cell holds: its center.
+  vec2 v = texture(uVelocity, uv).xy;
+  float speed = length(v);
+  // Velocity is in reference-grid cells/sec (256x144 across the screen);
+  // convert to screen pixels/sec for the on-screen direction.
+  vec2 pxv = v / vec2(256.0, 144.0) * uCanvas;
+  vec2 dir = length(pxv) > 1e-6 ? normalize(pxv) : vec2(1.0, 0.0);
+  float spacing = min(uCanvas.x / uGrid.x, uCanvas.y / uGrid.y);
+  float len = spacing * 0.95 * (1.0 - exp(-speed / uRefSpeed));
+  len = max(len, uWidth * 1.5);
+  float head = min(len * 0.45, uWidth * 4.0);
+  vec2 center = uv * uCanvas;
+  vec2 tail = center - dir * (len * 0.5 + uOutline);
+  vec2 tip = center + dir * (len * 0.5 + uOutline * 2.0);
+  vec2 neck = center + dir * (len * 0.5 - head);
+  vec2 n = vec2(-dir.y, dir.x);
+  float halfWidth = uWidth * 0.5 + uOutline;
+  float halfHead = head * 0.6 + uOutline * 1.5;
+  vec2 p;
+  if (corner < 6) {
+    // Shaft quad: tail..neck.
+    float atNeck = (corner == 1 || corner == 2 || corner == 4) ? 1.0 : 0.0;
+    float side = (corner == 2 || corner == 4 || corner == 5) ? 1.0 : -1.0;
+    p = mix(tail, neck, atNeck) + n * side * halfWidth;
+  } else if (corner == 6) {
+    p = neck + n * halfHead;
+  } else if (corner == 7) {
+    p = neck - n * halfHead;
+  } else {
+    p = tip;
+  }
+  gl_Position = vec4(p / uCanvas * 2.0 - 1.0, 0.0, 1.0);
+  vAlpha = 1.0;
+}
+`;
+
+export const arrowFragmentSrc = `#version 300 es
+precision highp float;
+in float vAlpha;
+uniform vec4 uColor; // premultiplied
+out vec4 frag;
+void main() {
+  frag = uColor * vAlpha;
 }
 `;

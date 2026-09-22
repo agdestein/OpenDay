@@ -8,9 +8,12 @@
 // Pavel Dobryakov, MIT License), rewritten in TypeScript on WebGL2 — see
 // shaders.ts for which passes are ported and which are our own.
 import {
+  MAX_LENSES,
   MAX_OBSTACLES,
   MAX_TURBINES,
   advectionSrc,
+  arrowFragmentSrc,
+  arrowVertexSrc,
   clearSrc,
   constrainSrc,
   curlSrc,
@@ -34,6 +37,24 @@ export interface Obstacle {
   r: number;
 }
 
+/** Which field the display pass colors the screen by. */
+export type FieldView = 'dye' | 'speed' | 'pressure' | 'swirl';
+
+/**
+ * Magnifier inset: a disk at (x, y) in uv with radius r (screen heights)
+ * showing the spot (srcX, srcY) enlarged `zoom` times; `grid` draws the
+ * simulation's own cells inside it.
+ */
+export interface Lens {
+  x: number;
+  y: number;
+  r: number;
+  srcX: number;
+  srcY: number;
+  zoom: number;
+  grid: boolean;
+}
+
 /** Turbine drag disk in uv coordinates; radius is a fraction of the screen height. */
 export interface TurbineDisk {
   x: number;
@@ -55,6 +76,9 @@ const PARTICLES_W = 64;
 const PARTICLES_H = 40;
 /** Tracer streak length, in seconds of travel at the local wind speed. */
 const TRAIL_SECONDS = 0.12;
+/** Color scales of the pressure and swirl views (field value mapped to full color). */
+const PRESSURE_SCALE = 1 / 50;
+const CURL_SCALE = 1 / 10;
 const DYE_W = 1024;
 const DYE_H = 576;
 
@@ -142,6 +166,14 @@ export class FluidSolver {
    * shed a vortex street, so the toy uses less of it.
    */
   windRelax = 0.6;
+  /** Field the screen is colored by. */
+  view: FieldView = 'dye';
+  /** Discretization view: show the flow on a grid this many cells across; 0 = off. */
+  cellsAcross = 0;
+  /** Magnifier insets (up to MAX_LENSES). */
+  lenses: Lens[] = [];
+  /** Velocity arrows on a grid this many arrows across; 0 = off. */
+  arrowsAcross = 0;
   /** Show (and advect) the tracer particles: the wake view's moving wind streaks. */
   tracers = false;
 
@@ -159,7 +191,8 @@ export class FluidSolver {
     | 'probe'
     | 'display'
     | 'particleUpdate'
-    | 'particleDraw',
+    | 'particleDraw'
+    | 'arrows',
     Program
   >;
   private velocity!: DoubleTarget;
@@ -169,6 +202,7 @@ export class FluidSolver {
   private divergence!: Target;
   private probeTarget!: Target;
   private particles!: DoubleTarget;
+  private dyeReadTarget: Target | null = null;
   private frameCount = 0;
   private probePoints = new Float32Array(MAX_TURBINES * 2);
   private probePixels = new Float32Array(MAX_TURBINES * 4);
@@ -208,6 +242,7 @@ export class FluidSolver {
 
     const vertex = compileShader(gl, gl.VERTEX_SHADER, vertexSrc);
     const particleVertex = compileShader(gl, gl.VERTEX_SHADER, particleVertexSrc);
+    const arrowVertex = compileShader(gl, gl.VERTEX_SHADER, arrowVertexSrc);
     this.programs = {
       advection: new Program(gl, vertex, advectionSrc),
       splat: new Program(gl, vertex, splatSrc),
@@ -222,9 +257,11 @@ export class FluidSolver {
       display: new Program(gl, vertex, displaySrc),
       particleUpdate: new Program(gl, vertex, particleUpdateSrc),
       particleDraw: new Program(gl, particleVertex, particleFragmentSrc),
+      arrows: new Program(gl, arrowVertex, arrowFragmentSrc),
     };
     gl.deleteShader(vertex);
     gl.deleteShader(particleVertex);
+    gl.deleteShader(arrowVertex);
 
     this.dye = this.createDouble(DYE_W, DYE_H, gl.RGBA16F, gl.RGBA);
     this.createSimTargets(...(lowQuality ? TIER_LOW : TIER_HIGH));
@@ -390,20 +427,90 @@ export class FluidSolver {
     }
   }
 
-  /** Draw to the canvas; wakeView colors by wind-speed deficit instead of dye. */
-  render(wakeView = false): void {
+  /**
+   * Read the dye back on a coarse w x h grid, as RGBA per cell, rows from the
+   * bottom. One small resample pass and one readPixels; call it a few times
+   * per second at most.
+   */
+  readDye(w: number, h: number): Float32Array {
+    const gl = this.gl;
+    if (!this.dyeReadTarget || this.dyeReadTarget.w !== w || this.dyeReadTarget.h !== h) {
+      if (this.dyeReadTarget) this.deleteTarget(this.dyeReadTarget);
+      this.dyeReadTarget = this.createTarget(w, h, gl.RGBA32F, gl.RGBA, gl.FLOAT, gl.NEAREST);
+    }
+    this.resample(this.dye.read, this.dyeReadTarget);
+    const out = new Float32Array(w * h * 4);
+    gl.readPixels(0, 0, w, h, gl.RGBA, gl.FLOAT, out);
+    return out;
+  }
+
+  /** The simulation grid actually in use (depends on the quality tier). */
+  get gridSize(): [number, number] {
+    return [this.simW, this.simH];
+  }
+
+  /** Cells down the screen for a given cells-across count, so cells come out square. */
+  cellsDown(across: number): number {
+    return Math.max(1, Math.round(across / this.aspect()));
+  }
+
+  /** Draw to the canvas, colored by `view`, with any cells, lenses, arrows and tracers. */
+  render(): void {
     const gl = this.gl;
     const p = this.programs.display;
     p.bind();
     gl.uniform1f(p.loc('uAspect'), this.aspect());
     gl.uniform1i(p.loc('uCount'), this.obstacleCount);
     gl.uniform3fv(p.loc('uObstacles[0]'), this.obstacleData);
-    gl.uniform1f(p.loc('uWakeMode'), wakeView ? 1 : 0);
+    gl.uniform1i(p.loc('uView'), ['dye', 'speed', 'pressure', 'swirl'].indexOf(this.view));
     gl.uniform1f(p.loc('uWind'), this.wind);
+    gl.uniform1f(p.loc('uPressureScale'), PRESSURE_SCALE);
+    gl.uniform1f(p.loc('uCurlScale'), CURL_SCALE);
+    const across = this.cellsAcross;
+    gl.uniform2f(p.loc('uCells'), across, across > 0 ? this.cellsDown(across) : 0);
+    gl.uniform2f(p.loc('uCanvas'), gl.drawingBufferWidth, gl.drawingBufferHeight);
+    const lenses = this.lenses.slice(0, MAX_LENSES);
+    gl.uniform1i(p.loc('uLensCount'), lenses.length);
+    if (lenses.length > 0) {
+      gl.uniform4fv(p.loc('uLens[0]'), lenses.flatMap((l) => [l.x, l.y, l.r, l.zoom]));
+      gl.uniform3fv(p.loc('uLensSrc[0]'), lenses.flatMap((l) => [l.srcX, l.srcY, l.grid ? 1 : 0]));
+    }
     this.bindTexture(p.loc('uDye'), this.dye.read.tex, 0);
     this.bindTexture(p.loc('uVelocity'), this.velocity.read.tex, 1);
+    this.bindTexture(p.loc('uPressure'), this.pressure.read.tex, 2);
+    this.bindTexture(p.loc('uCurl'), this.curl.tex, 3);
     this.blit(null);
     if (this.tracers) this.drawTracers();
+    if (this.arrowsAcross > 0) this.drawArrows(this.arrowsAcross);
+  }
+
+  /** One velocity arrow per grid point, alpha-blended over the field. */
+  private drawArrows(across: number): void {
+    const gl = this.gl;
+    const p = this.programs.arrows;
+    p.bind();
+    const w = gl.drawingBufferWidth;
+    const h = gl.drawingBufferHeight;
+    const down = this.cellsDown(across);
+    gl.uniform2f(p.loc('uGrid'), across, down);
+    gl.uniform2f(p.loc('uCanvas'), w, h);
+    gl.uniform1f(p.loc('uWidth'), Math.max(1.5, h / 450));
+    // Speed (reference cells/sec) at which an arrow reaches ~63% of full length.
+    gl.uniform1f(p.loc('uRefSpeed'), 60);
+    this.bindTexture(p.loc('uVelocity'), this.velocity.read.tex, 0);
+    gl.disableVertexAttribArray(0);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    // A soft dark outline first, so white arrows stay readable on bright smoke.
+    const outline = Math.max(1, h / 900);
+    gl.uniform1f(p.loc('uOutline'), outline);
+    gl.uniform4f(p.loc('uColor'), 0, 0, 0, 0.55);
+    gl.drawArrays(gl.TRIANGLES, 0, across * down * 9);
+    gl.uniform1f(p.loc('uOutline'), 0);
+    gl.uniform4f(p.loc('uColor'), 0.95, 0.97, 1, 1);
+    gl.drawArrays(gl.TRIANGLES, 0, across * down * 9);
+    gl.disable(gl.BLEND);
+    gl.enableVertexAttribArray(0);
   }
 
   /** Additive soft streaks over the displayed field, one quad per particle. */

@@ -1,182 +1,420 @@
 // Delve chapters for Swirl Lab, in the shared chaptered style (shell/delve.ts).
-// Unlike bounce/orbits there are no separate demo worlds: the running fluid
-// simulation IS the live illustration — the card covers only part of the
-// screen and the toy stays fully interactive while you read.
+// The card holds the words and small diagrams; the running fluid simulation
+// next to it is the live illustration of every chapter (delvestage.ts):
+// arrows, cells, pressure and swirl fields, magnifier lenses, turbine wakes.
+// The fluid stays stirrable while you read.
 import type { DelveChapter } from '../../shell/delve';
-import { pick, type Localized } from '../../lib/i18n';
+import { fmtNumber, pick, type Localized } from '../../lib/i18n';
+import type { FieldView } from './fluid';
+import { CELL_STEPS } from './delvestage';
 
 export interface WindfarmDelveApi {
-  /** Drop an obstacle into the wind stream (turns the wind on if needed). */
-  dropBlock(): void;
+  /** Cells chapter: current slider stop (index into CELL_STEPS) and setter. */
+  cellStep(): number;
+  setCellStep(step: number): void;
+  /** Cells chapter: the real grid's size, for the finest slider stop. */
+  gridSize(): [number, number];
+  /** Cells for a given across count (square cells on this screen). */
+  cellsDown(across: number): number;
+  /** Rules chapter: the field on show, and setter. */
+  rulesView(): FieldView;
+  setRulesView(view: FieldView): void;
 }
 
-interface ChapterText {
-  title: string;
-  paragraphs: string[];
-  formula?: string;
+interface Rule {
+  view: FieldView;
+  /** The matching term of the Navier–Stokes equation. */
+  term: string;
+  name: string;
+  text: string;
 }
 
-const CHAPTERS: Localized<ChapterText[]> = {
-  en: [
-    {
-      title: 'A wind tunnel made of numbers',
+interface Texts {
+  arrows: { title: string; paragraphs: string[]; formula: string };
+  cells: { title: string; paragraphs: string[]; formula: string; slider: string; cells: string; realGrid: string };
+  rules: { title: string; intro: string; rules: Rule[]; hint: string; outro: string };
+  turbulence: {
+    title: string;
+    paragraphs: string[];
+    quote: string;
+    quoteBy: string;
+    ladder: { computed: string; modelled: string; marks: [number, string][] };
+  };
+  wakes: { title: string; paragraphs: string[]; formula: string; wind: string; power: string };
+}
+
+// Ladder marks: [meters, label]. The shared axis runs 1 mm to 10 km.
+const TEXTS: Localized<Texts> = {
+  en: {
+    arrows: {
+      title: 'Wind is a field of arrows',
       paragraphs: [
-        'Everything on this screen is a live flow simulation. The screen is chopped into a grid a few hundred cells across, and each cell stores two numbers: which way the air moves there, and how fast.',
-        'Sixty times per second, every cell trades pushes with its neighbors, and the colored dye just rides along — that is why the colors fold and swirl like cream in coffee. Nothing is a recorded video: stir, and the numbers change.',
-        '👆 The card only covers part of the screen — keep stirring on the other side while you read!',
+        'To a computer, wind is not a thing you can hold — it is a field: at every spot there is an arrow saying which way the air moves there, and how fast. Long arrow: fast. Short arrow: slow.',
+        '👉 Stir on the right and watch the arrows swing around. The colored smoke doesn’t push anything — it just rides along on the arrows, like leaves on a river.',
       ],
+      formula: 'at every spot:  arrow = (speed →, speed ↑)',
     },
-    {
-      title: 'The million-dollar equations',
+    cells: {
+      title: 'Chop the sky into cells',
       paragraphs: [
-        'Flowing air and water obey the Navier–Stokes equations, written down about 200 years ago. They fit on one line — yet nobody has ever managed to solve them with pen and paper, except for a few very simple flows.',
-        'It is literally a million-dollar problem: the Clay Mathematics Institute offers a $1,000,000 prize just for proving that well-behaved solutions always exist.',
-        'So the computer does the next best thing: chop space into cells and time into steps, and update the whole grid every frame — carefully, so the simulation stays stable and believable. That craft is numerical mathematics, and it is exactly what our group does.',
+        'The air has infinitely many spots, and no computer can store infinitely many arrows. So we chop space into a grid of cells and keep one arrow per cell. This trick is called discretization — it is where numerical mathematics begins.',
+        '👉 Drag the slider. With big cells, every swirl smaller than a cell is lost. Point at a cell to see the two numbers it stores.',
+        'Finer cells cost more: halve the cell size and you need four times as many cells — and twice as many time steps, because the wind may not skip over a cell in one step. Eight times the work!',
       ],
-      formula: '∂u/∂t + (u·∇)u = −∇p/ρ + ν∇²u',
+      formula: '½ × cell size  →  4 × cells × 2 × steps = 8 × work',
+      slider: 'Cell size',
+      cells: 'cells',
+      realGrid: 'the real grid',
     },
-    {
+    rules: {
+      title: 'Three rules for every cell',
+      intro:
+        'Sixty times a second, every cell updates its arrow using the Navier–Stokes equations, written down 200 years ago. They look scary, but they say three simple things:',
+      rules: [
+        { view: 'dye', term: '(u·∇)u', name: '🚚 Carry', text: 'Air carries itself along: every arrow drifts with the flow — and so does the smoke.' },
+        { view: 'pressure', term: '−∇p', name: '💨 Push', text: 'Air hates being squeezed. Where it piles up, pressure rises (red) and pushes it away; where it thins out, pressure drops (blue).' },
+        { view: 'swirl', term: 'ν∇²u', name: '🌀 Rub', text: 'Fast air rubs past slow air and starts to spin. Swirls: orange one way round, blue the other.' },
+      ],
+      hint: '👉 Tap a rule to see its field on the right.',
+      outro:
+        'Nobody can solve these equations with pen and paper. There is even a $1,000,000 prize just for proving they always have well-behaved solutions. So the computer does it cell by cell — that craft is numerical mathematics, and it is what our group does.',
+    },
+    turbulence: {
       title: 'Turbulence: swirls inside swirls',
       paragraphs: [
-        'Stir hard and the flow turns turbulent: big swirls break into smaller swirls, and those into even smaller ones, until the tiniest vanish as a whiff of heat. This cascade is why turbulence is often called the last great unsolved problem of classical physics.',
-        'To capture every swirl above a real wind farm, a computer would have to track eddies from kilometres down to millimetres — more computing power than exists on the planet. So real simulations compute only the big swirls and use clever mathematical models for the effect of the small ones. Inventing and improving those models is a living research field — and one of our group’s specialties.',
+        'Stir hard and the flow turns turbulent: big swirls break into smaller swirls, which break into even smaller ones, until the tiniest fade away as a whiff of heat.',
+        '👉 Point anywhere to aim the magnifiers. They zoom in 4× and 16×, and there are swirls inside the swirls. At 16× you reach the computer’s cells — anything smaller cannot exist in this simulation.',
+        'Around a real wind farm, swirls range from kilometres down to millimetres. Computing all of them would take about 10²⁰ cells; the biggest supercomputers manage around 10¹². So real simulations compute the big swirls and use a clever mathematical model for the small ones. Inventing such models is one of our group’s specialties.',
       ],
+      quote:
+        '“Big whirls have little whirls that feed on their velocity, and little whirls have lesser whirls, and so on to viscosity.”',
+      quoteBy: '— Lewis Fry Richardson, 1922',
+      ladder: {
+        computed: 'computed',
+        modelled: 'modelled',
+        marks: [
+          [10000, 'wind farm'],
+          [150, 'turbine'],
+          [1.5, 'you'],
+          [0.001, 'tiniest swirl'],
+        ],
+      },
     },
-    {
+    wakes: {
       title: 'Wakes are money',
       paragraphs: [
-        'A turbine takes its power out of the wind by slowing it down — so behind every turbine hangs a wake of slow, tangled air. A turbine parked in a neighbor’s wake can lose a large slice of its power.',
-        '👉 It is happening live on the right: the front turbine drinks the full wind, while the one parked in its orange wake barely gets any — compare their kW labels.',
-        'Worse: power grows with the cube of wind speed. Twice as slow means eight times less power, so every bite a wake takes hurts triple. Over a wind farm’s lifetime, wake losses are worth millions of euros.',
-        'That is why the ⚡ challenge is a placement puzzle — and the wind doesn’t always blow from the same side: during a round it turns twice. The 🤖 computer opponent doesn’t guess: for every free spot it uses a quick wake formula to estimate the whole farm’s power in all three winds, then greedily takes the best spot. Real wind-farm designers start the same way, with a whole year of wind directions, and then check the layout with far bigger simulations — simulating wind for wind energy is part of our group’s daily work.',
+        'A turbine takes its power out of the wind by slowing it down — so behind every turbine hangs a wake of slow air. 👉 On the right, the second turbine stands in the first one’s wake: see how the streaks get shorter where the air is slow.',
+        'Power grows with the cube of the wind speed: at ¾ of the wind speed you get less than half the power (¾ × ¾ × ¾ ≈ 0.42). The bars under each turbine show it live — a small dip in wind is a big dip in power.',
+        'That is why wind-farm layout is a puzzle — and the wind turns, too. The 🤖 computer opponent tests every spot for all wind directions with a quick wake formula. Real designers start the same way, then check with big simulations like this one: simulating wind for wind energy is part of our group’s daily work.',
       ],
       formula: 'power ∝ (wind speed)³',
+      wind: 'wind',
+      power: 'power',
     },
-  ],
-  nl: [
-    {
-      title: 'Een windtunnel van getallen',
-      paragraphs: [
-        'Alles op dit scherm is een live stromingssimulatie. Het scherm is opgehakt in een raster van een paar honderd cellen breed, en elke cel onthoudt twee getallen: welke kant de lucht daar op beweegt, en hoe snel.',
-        'Zestig keer per seconde geeft elke cel duwtjes door aan zijn buren, en de gekleurde inkt lift gewoon mee — daarom vouwen en wervelen de kleuren als melk in koffie. Niets is een opgenomen filmpje: roer, en de getallen veranderen.',
-        '👆 De kaart bedekt maar een deel van het scherm — blijf gerust roeren aan de andere kant terwijl je leest!',
-      ],
-    },
-    {
-      title: 'De vergelijkingen van een miljoen',
-      paragraphs: [
-        'Stromende lucht en water gehoorzamen de Navier–Stokes-vergelijkingen, zo’n 200 jaar geleden opgeschreven. Ze passen op één regel — en toch is het nog nooit iemand gelukt ze met pen en papier op te lossen, op een paar heel simpele stromingen na.',
-        'Het is letterlijk een miljoenenprobleem: het Clay Mathematics Institute looft $1.000.000 uit voor alleen al het bewijs dat er altijd nette oplossingen bestaan.',
-        'Dus doet de computer het op-één-na-beste: hak de ruimte in cellen en de tijd in stapjes, en werk het hele raster elk frame bij — zorgvuldig, zodat de simulatie stabiel en geloofwaardig blijft. Dat vak heet numerieke wiskunde, en het is precies wat onze groep doet.',
-      ],
-      formula: '∂u/∂t + (u·∇)u = −∇p/ρ + ν∇²u',
-    },
-    {
-      title: 'Turbulentie: wervels in wervels',
-      paragraphs: [
-        'Roer hard en de stroming wordt turbulent: grote wervels breken op in kleinere wervels, en die weer in nog kleinere, tot de allerkleinsten verdwijnen als een zuchtje warmte. Door deze cascade wordt turbulentie vaak het laatste grote onopgeloste probleem van de klassieke natuurkunde genoemd.',
-        'Om elke wervel boven een echt windmolenpark te vangen zou een computer wervels van kilometers tot millimeters moeten bijhouden — meer rekenkracht dan er op aarde bestaat. Echte simulaties rekenen daarom alleen de grote wervels uit en gebruiken slimme wiskundige modellen voor het effect van de kleine. Die modellen bedenken en verbeteren is een levend onderzoeksveld — en een van de specialiteiten van onze groep.',
-      ],
-    },
-    {
-      title: 'Zog is geld',
-      paragraphs: [
-        'Een turbine haalt zijn vermogen uit de wind door hem af te remmen — achter elke turbine hangt dus een zog van langzame, verwarde lucht. Een turbine die in het zog van zijn buurman staat, kan een flink deel van zijn vermogen verliezen.',
-        '👉 Het gebeurt rechts live: de voorste turbine drinkt de volle wind, terwijl die in zijn oranje zog bijna niets krijgt — vergelijk hun kW-labels.',
-        'Erger nog: vermogen groeit met de derde macht van de windsnelheid. Twee keer zo langzaam betekent acht keer minder vermogen, dus elke hap die het zog neemt doet driedubbel pijn. Over de levensduur van een windmolenpark zijn zogverliezen miljoenen euro’s waard.',
-        'Daarom is de ⚡-uitdaging een plaatsingspuzzel — en de wind waait niet altijd van dezelfde kant: tijdens een ronde draait hij twee keer. De 🤖 computertegenstander gokt niet: voor elke vrije plek schat hij met een snelle zog-formule het vermogen van het hele park in alle drie de windrichtingen, en pakt dan gretig de beste plek. Echte windparkontwerpers beginnen net zo, met de windrichtingen van een heel jaar, en controleren de opstelling daarna met veel grotere simulaties — wind simuleren voor windenergie is het dagelijkse werk van onze groep.',
-      ],
-      formula: 'vermogen ∝ (windsnelheid)³',
-    },
-  ],
-  no: [
-    {
-      title: 'En vindtunnel av tall',
-      paragraphs: [
-        'Alt på denne skjermen er en levende strømningssimulering. Skjermen er delt opp i et rutenett noen hundre celler bredt, og hver celle husker to tall: hvilken vei luften beveger seg der, og hvor fort.',
-        'Seksti ganger i sekundet utveksler hver celle dytt med naboene sine, og det fargede blekket bare blir med på lasset — derfor folder og virvler fargene seg som fløte i kaffe. Ingenting er en filmsnutt: rør, og tallene endrer seg.',
-        '👆 Kortet dekker bare en del av skjermen — bare fortsett å røre på den andre siden mens du leser!',
-      ],
-    },
-    {
-      title: 'Millionligningene',
-      paragraphs: [
-        'Strømmende luft og vann følger Navier–Stokes-ligningene, skrevet ned for rundt 200 år siden. De får plass på én linje — men ingen har noensinne klart å løse dem med penn og papir, bortsett fra for noen få veldig enkle strømninger.',
-        'Det er bokstavelig talt et millionproblem: Clay Mathematics Institute har utlovet $1 000 000 bare for et bevis på at det alltid finnes pene løsninger.',
-        'Så datamaskinen gjør det nest beste: del rommet i celler og tiden i steg, og oppdater hele rutenettet hvert bilde — forsiktig, slik at simuleringen forblir stabil og troverdig. Det håndverket heter numerisk matematikk, og det er akkurat det gruppen vår driver med.',
-      ],
-      formula: '∂u/∂t + (u·∇)u = −∇p/ρ + ν∇²u',
-    },
-    {
-      title: 'Turbulens: virvler i virvler',
-      paragraphs: [
-        'Rør hardt, og strømningen blir turbulent: store virvler brytes opp i mindre virvler, og de igjen i enda mindre, helt til de aller minste forsvinner som et pust av varme. Denne kaskaden er grunnen til at turbulens ofte kalles det siste store uløste problemet i klassisk fysikk.',
-        'For å fange hver virvel over en ekte vindpark måtte en datamaskin fulgt virvler fra kilometer ned til millimeter — mer regnekraft enn det finnes på kloden. Ekte simuleringer regner derfor bare ut de store virvlene og bruker smarte matematiske modeller for effekten av de små. Å finne opp og forbedre de modellene er et levende forskningsfelt — og en av spesialitetene til gruppen vår.',
-      ],
-    },
-    {
-      title: 'Kjølvann er penger',
-      paragraphs: [
-        'En turbin henter kraften sin ut av vinden ved å bremse den — bak hver turbin henger det derfor et kjølvann av langsom, sammenfiltret luft. En turbin som står i naboens kjølvann, kan miste en stor del av kraften sin.',
-        '👉 Det skjer live til høyre: den fremste turbinen drikker full vind, mens den som står i det oransje kjølvannet nesten ikke får noe — sammenlign kW-tallene deres.',
-        'Verre: kraften vokser med tredje potens av vindfarten. Halvparten så fort betyr åtte ganger mindre kraft, så hver bit kjølvannet tar, svir trippelt. Over en vindparks levetid er kjølvannstap verdt millioner av euro.',
-        'Derfor er ⚡-utfordringen et plasseringspuslespill — og vinden blåser ikke alltid fra samme kant: i løpet av en runde snur den to ganger. 🤖-datamotstanderen gjetter ikke: for hver ledige plass bruker den en rask kjølvannsformel til å anslå hele parkens kraft i alle tre vindretningene, og tar så grådig den beste plassen. Ekte vindparkdesignere begynner på samme måte, med vindretningene for et helt år, og sjekker så oppstillingen med langt større simuleringer — å simulere vind for vindkraft er en del av gruppens daglige arbeid.',
-      ],
-      formula: 'kraft ∝ (vindfart)³',
-    },
-  ],
-};
-
-/** Labels for the chapter-3 "drop a block" vortex-street lab. */
-const LAB: Localized<{ title: string; drop: string; note: string }> = {
-  en: {
-    title: '🧪 Try it live',
-    drop: '🪨 Drop a block into the wind',
-    note: 'Look behind the block: the wavy trail of alternating swirls is a vortex street — the same pattern clouds draw behind ocean islands, and the reason flags flap.',
   },
   nl: {
-    title: '🧪 Probeer het zelf',
-    drop: '🪨 Gooi een blok in de wind',
-    note: 'Kijk achter het blok: het golvende spoor van afwisselende wervels is een wervelstraat — hetzelfde patroon dat wolken achter eilanden in de oceaan tekenen, en de reden dat vlaggen wapperen.',
+    arrows: {
+      title: 'Wind is een veld vol pijlen',
+      paragraphs: [
+        'Voor een computer is wind geen ding dat je vast kunt pakken, maar een veld: op elke plek staat een pijl die zegt welke kant de lucht daar op gaat, en hoe snel. Lange pijl: snel. Korte pijl: langzaam.',
+        '👉 Roer rechts en kijk hoe de pijlen meedraaien. De gekleurde rook duwt nergens tegen — hij lift gewoon mee op de pijlen, zoals blaadjes op een rivier.',
+      ],
+      formula: 'op elke plek:  pijl = (snelheid →, snelheid ↑)',
+    },
+    cells: {
+      title: 'Hak de lucht in cellen',
+      paragraphs: [
+        'De lucht heeft oneindig veel plekken, en geen computer kan oneindig veel pijlen onthouden. Dus hakken we de ruimte in een raster van cellen en bewaren we één pijl per cel. Die truc heet discretisatie — daar begint de numerieke wiskunde.',
+        '👉 Sleep de schuif. Met grote cellen gaat elke wervel die kleiner is dan een cel verloren. Wijs een cel aan om de twee getallen te zien die hij onthoudt.',
+        'Fijnere cellen kosten meer: maak de cellen half zo groot en je hebt vier keer zoveel cellen nodig — en twee keer zoveel tijdstapjes, want de wind mag in één stap niet over een cel heen springen. Acht keer zoveel werk!',
+      ],
+      formula: '½ × celgrootte  →  4 × cellen × 2 × stappen = 8 × werk',
+      slider: 'Celgrootte',
+      cells: 'cellen',
+      realGrid: 'het echte raster',
+    },
+    rules: {
+      title: 'Drie regels voor elke cel',
+      intro:
+        'Zestig keer per seconde werkt elke cel zijn pijl bij met de Navier–Stokes-vergelijkingen, 200 jaar geleden opgeschreven. Ze zien er eng uit, maar ze zeggen drie simpele dingen:',
+      rules: [
+        { view: 'dye', term: '(u·∇)u', name: '🚚 Meevoeren', text: 'Lucht voert zichzelf mee: elke pijl drijft mee met de stroming — en de rook ook.' },
+        { view: 'pressure', term: '−∇p', name: '💨 Duwen', text: 'Lucht laat zich niet graag samenpersen. Waar hij zich ophoopt stijgt de druk (rood) en duwt hem weg; waar hij dun wordt daalt de druk (blauw).' },
+        { view: 'swirl', term: 'ν∇²u', name: '🌀 Wrijven', text: 'Snelle lucht schuurt langs langzame lucht en gaat draaien. Wervels: oranje de ene kant op, blauw de andere.' },
+      ],
+      hint: '👉 Tik op een regel om zijn veld rechts te zien.',
+      outro:
+        'Niemand kan deze vergelijkingen met pen en papier oplossen. Er is zelfs een prijs van $1.000.000 voor alleen al het bewijs dat ze altijd nette oplossingen hebben. Dus doet de computer het cel voor cel — dat vak heet numerieke wiskunde, en het is wat onze groep doet.',
+    },
+    turbulence: {
+      title: 'Turbulentie: wervels in wervels',
+      paragraphs: [
+        'Roer hard en de stroming wordt turbulent: grote wervels breken op in kleinere wervels, die weer in nog kleinere, tot de allerkleinsten verdwijnen als een zuchtje warmte.',
+        '👉 Wijs ergens naar om de vergrootglazen te richten. Ze zoomen 4× en 16× in, en in de wervels zitten weer wervels. Bij 16× kom je bij de cellen van de computer — kleiner dan dat kan in deze simulatie niet bestaan.',
+        'Rond een echt windpark gaan wervels van kilometers tot millimeters. Ze allemaal uitrekenen zou zo’n 10²⁰ cellen kosten; de grootste supercomputers halen er zo’n 10¹². Echte simulaties rekenen daarom de grote wervels uit en gebruiken een slim wiskundig model voor de kleine. Zulke modellen bedenken is een van de specialiteiten van onze groep.',
+      ],
+      quote:
+        '„Grote wervels hebben kleine wervels, die zich voeden met hun vaart; en kleine wervels kleinere, tot de stroperigheid ze stopt.”',
+      quoteBy: '— vrij naar Lewis Fry Richardson, 1922',
+      ladder: {
+        computed: 'uitgerekend',
+        modelled: 'gemodelleerd',
+        marks: [
+          [10000, 'windpark'],
+          [150, 'turbine'],
+          [1.5, 'jij'],
+          [0.001, 'kleinste wervel'],
+        ],
+      },
+    },
+    wakes: {
+      title: 'Zog is geld',
+      paragraphs: [
+        'Een turbine haalt zijn vermogen uit de wind door hem af te remmen — achter elke turbine hangt dus een zog van langzame lucht. 👉 Rechts staat de tweede turbine in het zog van de eerste: zie hoe de streepjes korter worden waar de lucht langzaam is.',
+        'Vermogen groeit met de derde macht van de windsnelheid: bij ¾ van de windsnelheid krijg je minder dan de helft van het vermogen (¾ × ¾ × ¾ ≈ 0,42). De balkjes onder elke turbine laten het live zien — een klein dipje in de wind is een grote dip in vermogen.',
+        'Daarom is een windpark ontwerpen een puzzel — en de wind draait ook nog. De 🤖 computertegenstander test met een snelle zog-formule elke plek voor alle windrichtingen. Echte ontwerpers beginnen net zo, en controleren daarna met grote simulaties zoals deze: wind simuleren voor windenergie is het dagelijkse werk van onze groep.',
+      ],
+      formula: 'vermogen ∝ (windsnelheid)³',
+      wind: 'wind',
+      power: 'vermogen',
+    },
   },
   no: {
-    title: '🧪 Prøv det live',
-    drop: '🪨 Slipp en blokk i vinden',
-    note: 'Se bak blokken: det bølgende sporet av vekslende virvler er en virvelgate — det samme mønsteret skyer tegner bak øyer i havet, og grunnen til at flagg blafrer.',
+    arrows: {
+      title: 'Vind er et felt av piler',
+      paragraphs: [
+        'For en datamaskin er ikke vind en ting du kan holde i — det er et felt: på hvert sted står det en pil som sier hvilken vei luften beveger seg der, og hvor fort. Lang pil: fort. Kort pil: sakte.',
+        '👉 Rør til høyre og se pilene svinge rundt. Den fargede røyken dytter ikke på noe — den blir bare med pilene, som blader på en elv.',
+      ],
+      formula: 'på hvert sted:  pil = (fart →, fart ↑)',
+    },
+    cells: {
+      title: 'Del lufta opp i celler',
+      paragraphs: [
+        'Lufta har uendelig mange steder, og ingen datamaskin kan huske uendelig mange piler. Så vi deler rommet opp i et rutenett av celler og beholder én pil per celle. Det trikset heter diskretisering — det er der numerisk matematikk begynner.',
+        '👉 Dra i glidebryteren. Med store celler forsvinner hver virvel som er mindre enn en celle. Pek på en celle for å se de to tallene den husker.',
+        'Finere celler koster mer: halver cellestørrelsen, og du trenger fire ganger så mange celler — og dobbelt så mange tidssteg, fordi vinden ikke får hoppe over en celle i ett steg. Åtte ganger så mye arbeid!',
+      ],
+      formula: '½ × cellestørrelse  →  4 × celler × 2 × steg = 8 × arbeid',
+      slider: 'Cellestørrelse',
+      cells: 'celler',
+      realGrid: 'det ekte rutenettet',
+    },
+    rules: {
+      title: 'Tre regler for hver celle',
+      intro:
+        'Seksti ganger i sekundet oppdaterer hver celle pilen sin med Navier–Stokes-ligningene, skrevet ned for 200 år siden. De ser skumle ut, men de sier tre enkle ting:',
+      rules: [
+        { view: 'dye', term: '(u·∇)u', name: '🚚 Bære', text: 'Luften bærer seg selv med seg: hver pil driver med strømmen — og det gjør røyken også.' },
+        { view: 'pressure', term: '−∇p', name: '💨 Dytte', text: 'Luft liker ikke å bli klemt. Der den hoper seg opp, stiger trykket (rødt) og dytter den unna; der den tynnes ut, synker trykket (blått).' },
+        { view: 'swirl', term: 'ν∇²u', name: '🌀 Gni', text: 'Rask luft gnir mot langsom luft og begynner å snurre. Virvler: oransje den ene veien rundt, blå den andre.' },
+      ],
+      hint: '👉 Trykk på en regel for å se feltet dens til høyre.',
+      outro:
+        'Ingen kan løse disse ligningene med penn og papir. Det finnes til og med en pris på $1 000 000 bare for å bevise at de alltid har pene løsninger. Så datamaskinen gjør det celle for celle — det håndverket heter numerisk matematikk, og det er det gruppen vår driver med.',
+    },
+    turbulence: {
+      title: 'Turbulens: virvler i virvler',
+      paragraphs: [
+        'Rør hardt, og strømningen blir turbulent: store virvler brytes opp i mindre virvler, og de igjen i enda mindre, helt til de aller minste forsvinner som et pust av varme.',
+        '👉 Pek hvor som helst for å sikte med forstørrelsesglassene. De zoomer inn 4× og 16×, og inni virvlene er det nye virvler. Ved 16× kommer du ned til datamaskinens celler — noe mindre kan ikke finnes i denne simuleringen.',
+        'Rundt en ekte vindpark går virvlene fra kilometer ned til millimeter. Å regne ut alle ville kreve rundt 10²⁰ celler; de største superdatamaskinene klarer rundt 10¹². Ekte simuleringer regner derfor ut de store virvlene og bruker en smart matematisk modell for de små. Å finne opp slike modeller er en av gruppens spesialiteter.',
+      ],
+      quote:
+        '«Store virvler har små virvler som lever av farten deres, og små virvler mindre virvler, helt ned til seigheten stopper dem.»',
+      quoteBy: '— fritt etter Lewis Fry Richardson, 1922',
+      ladder: {
+        computed: 'regnet ut',
+        modelled: 'modellert',
+        marks: [
+          [10000, 'vindpark'],
+          [150, 'turbin'],
+          [1.5, 'du'],
+          [0.001, 'minste virvel'],
+        ],
+      },
+    },
+    wakes: {
+      title: 'Kjølvann er penger',
+      paragraphs: [
+        'En turbin henter kraften sin ut av vinden ved å bremse den — bak hver turbin henger det derfor et kjølvann av langsom luft. 👉 Til høyre står den andre turbinen i kjølvannet til den første: se hvordan strekene blir kortere der luften er langsom.',
+        'Kraften vokser med tredje potens av vindfarten: ved ¾ av vindfarten får du mindre enn halvparten av kraften (¾ × ¾ × ¾ ≈ 0,42). Stolpene under hver turbin viser det live — en liten dupp i vinden er en stor dupp i kraft.',
+        'Derfor er det et puslespill å planlegge en vindpark — og vinden snur i tillegg. 🤖-datamotstanderen tester hver plass for alle vindretningene med en rask kjølvannsformel. Ekte designere begynner på samme måte, og sjekker så med store simuleringer som denne: å simulere vind for vindkraft er en del av gruppens daglige arbeid.',
+      ],
+      formula: 'kraft ∝ (vindfart)³',
+      wind: 'vind',
+      power: 'kraft',
+    },
   },
 };
 
+function el<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, text?: string) {
+  const e = document.createElement(tag);
+  if (className) e.className = className;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+/** Cells chapter: the cell-size slider with a live cell count. */
+function cellsSlider(host: HTMLElement, T: Texts['cells'], api: WindfarmDelveApi): void {
+  const box = el('div', 'delve-lab');
+  const row = el('label', 'delve-slider-row');
+  const name = el('span', undefined, T.slider);
+  const input = el('input');
+  input.type = 'range';
+  input.min = '0';
+  input.max = String(CELL_STEPS.length - 1);
+  input.step = '1';
+  // The slider runs from big cells (left) to small cells (right).
+  input.value = String(api.cellStep());
+  const out = el('output');
+  row.append(name, input);
+  const readout = el('p', 'delve-cells-readout');
+  readout.appendChild(out);
+  const update = () => {
+    const step = Number(input.value);
+    api.setCellStep(step);
+    const across = CELL_STEPS[step];
+    const [w, h] = across > 0 ? [across, api.cellsDown(across)] : api.gridSize();
+    out.textContent = `${w} × ${h} = ${fmtNumber(w * h)} ${T.cells}${across > 0 ? '' : ` (${T.realGrid})`}`;
+  };
+  input.addEventListener('input', update);
+  update();
+  box.append(row, readout);
+  host.appendChild(box);
+}
+
+/** Rules chapter: the equation with color-coded terms, and one button per rule. */
+function rulesLab(host: HTMLElement, T: Texts['rules'], api: WindfarmDelveApi): void {
+  const box = el('div', 'delve-rules');
+  const formula = el('p', 'delve-formula ns-formula');
+  const terms = new Map<FieldView, HTMLElement>();
+  const part = (text: string, view?: FieldView) => {
+    const span = el('span', view ? `ns-term ns-${view}` : undefined, text);
+    if (view) terms.set(view, span);
+    formula.appendChild(span);
+  };
+  part('∂u/∂t + ');
+  part(T.rules[0].term, 'dye');
+  part(' = ');
+  part(T.rules[1].term, 'pressure');
+  part(' + ');
+  part(T.rules[2].term, 'swirl');
+
+  const buttons = T.rules.map((rule) => {
+    const button = el('button', `delve-rule ns-${rule.view}`);
+    button.append(el('strong', undefined, rule.name), el('span', undefined, rule.text));
+    button.addEventListener('click', () => select(rule.view));
+    return { rule, button };
+  });
+  const select = (view: FieldView) => {
+    api.setRulesView(view);
+    for (const { rule, button } of buttons) button.classList.toggle('active', rule.view === view);
+    for (const [v, span] of terms) span.classList.toggle('active', v === view);
+  };
+  box.append(formula, ...buttons.map((b) => b.button), el('p', 'delve-lab-note', T.hint));
+  host.appendChild(box);
+  select(api.rulesView());
+}
+
+/**
+ * Turbulence chapter: a log-scale ladder from 1 mm to 10 km with familiar
+ * sizes, and which part a simulation computes versus models.
+ */
+function scaleLadder(host: HTMLElement, T: Texts['turbulence']): void {
+  const box = el('div', 'delve-ladder');
+  const quote = el('blockquote', 'delve-quote', T.quote);
+  quote.appendChild(el('cite', undefined, T.quoteBy));
+  // Axis from 1e-3 m to 1e4 m: position = (log10(m) + 3) / 7, largest on the left.
+  const pos = (m: number) => 100 - ((Math.log10(m) + 3) / 7) * 100;
+  const axis = el('div', 'ladder-axis');
+  T.ladder.marks.forEach(([m, label], i) => {
+    const mark = el('div', 'ladder-mark');
+    mark.style.left = `${pos(m)}%`;
+    const text = el('span', undefined, label);
+    // Labels near the ends hang inward instead of spilling off the card.
+    const p = pos(m);
+    text.style.transform = p < 12 ? 'none' : p > 88 ? 'translateX(-100%)' : 'translateX(-50%)';
+    // Alternate rows, so neighbouring labels never collide.
+    text.style.top = i % 2 ? '1.1rem' : '0';
+    mark.appendChild(text);
+    axis.appendChild(mark);
+  });
+  const ticks = el('div', 'ladder-ticks');
+  for (const [m, label] of [
+    [10000, '10 km'],
+    [1000, '1 km'],
+    [100, '100 m'],
+    [10, '10 m'],
+    [1, '1 m'],
+    [0.1, '10 cm'],
+    [0.01, '1 cm'],
+    [0.001, '1 mm'],
+  ] as [number, string][]) {
+    const tick = el('span', undefined, label);
+    tick.style.left = `${pos(m)}%`;
+    ticks.appendChild(tick);
+  }
+  // A 10^12-cell supercomputer run spans ~10^4 per direction: 10 km down to 1 m.
+  const bars = el('div', 'ladder-bars');
+  const computed = el('span', 'ladder-computed', T.ladder.computed);
+  computed.style.width = `${pos(1)}%`;
+  const modelled = el('span', 'ladder-modelled', T.ladder.modelled);
+  modelled.style.width = `${100 - pos(1)}%`;
+  bars.append(computed, modelled);
+  box.append(quote, axis, bars, ticks);
+  host.appendChild(box);
+}
+
+/** Wakes chapter: the cube law as three pairs of bars. */
+function cubeChart(host: HTMLElement, T: Texts['wakes']): void {
+  const box = el('div', 'delve-cube');
+  for (const wind of [1, 0.75, 0.5]) {
+    const col = el('div', 'cube-col');
+    const pair = el('div', 'cube-pair');
+    const w = el('span', 'cube-bar bar-wind');
+    w.style.height = `${wind * 100}%`;
+    const p = el('span', 'cube-bar bar-power');
+    p.style.height = `${wind ** 3 * 100}%`;
+    pair.append(w, p);
+    col.append(
+      pair,
+      el('span', 'cube-label', `${T.wind} ${Math.round(wind * 100)}%`),
+      el('span', 'cube-label cube-power', `${T.power} ${Math.round(wind ** 3 * 100)}%`),
+    );
+    box.appendChild(col);
+  }
+  host.appendChild(box);
+}
+
 export function windfarmDelve(api: WindfarmDelveApi): DelveChapter[] {
-  const chapters = pick(CHAPTERS);
-  const lab = pick(LAB);
-  return chapters.map((chapter, i) => ({
-    title: chapter.title,
-    paragraphs: chapter.paragraphs,
-    formula: chapter.formula,
-    // Only chapter 3 (index 2, turbulence) has the vortex-street lab.
-    extras:
-      i === 2
-        ? (host: HTMLElement) => {
-            const labEl = document.createElement('div');
-            labEl.className = 'delve-lab';
-            const title = document.createElement('div');
-            title.className = 'delve-lab-title';
-            title.textContent = lab.title;
-            labEl.appendChild(title);
-
-            const button = document.createElement('button');
-            button.className = 'arcade-button';
-            button.style.marginTop = '0.6rem';
-            button.textContent = lab.drop;
-            button.addEventListener('click', () => api.dropBlock());
-            labEl.appendChild(button);
-
-            const note = document.createElement('p');
-            note.className = 'delve-lab-note';
-            note.textContent = lab.note;
-            labEl.appendChild(note);
-            host.appendChild(labEl);
-          }
-        : undefined,
-  }));
+  const T = pick(TEXTS);
+  return [
+    { title: T.arrows.title, paragraphs: T.arrows.paragraphs, formula: T.arrows.formula },
+    {
+      title: T.cells.title,
+      paragraphs: T.cells.paragraphs,
+      formula: T.cells.formula,
+      extras: (host) => cellsSlider(host, T.cells, api),
+    },
+    {
+      title: T.rules.title,
+      paragraphs: [T.rules.intro],
+      extras: (host) => {
+        rulesLab(host, T.rules, api);
+        host.appendChild(el('p', 'delve-lab-note delve-outro', T.rules.outro));
+      },
+    },
+    {
+      title: T.turbulence.title,
+      paragraphs: T.turbulence.paragraphs,
+      extras: (host) => scaleLadder(host, T.turbulence),
+    },
+    {
+      title: T.wakes.title,
+      paragraphs: T.wakes.paragraphs,
+      formula: T.wakes.formula,
+      extras: (host) => cubeChart(host, T.wakes),
+    },
+  ];
 }

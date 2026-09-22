@@ -2,7 +2,8 @@
 // (Phase 2 game mode) on top of the same solver.
 import type { ArcadeGame, GameHost, GameInstance } from '../../shell/types';
 import { FluidSolver, type Obstacle } from './fluid';
-import { Challenge, WakeDemo, type ChallengeNext } from './game';
+import { Challenge, type ChallengeNext } from './game';
+import { DelveStage } from './delvestage';
 import {
   delvePanel,
   delveToggle,
@@ -10,7 +11,6 @@ import {
   type DelveToggleHandle,
 } from '../../shell/delve';
 import { windfarmDelve } from './delve';
-import { randRange } from '../../lib/util';
 import { pick, type Localized } from '../../lib/i18n';
 
 const TEXT: Localized<{
@@ -118,7 +118,9 @@ class FluidInstance implements GameInstance {
   private challengeBar!: HTMLElement;
   private delve: DelveHandle | null = null;
   private toggle: DelveToggleHandle | null = null;
-  private wakeDemo: WakeDemo | null = null;
+  private stage: DelveStage | null = null;
+  /** Sim time of the player's last stir (the delve's auto-stirrer waits for a pause). */
+  private lastStir = -Infinity;
 
   private onContextMenu = (e: Event) => e.preventDefault();
   private onPointerDown = (e: PointerEvent) => {
@@ -149,6 +151,7 @@ class FluidInstance implements GameInstance {
     }
     this.hue = (this.hue + dist * 0.6) % 1;
     const [r, g, b] = hsvToRgb(this.hue, 0.85, 1);
+    this.lastStir = this.time;
     this.solver.splatVelocity(x, y, dx * SPLAT_FORCE, dy * SPLAT_FORCE);
     this.solver.splatDye(x, y, r * 0.22, g * 0.22, b * 0.22, DYE_RADIUS);
   };
@@ -198,7 +201,7 @@ class FluidInstance implements GameInstance {
     solver.wind = this.windOn || this.challenge ? WIND_SPEED : 0;
     solver.windAngle = this.challenge?.windAngle ?? 0;
     // Wake view (wind-speed coloring) whenever turbines are on screen.
-    const wakeView = this.challenge !== null || this.wakeDemo !== null;
+    const wakeView = this.challenge !== null || (this.stage?.wakeView ?? false);
     solver.curlStrength = wakeView ? WAKE_CURL : solver.wind > 0 ? WIND_CURL : TOY_CURL;
     solver.windRelax = wakeView ? WAKE_RELAX : TOY_RELAX;
     // In the wake view, tracer streaks show the wind moving (and slowing in
@@ -211,11 +214,17 @@ class FluidInstance implements GameInstance {
         this.injectStreaks(dt, TOY_STREAKS);
         this.injectShoulderDye(dt);
       }
+      this.stage?.tick(dt);
       solver.step(dt);
       this.challenge?.tick(dt);
-      this.wakeDemo?.tick(dt);
     }
-    solver.render(wakeView);
+    solver.view = wakeView ? 'speed' : 'dye';
+    solver.cellsAcross = 0;
+    solver.lenses = [];
+    solver.arrowsAcross = 0;
+    this.stage?.applyView(solver);
+    solver.render();
+    this.stage?.drawOverlay();
 
     // One-time quality reduction if this machine can't hold ~42 fps (unless
     // the stand forced a tier with ?quality=).
@@ -236,8 +245,8 @@ class FluidInstance implements GameInstance {
     this.challenge = null;
     this.delve?.dispose();
     this.delve = null;
-    this.wakeDemo?.destroy();
-    this.wakeDemo = null;
+    this.stage?.dispose();
+    this.stage = null;
     this.solver?.destroy();
     this.solver = null;
   }
@@ -246,12 +255,28 @@ class FluidInstance implements GameInstance {
 
   private openDelve(): void {
     if (this.delve || !this.solver) return;
-    // Something to look at while reading: the wind tunnel, live.
-    this.setWind(true);
+    const solver = this.solver;
+    // Each chapter sets up its own live illustration on the fluid (delvestage.ts).
+    const stage = new DelveStage(this.host, solver, {
+      setWind: (on) => this.setWind(on),
+      setObstacles: (obstacles) => {
+        this.obstacles = obstacles;
+        solver.setObstacles(obstacles);
+      },
+      sinceStir: () => this.time - this.lastStir,
+    });
+    this.stage = stage;
     this.delve = delvePanel({
       heading: pick(TEXT).delveHeading,
-      chapters: windfarmDelve({ dropBlock: () => this.dropBlock() }),
-      onChapter: (i) => this.setDelveChapter(i),
+      chapters: windfarmDelve({
+        cellStep: () => stage.cellStep,
+        setCellStep: (step) => (stage.cellStep = step),
+        gridSize: () => solver.gridSize,
+        cellsDown: (across) => solver.cellsDown(across),
+        rulesView: () => stage.rulesView,
+        setRulesView: (view) => (stage.rulesView = view),
+      }),
+      onChapter: (i) => stage.setChapter(i),
       onExit: () => this.closeDelve(),
     });
     this.host.overlay.appendChild(this.delve.element);
@@ -262,31 +287,9 @@ class FluidInstance implements GameInstance {
     if (!this.delve) return;
     this.delve.dispose();
     this.delve = null;
-    this.wakeDemo?.destroy();
-    this.wakeDemo = null;
+    this.stage?.dispose();
+    this.stage = null;
     this.toggle?.setOpen(false);
-  }
-
-  /** The "wakes are money" chapter runs a live two-turbine wake demo. */
-  private setDelveChapter(chapter: number): void {
-    if (chapter === 3 && !this.wakeDemo && this.solver) {
-      // Wind-farm view: clear the toy's blocks so only turbine wakes show.
-      this.obstacles = [];
-      this.solver.setObstacles([]);
-      this.setWind(true);
-      this.wakeDemo = new WakeDemo(this.host, this.solver);
-    } else if (chapter !== 3 && this.wakeDemo) {
-      this.wakeDemo.destroy();
-      this.wakeDemo = null;
-    }
-  }
-
-  /** Chapter-3 lab: an obstacle mid-stream, so a vortex street forms live. */
-  private dropBlock(): void {
-    this.setWind(true);
-    if (this.obstacles.length >= MAX_PLACED_OBSTACLES) this.obstacles.shift();
-    this.obstacles.push({ x: 0.55, y: randRange(0.35, 0.65), r: OBSTACLE_RADIUS });
-    this.solver?.setObstacles(this.obstacles);
   }
 
   // ---- challenge mode ----

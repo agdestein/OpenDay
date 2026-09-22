@@ -15,6 +15,8 @@ const TEXT: Localized<{
   windTurned: string;
   legendFull: string;
   legendWake: string;
+  barWind: string;
+  barPower: string;
   headingComputerDone: string;
   headingTimeUp: string;
   yourTurn: string;
@@ -32,6 +34,8 @@ const TEXT: Localized<{
     windTurned: '🌬️ The wind has turned! Are your turbines in each other’s wakes now?',
     legendFull: 'full wind',
     legendWake: 'wake (slow)',
+    barWind: 'wind',
+    barPower: 'power',
     headingComputerDone: '🤖 The computer is done!',
     headingTimeUp: "⏱ Time's up!",
     yourTurn: '🙋 Your turn',
@@ -49,6 +53,8 @@ const TEXT: Localized<{
     windTurned: '🌬️ De wind is gedraaid! Staan je turbines nu in elkaars zog?',
     legendFull: 'volle wind',
     legendWake: 'zog (langzaam)',
+    barWind: 'wind',
+    barPower: 'vermogen',
     headingComputerDone: '🤖 De computer is klaar!',
     headingTimeUp: '⏱ Tijd is om!',
     yourTurn: '🙋 Jouw beurt',
@@ -66,6 +72,8 @@ const TEXT: Localized<{
     windTurned: '🌬️ Vinden har snudd! Står turbinene dine i kjølvannet til hverandre nå?',
     legendFull: 'full vind',
     legendWake: 'kjølvann (sakte)',
+    barWind: 'vind',
+    barPower: 'kraft',
     headingComputerDone: '🤖 Datamaskinen er ferdig!',
     headingTimeUp: '⏱ Tiden er ute!',
     yourTurn: '🙋 Din tur',
@@ -271,12 +279,14 @@ function modelFarmPower(spots: { x: number; y: number }[], aspect: number): numb
 
 /**
  * Delve demo for the "wakes are money" chapter: two live turbines, the second
- * parked straight in the first one's wake, with the usual power labels — no
- * timer, no score, just the physics behind the ⚡ challenge.
+ * parked straight in the first one's wake, with the usual power labels plus
+ * wind and power bars (the cube law, live) — no timer, no score, just the
+ * physics behind the ⚡ challenge.
  */
 export class WakeDemo {
   private layer: HTMLElement;
   private turbines: Turbine[];
+  private bars: { wind: HTMLElement; windText: HTMLElement; power: HTMLElement; powerText: HTMLElement }[];
   private sinceSample = SAMPLE_INTERVAL;
 
   constructor(
@@ -300,6 +310,27 @@ export class WakeDemo {
       t.el.appendChild(caption);
       return t;
     });
+    this.bars = this.turbines.map((t) => {
+      const box = document.createElement('div');
+      box.className = 'turbine-bars';
+      const row = (label: string, kind: string) => {
+        const name = document.createElement('span');
+        name.textContent = label;
+        const track = document.createElement('span');
+        track.className = 'bar-track';
+        const fill = document.createElement('span');
+        fill.className = `bar-fill bar-${kind}`;
+        track.appendChild(fill);
+        const text = document.createElement('span');
+        text.className = 'bar-text';
+        box.append(name, track, text);
+        return [fill, text];
+      };
+      const [wind, windText] = row(T.barWind, 'wind');
+      const [power, powerText] = row(T.barPower, 'power');
+      t.el.appendChild(box);
+      return { wind, windText, power, powerText };
+    });
     host.overlay.appendChild(this.layer);
     solver.setTurbines(this.turbines.map((t) => ({ x: t.x, y: t.y, r: TURBINE_R })));
   }
@@ -309,6 +340,15 @@ export class WakeDemo {
     if (this.sinceSample >= SAMPLE_INTERVAL) {
       this.sinceSample = 0;
       sampleTurbinePowers(this.solver, this.turbines, canvasAspect(this.host));
+      this.turbines.forEach((t, i) => {
+        const power = clamp(t.power / P_MAX, 0, 1);
+        const wind = Math.cbrt(power);
+        const bar = this.bars[i];
+        bar.wind.style.width = `${(wind * 100).toFixed(1)}%`;
+        bar.windText.textContent = `${Math.round(wind * 100)}%`;
+        bar.power.style.width = `${(power * 100).toFixed(1)}%`;
+        bar.powerText.textContent = `${Math.round(power * 100)}%`;
+      });
     }
     shedTurbulence(this.solver, this.turbines, dt, canvasAspect(this.host));
     spinRotors(this.turbines, dt);

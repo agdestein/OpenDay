@@ -674,6 +674,261 @@ input[type='range'] {
   opacity: 0.65;
 }
 
+/* ---------- Swirl Lab delve: live illustrations and card diagrams ---------- */
+
+/* 2D overlay for callouts and magnifier connectors, above the fluid. */
+.delve-stage {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.delve-cells-readout {
+  margin-top: 0.5rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: #fde047;
+}
+
+/* Navier–Stokes, one color per rule. */
+.delve-rules {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.ns-formula {
+  font-size: 1.05rem;
+}
+
+.ns-term {
+  padding: 0 0.15rem;
+  border-radius: 0.3rem;
+  transition: background 0.2s ease;
+}
+
+.ns-dye {
+  --rule: #c084fc;
+}
+
+.ns-pressure {
+  --rule: #f87171;
+}
+
+.ns-swirl {
+  --rule: #fb923c;
+}
+
+.ns-term.active {
+  color: #0b1020;
+  background: var(--rule);
+  font-weight: 800;
+}
+
+.delve-rule {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  width: 100%;
+  padding: 0.55rem 0.8rem;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-left: 4px solid var(--rule);
+  background: rgba(255, 255, 255, 0.04);
+  color: #eef2ff;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.delve-rule strong {
+  font-size: 0.98rem;
+}
+
+.delve-rule span {
+  font-size: 0.85rem;
+  line-height: 1.4;
+  opacity: 0.8;
+}
+
+.delve-rule.active {
+  background: color-mix(in srgb, var(--rule) 22%, transparent);
+  border-color: var(--rule);
+}
+
+.delve-outro {
+  opacity: 0.8;
+}
+
+/* Turbulence: Richardson's rhyme and the scale ladder. */
+.delve-ladder {
+  width: 100%;
+}
+
+.delve-quote {
+  margin: 0 0 1rem;
+  padding: 0.5rem 0.9rem;
+  border-left: 3px solid #7dd3fc;
+  font-style: italic;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  opacity: 0.9;
+}
+
+.delve-quote cite {
+  display: block;
+  margin-top: 0.3rem;
+  font-size: 0.8rem;
+  font-style: normal;
+  opacity: 0.7;
+}
+
+.ladder-axis,
+.ladder-ticks {
+  position: relative;
+  height: 2.6rem;
+  margin: 0 1.4rem;
+}
+
+.ladder-ticks {
+  height: 1.2rem;
+  font-size: 0.68rem;
+  opacity: 0.6;
+}
+
+.ladder-ticks span,
+.ladder-mark {
+  position: absolute;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.ladder-mark {
+  bottom: 0;
+  height: 100%;
+  border-left: 2px solid rgba(255, 255, 255, 0.5);
+  transform: none;
+}
+
+.ladder-mark span {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform: translateX(-50%);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.ladder-bars {
+  display: flex;
+  height: 1.5rem;
+  margin: 0 1.4rem;
+  border-radius: 0.4rem;
+  overflow: hidden;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.ladder-bars span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ladder-computed {
+  background: #0e7490;
+}
+
+.ladder-modelled {
+  background: repeating-linear-gradient(135deg, #7c2d92 0 6px, #6b21a8 6px 12px);
+}
+
+/* Wakes: the cube law, and live bars under the demo turbines. */
+.delve-cube {
+  display: flex;
+  justify-content: space-around;
+  width: 100%;
+  padding-top: 0.3rem;
+}
+
+.cube-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.cube-pair {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.3rem;
+  height: 4.5rem;
+  margin-bottom: 0.3rem;
+}
+
+.cube-bar {
+  width: 1.3rem;
+  border-radius: 0.25rem 0.25rem 0 0;
+}
+
+.bar-wind {
+  background: #7dd3fc;
+}
+
+.bar-power {
+  background: #fde047;
+}
+
+.cube-label {
+  font-size: 0.72rem;
+  color: #7dd3fc;
+  font-weight: 700;
+}
+
+.cube-label.cube-power {
+  color: #fde047;
+}
+
+.turbine-bars {
+  position: absolute;
+  top: calc(100% + 2.4vh);
+  left: 50%;
+  transform: translateX(-50%);
+  display: grid;
+  grid-template-columns: auto 7vh auto;
+  align-items: center;
+  gap: 0.3vh 0.6vh;
+  padding: 0.6vh 0.9vh;
+  border-radius: 0.8vh;
+  background: rgba(8, 12, 26, 0.75);
+  font-size: 1.5vh;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.bar-track {
+  height: 1vh;
+  border-radius: 0.5vh;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+
+.bar-fill {
+  display: block;
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+.bar-text {
+  min-width: 3.2em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ---------- Shared overlays ---------- */
 
 .title-card {
