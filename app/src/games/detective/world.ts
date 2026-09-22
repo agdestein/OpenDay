@@ -16,6 +16,8 @@ const KM_PER_LON = 111.32 * Math.cos(((GRID.lat0 + GRID.lat1) / 2) * (Math.PI / 
 const KM_PER_LAT = 111.0;
 const DLON = (GRID.lon1 - GRID.lon0) / (GRID.fineNx - 1);
 const DLAT = (GRID.lat1 - GRID.lat0) / (GRID.fineNy - 1);
+export const FINE_NX = GRID.fineNx;
+export const FINE_NY = GRID.fineNy;
 export const FINE_DX = DLON * KM_PER_LON;
 export const FINE_DY = DLAT * KM_PER_LAT;
 /** Size of the map in km. */
@@ -132,6 +134,19 @@ export function halfCell(x: number, y: number): number {
   const i = Math.min(half.nx - 1, Math.max(0, Math.floor(x / half.dx)));
   const j = Math.min(half.ny - 1, Math.max(0, Math.floor(y / half.dy)));
   return j * half.nx + i;
+}
+
+/** The fine land mask as an image (alpha 255 on land), for crisp coastlines. */
+export function landCanvas(): HTMLCanvasElement {
+  const { fineLand } = world();
+  const canvas = document.createElement('canvas');
+  canvas.width = GRID.fineNx;
+  canvas.height = GRID.fineNy;
+  const ctx = canvas.getContext('2d')!;
+  const img = ctx.createImageData(GRID.fineNx, GRID.fineNy);
+  for (let k = 0; k < fineLand.length; k++) img.data[k * 4 + 3] = fineLand[k] ? 255 : 0;
+  ctx.putImageData(img, 0, 0);
+  return canvas;
 }
 
 /** Is this point on Dutch land (fine mask)? */

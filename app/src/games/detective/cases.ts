@@ -358,7 +358,7 @@ export function computerLiars(def: CaseDef, stations: Station[]): Station[] {
   for (let n = 0; n < ACCUSATIONS; n++) {
     const live = copy.filter((s) => !s.ignored);
     gp.setObs(live);
-    const z = gp.looZ();
+    const { z } = gp.loo();
     let worst = 0, at = -1;
     for (let i = 0; i < live.length; i++)
       if (live[i].home && z[i] > worst) {

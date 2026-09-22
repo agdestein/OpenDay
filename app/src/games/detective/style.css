@@ -1,0 +1,78 @@
+/* Weather Detective. The overlay layer enables pointer events on its direct
+   children; only controls should take them, so the map gets every click. */
+.game-overlay > .wd-ui { pointer-events: none; }
+.wd-ui { position: absolute; inset: 0; color: #eaf1fb; font-family: system-ui, sans-serif; }
+.wd-ui[hidden] { display: none; }
+
+.wd-header { position: absolute; top: 18px; left: 84px; right: 380px; }
+.wd-header small { font-size: 11px; font-weight: 800; letter-spacing: 0.2em; color: #93c5fd; }
+.wd-header h1 { font-size: clamp(20px, 2.4vw, 32px); margin: 2px 0 0; font-weight: 800; letter-spacing: -0.02em; }
+.wd-header p { margin: 2px 0 0; font-size: 13px; color: #b7c6dd; }
+
+.wd-side {
+  position: absolute; top: 90px; right: 22px; width: min(320px, 25vw);
+  display: flex; flex-direction: column; gap: 12px; pointer-events: auto;
+}
+.wd-side p { margin: 0; font-size: 14px; line-height: 1.5; color: #cfdaeb; }
+.wd-side .wd-count { font-size: 20px; font-weight: 800; color: #fff; }
+.wd-side .wd-note {
+  font-size: 13px; padding: 10px 12px; border-radius: 10px;
+  background: rgba(40, 60, 110, 0.55); border: 1px solid rgba(147, 197, 253, 0.3);
+}
+
+.wd-button {
+  font: 700 14px system-ui, sans-serif; color: #eaf1fb; cursor: pointer;
+  padding: 10px 14px; border-radius: 11px;
+  border: 1px solid rgba(147, 197, 253, 0.28); background: rgba(22, 36, 66, 0.92);
+  transition: filter 0.15s ease, background 0.15s ease;
+}
+.wd-button:hover:not(:disabled) { filter: brightness(1.2); }
+.wd-button:disabled { opacity: 0.4; cursor: default; }
+.wd-button[aria-pressed='true'] { background: #1d4ed8; border-color: #93c5fd; }
+.wd-button:focus-visible { outline: 3px solid #fde68a; outline-offset: 2px; }
+.wd-primary { background: #f59e0b; color: #1f1400; border-color: #fbbf24; font-size: 16px; padding: 12px 18px; }
+
+.wd-switch, .wd-views { display: flex; gap: 6px; flex-wrap: wrap; }
+.wd-switch .wd-button, .wd-views .wd-button { flex: 1; }
+
+.wd-toolbar {
+  position: absolute; left: 20px; right: 20px; bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  display: flex; flex-wrap: wrap; gap: 14px; justify-content: center; align-items: center; pointer-events: none;
+}
+.wd-toolbar > * { pointer-events: auto; }
+.wd-tools, .wd-days { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+.wd-days { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+
+.wd-card {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: min(460px, 90vw); padding: 26px 30px; border-radius: 20px; z-index: 15;
+  background: rgba(8, 14, 30, 0.94); border: 1px solid rgba(147, 197, 253, 0.25);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5); text-align: center;
+  animation: wd-in 0.35s ease both;
+}
+.wd-card[hidden] { display: none; }
+.wd-card-emoji { font-size: 56px; line-height: 1.1; }
+.wd-card small { display: block; font-size: 12px; letter-spacing: 0.08em; color: #93c5fd; margin-top: 6px; }
+.wd-card h2 { font-size: 28px; margin: 6px 0 10px; }
+.wd-card p { font-size: 16px; line-height: 1.55; color: #d6e0ef; margin: 0 0 18px; }
+.wd-result { top: auto; bottom: 24px; transform: none; left: auto; right: 24px; width: min(400px, 90vw); text-align: left; }
+.wd-result h2 { font-size: 22px; }
+.wd-result ul { margin: 0 0 12px; padding-left: 18px; font-size: 16px; line-height: 1.6; }
+.wd-result .wd-points { font-size: 30px; font-weight: 900; color: #fbbf24; margin-bottom: 10px; }
+.wd-result .wd-tip { font-size: 13px; color: #b7c6dd; }
+@keyframes wd-in { from { opacity: 0; } to { opacity: 1; } }
+.wd-result { animation-name: wd-in-right; }
+@keyframes wd-in-right { from { opacity: 0; translate: 0 20px; } to { opacity: 1; translate: 0 0; } }
+
+.wd-slider { display: flex; flex-direction: column; gap: 4px; width: 100%; font-weight: 700; }
+.wd-slider input { width: 100%; accent-color: #7dd3fc; }
+
+@media (max-width: 800px) {
+  .wd-header { left: 64px; right: 12px; top: 12px; }
+  .wd-side { top: auto; bottom: 150px; right: 8px; width: 150px; gap: 6px; }
+  .wd-side p { display: none; }
+  .wd-side .wd-count { display: block; font-size: 14px; }
+  .wd-button { padding: 7px 9px; font-size: 12px; }
+  .wd-days { grid-template-columns: 1fr; }
+  .wd-result { right: 8px; bottom: 8px; }
+}

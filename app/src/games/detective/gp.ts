@@ -235,15 +235,19 @@ export class GP {
   }
 
   /**
-   * Leave-one-out surprise per station: how many standard deviations its
-   * reading is away from what all the others predict for it.
+   * Leave-one-out check per station: what all the other stations predict it
+   * should read, and how many spreads its actual reading is away from that.
    */
-  looZ(): Float64Array {
+  loo(): { mean: Float64Array; z: Float64Array } {
     const n = this.n;
     const inv = invFromChol(this.L, n);
-    const z = new Float64Array(n);
-    for (let i = 0; i < n; i++) z[i] = this.alpha[i] / Math.sqrt(inv[i * n + i]);
-    return z;
+    const mean = new Float64Array(n), z = new Float64Array(n);
+    for (let i = 0; i < n; i++) {
+      const d = inv[i * n + i];
+      mean[i] = this.obs[i].value - this.alpha[i] / d;
+      z[i] = this.alpha[i] / Math.sqrt(d);
+    }
+    return { mean, z };
   }
 
   /** Estimated shared offset of home stations (posterior mean of the bias term). */
