@@ -40,3 +40,18 @@
  .delta-more-panel {right:0;left:0;margin:auto;bottom:calc(100% + 8px);width:auto;}
  .delta-more > summary {padding:8px;font-size:11px;}
 }
+.delta-timeline { border:0; background:none; padding:4px; }
+.delta-scrubber { appearance:none; height:6px; margin:12px auto; border-radius:8px; background:linear-gradient(to right,#e5c579 var(--progress),#365661 var(--progress)); }
+.delta-scrubber::-webkit-slider-thumb { appearance:none; width:18px; height:18px; border-radius:50%; background:#e5c579; }
+.delta-scrubber::-moz-range-thumb { width:18px;height:18px;border:0;border-radius:50%;background:#e5c579; }
+.delta-playback { gap:0; margin:8px auto; }
+.delta-playback[hidden] { display:none; }
+.delta-playback button { min-width:50px; font-size:19px; border-radius:0; padding:6px 12px; }
+.delta-playback button:first-child { background:#203d48;color:#e7f2e9;border-color:#547079;border-radius:10px 0 0 10px; }
+.delta-playback button:last-child { border-radius:0 10px 10px 0; }
+.delta-storm-dialog { pointer-events:auto; color:#eaf3ee; background:#142e39; border:1px solid #547079; border-radius:18px; padding:28px; max-width:calc(100vw - 48px); }
+.delta-storm-dialog::backdrop { background:#05151cb0; backdrop-filter:blur(4px); }
+.delta-storm-dialog h2 { margin:0 0 20px; font-size:22px; }
+.delta-storm-dialog button { display:block; width:100%; margin-top:10px; padding:15px 24px; background:#203d48; color:#eaf3ee; border:1px solid #547079; border-radius:10px; font:600 15px system-ui; cursor:pointer; }
+.delta-storm-dialog button:last-child { background:transparent;border-color:transparent; }
+.delta-storm-dialog button:focus-visible { outline:3px solid #e5c579;outline-offset:2px; }

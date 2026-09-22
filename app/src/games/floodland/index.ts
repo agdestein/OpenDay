@@ -1,8 +1,8 @@
 import type { ArcadeGame, GameHost, GameInstance } from '../../shell/types';
 import { pick } from '../../lib/i18n';
 import { GRID_W as W, GRID_H as H } from './water';
-import { BUDGET, HOMES, PUMP, scenarioBudget, stormDuration, totalDuration, sandPlan, placeSand, SAND_RATE, makeScene, resetWater, type Scenario, type Point } from './scene';
-import { FloodRecording, RECORD_FPS } from './recording';
+import { BUDGET, HOMES, PUMP, stormDuration, totalDuration, sandPlan, placeSand, SAND_RATE, makeScene, resetWater, type Scenario, type Point } from './scene';
+import { FloodRecording } from './recording';
 import { text } from './text';
 import './style.css';
 
@@ -17,14 +17,14 @@ class FloodInstance implements GameInstance {
   private phase: 'build' | 'calculating' | 'storm' | 'end' = 'build';
   private elapsed = 0;
   private paused = false;
-  private slow = false;
   private fast = false;
   private model = false;
   private budget = BUDGET;
   private strokeStart: { terrain: Float64Array; budget: number } | null = null;
   private livePumpRate = 0;
   private more!: HTMLDetailsElement;
-  private scenarioControl!: HTMLElement;
+  private playback!: HTMLElement;
+  private stormDialog!: HTMLDialogElement;
   private strokes: { terrain: Float64Array; budget: number }[] = [];
   private path: Point[] = [];
   private plan = new Map<number, number>();
@@ -32,8 +32,6 @@ class FloodInstance implements GameInstance {
   private flooded = new Set<number>();
   private recording: FloodRecording | null = null;
   private recordingJob: AbortController | null = null;
-  private previous: Float64Array | null = null;
-  private showPrevious = false;
   private error = '';
   private transform = { scale: 1, ox: 0, oy: 0 };
   private buttons: Record<string, HTMLButtonElement> = {};
@@ -94,22 +92,31 @@ class FloodInstance implements GameInstance {
       b.addEventListener('click', () => { this.cancel(); fn(); this.updateUI(); });
       parent.appendChild(b); this.buttons[key] = b; return b;
     };
-    button('storm', text().storm, () => { void this.startStorm(); });
+    button('storm', text().storm, () => { this.more.open = false; this.stormDialog.showModal(); });
     button('rewind', text().rewind, () => this.rewind());
     button('undo', text().undo, () => { const s = this.strokes.pop(); if (s) { this.sim.terrain.set(s.terrain); this.budget = s.budget; resetWater(this.sim); } });
-    const scenarioLabel = document.createElement('label'); this.scenarioControl = scenarioLabel;
-    const scenarioSelect = document.createElement('select'); scenarioSelect.setAttribute('aria-label', text().scenario);
-    for (const [value, title] of [['surge', text().surgeMode], ['waves', text().wavesMode]]) {
-      const option = document.createElement('option'); option.value = value; option.textContent = title; scenarioSelect.appendChild(option);
+    this.playback = document.createElement('div'); this.playback.className = 'delta-playback delta-tools';
+    this.playback.setAttribute('role', 'group'); this.playback.setAttribute('aria-label', text().playback);
+    const icon = (key: string, symbol: string, label: string, fn: () => void) => {
+      const b = button(key, symbol, fn, this.playback); b.setAttribute('aria-label', label); b.title = label;
+    };
+    icon('back', '↶', text().back, () => { this.paused = true; this.seek(this.elapsed - 5); });
+    icon('pause', 'Ⅱ', text().pause, () => { if (this.phase === 'end') { this.seek(0); this.paused = false; } else this.paused = !this.paused; });
+    icon('forward', '↷', text().forward, () => { this.paused = true; this.seek(this.elapsed + 5); });
+    icon('fast', '» ×4', text().fast, () => { this.fast = !this.fast; });
+    this.stormDialog = document.createElement('dialog'); this.stormDialog.className = 'delta-storm-dialog';
+    this.stormDialog.setAttribute('aria-labelledby', 'delta-storm-title');
+    this.stormDialog.addEventListener('keydown', e => { if (e.key === 'Escape') e.stopPropagation(); });
+    const dialogTitle = document.createElement('h2'); dialogTitle.id = 'delta-storm-title'; dialogTitle.textContent = text().scenario;
+    this.stormDialog.append(dialogTitle);
+    for (const [value, label] of [['surge', text().surgeMode], ['waves', text().wavesMode]] as const) {
+      button(value, label, () => {
+        this.scenario = value; this.timeline.max = String(this.duration);
+        this.stormDialog.close(); void this.startStorm();
+      }, this.stormDialog);
     }
-    scenarioSelect.addEventListener('change', () => { this.scenario = scenarioSelect.value as Scenario; this.newScene(); this.updateUI(); });
-    scenarioLabel.appendChild(scenarioSelect); tools.appendChild(scenarioLabel);
-    button('pause', text().pause, () => { this.paused = !this.paused; });
-    button('step', text().step, () => this.tick(1 / RECORD_FPS), extras);
-    button('slow', text().slow, () => { this.slow = !this.slow; this.fast = false; }, extras);
-    button('fast', text().fast, () => { this.fast = !this.fast; this.slow = false; }, extras);
+    button('cancelStorm', text().cancel, () => this.stormDialog.close(), this.stormDialog);
     button('model', text().model, () => { this.model = !this.model; });
-    button('previous', text().previous, () => { this.showPrevious = !this.showPrevious; }, extras);
     button('reset', text().reset, () => { this.more.open = false; this.newScene(); }, extras);
     tools.appendChild(this.more);
     const footer = document.createElement('footer'); footer.className = 'delta-footer';
@@ -121,8 +128,8 @@ class FloodInstance implements GameInstance {
     this.timeline.setAttribute('aria-label', text().scrub);
     this.timeline.addEventListener('input', () => { this.paused = true; this.seek(Number(this.timeline.value)); this.updateUI(); });
     this.inspection = document.createElement('div'); this.inspection.className = 'delta-inspection';
-    footer.append(this.timebar, this.timeline, this.status, this.inspection, tools);
-    this.ui.append(header, footer); this.host.overlay.appendChild(this.ui);
+    footer.append(this.timebar, this.timeline, this.playback, this.status, this.inspection, tools);
+    this.ui.append(header, footer, this.stormDialog); this.host.overlay.appendChild(this.ui);
     window.addEventListener('blur', this.cancel);
     this.host.canvas.addEventListener('pointerdown', this.down);
     this.host.canvas.addEventListener('pointermove', this.move);
@@ -136,7 +143,7 @@ class FloodInstance implements GameInstance {
     this.more.open = false;
     this.recordingJob?.abort();
     const controller = new AbortController(); this.recordingJob = controller;
-    this.phase = 'calculating'; this.elapsed = 0; this.paused = false; this.flooded.clear(); this.error = '';
+    this.fast = false; this.phase = 'calculating'; this.elapsed = 0; this.paused = false; this.flooded.clear(); this.error = '';
     resetWater(this.sim); this.recording = null;
     this.updateUI();
     try {
@@ -151,14 +158,13 @@ class FloodInstance implements GameInstance {
   }
   private newScene(): void {
     this.recordingJob?.abort();
-    this.cancel(); this.recording = null; this.sim = makeScene(this.scenario); this.base = this.sim.terrain.slice();
-    this.budget = scenarioBudget(this.scenario); this.strokes = []; this.previous = null; this.showPrevious = false;
+    this.cancel(); this.recording = null; this.sim = makeScene(); this.base = this.sim.terrain.slice();
+    this.budget = BUDGET; this.strokes = [];
     this.phase = 'build'; this.flooded.clear(); this.elapsed = 0; this.error = ''; this.paused = false; this.fast = false;
     this.timeline.max = String(this.duration);
   }
   private rewind(): void {
     this.recordingJob?.abort();
-    this.previous = this.recording?.maximumThrough(this.elapsed) ?? null; this.showPrevious = false;
     this.recording = null;
     this.phase = 'build'; this.elapsed = 0; this.flooded.clear(); this.paused = false; this.fast = false;
     resetWater(this.sim); this.error = '';
@@ -180,7 +186,7 @@ class FloodInstance implements GameInstance {
     const wasRecovering = this.recovering;
     this.seek(this.elapsed + dt);
     // Finish an unattended round within the kiosk idle window; visitors can slow it down.
-    if (!wasRecovering && this.recovering && !this.paused && !this.slow) this.fast = true;
+    if (!wasRecovering && this.recovering && !this.paused) this.fast = true;
   }
   frame(dt: number): void {
     if (this.phase === 'build') {
@@ -193,7 +199,7 @@ class FloodInstance implements GameInstance {
       this.sim.advance(duration);
       this.livePumpRate = duration > 0 ? (this.sim.pumpedVolume - before) / duration : 0;
     }
-    if (!this.paused) this.tick(Math.min(dt, .05) * (this.slow ? .25 : this.fast ? 4 : 1));
+    if (!this.paused) this.tick(Math.min(dt, .05) * (this.fast ? 4 : 1));
     this.updateUI(); this.draw();
   }
   private updateUI(): void {
@@ -204,20 +210,18 @@ class FloodInstance implements GameInstance {
     this.buttons.rewind.hidden = this.phase === 'build';
     this.buttons.undo.hidden = this.phase !== 'build';
     this.buttons.undo.disabled = !this.strokes.length;
-    this.scenarioControl.hidden = this.phase !== 'build';
-    this.ui.querySelectorAll('select').forEach(select => { select.disabled = this.phase !== 'build'; });
-    this.buttons.pause.hidden = this.phase !== 'storm';
-    this.buttons.pause.textContent = this.paused ? t.resume : t.pause;
-    this.buttons.step.hidden = this.phase !== 'storm' || !this.paused;
-    this.buttons.fast.hidden = this.phase === 'build';
+    this.buttons.reset.hidden = this.phase !== 'build';
+    this.playback.hidden = !this.recording;
+    const playing = !this.paused && this.phase === 'storm';
+    this.buttons.pause.textContent = playing ? 'Ⅱ' : '▶';
+    this.buttons.pause.setAttribute('aria-label', playing ? t.pause : t.resume);
+    this.buttons.pause.title = playing ? t.pause : t.resume;
+    this.buttons.back.disabled = this.elapsed <= 0;
+    this.buttons.forward.disabled = this.elapsed >= this.duration;
     this.buttons.fast.setAttribute('aria-pressed', String(this.fast));
-    this.buttons.slow.hidden = this.phase === 'build';
-    this.buttons.slow.setAttribute('aria-pressed', String(this.slow));
     this.buttons.model.textContent = this.model ? t.landscape : t.model;
     this.buttons.model.setAttribute('aria-pressed', String(this.model));
-    this.buttons.previous.hidden = !this.previous;
-    this.buttons.previous.setAttribute('aria-pressed', String(this.showPrevious));
-    this.timebar.style.setProperty('--progress', `${100 * this.elapsed / this.duration}%`);
+    this.timeline.style.setProperty('--progress', `${100 * this.elapsed / this.duration}%`);
     this.timebar.textContent = this.phase === 'calculating' ? t.calculating : this.phase === 'build' ? t.ready : `${this.recovering ? t.recovery : this.scenario === 'waves' ? t.wavesMode : t.stormTime}   ${this.elapsed.toFixed(0)} / ${this.duration} s`;
     this.timeline.hidden = !this.recording;
     this.timeline.value = String(this.elapsed);
@@ -317,9 +321,7 @@ class FloodInstance implements GameInstance {
           const p = this.project(x+.2,y+.5,z+h); c.strokeStyle = '#b9eeef60'; c.lineWidth = .7; c.beginPath(); c.moveTo(p.x,p.y); c.lineTo(p.x+7,p.y+1); c.stroke();
         }
       }
-      if (this.showPrevious && this.previous && this.previous[i] > .3 && x > 24 && (x+y)%3===0) {
-        const p = this.project(x+.5,y+.5,z+h+.03); c.fillStyle = '#f4c1a2'; c.fillRect(p.x-1.4,p.y-1.4,2.8,2.8);
-      }
+
     }
     if (!this.model) {
       // Small lanes and trees give the polder a human scale without hiding flow.
