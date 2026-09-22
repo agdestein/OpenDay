@@ -6,8 +6,17 @@
 import type { ArcadeGame, GameHost, GameInstance } from '../../shell/types';
 import { scoreFlow, type ScoreFlowHandle } from '../../shell/scoreflow';
 import { AGES, CITY_H, CITY_W, COLOR, MAP_W, OutbreakSim, TOY_DISEASE, type Age } from './sim';
-import { BATCH_DOSES, Futures, ROUNDS, RoundRun, type RoundId } from './rounds';
-import { drawScene, drawSickLines, type Ripple } from './render';
+import {
+  BATCH_DOSES,
+  FORECAST_DAYS,
+  Futures,
+  ROUNDS,
+  RoundRun,
+  forecast,
+  type RoundId,
+  type Scenario,
+} from './rounds';
+import { LINE_GREEN, LINE_GREY, drawScene, drawSickLines, type Ripple } from './render';
 import {
   delvePanel,
   delveToggle,
@@ -24,6 +33,10 @@ const TOY_DEATHS = new URLSearchParams(location.search).has('deaths');
 const FUTURES = 8;
 /** Milliseconds per frame spent simulating futures. */
 const FUTURES_BUDGET_MS = 5;
+/** Futures per scenario when the player asks the model. */
+const FORECAST_RUNS = 8;
+/** How close (virtual pixels) a click must be to a sick person to isolate them. */
+const PICK_RADIUS = 40;
 /** Quiet spells (few sick people) run this many times faster. */
 const QUIET_SPEEDUP = 3;
 const QUIET_BELOW = 6;
@@ -42,6 +55,23 @@ const TEXT: Localized<{
   toolInfect: string;
   toolVaccinate: string;
   toolSoap: string;
+  toolIsolate: string;
+  isolateCount: (n: number) => string;
+  hintIsolate: string;
+  hintIsolated: string;
+  hintNoTests: (every: number) => string;
+  toolsIsolate: (every: number, max: number) => string;
+  hiddenNote: string;
+  toolForecast: string;
+  forecastTitle: (days: number) => string;
+  forecastRunning: (done: number, total: number) => string;
+  scenarios: Record<Scenario, string>;
+  moreDeaths: (lo: number, hi: number) => string;
+  moreSick: (lo: number, hi: number) => string;
+  forecastLegend: (alt: string | null) => string;
+  forecastUncertain: string;
+  forecastNoClosure: string;
+  backToTown: string;
   closeSchool: string;
   openSchool: string;
   closeMarket: string;
@@ -93,6 +123,30 @@ const TEXT: Localized<{
     toolInfect: 'Infect',
     toolVaccinate: 'Vaccinate',
     toolSoap: 'Soap',
+    toolIsolate: 'Isolate',
+    isolateCount: (n) => `Isolate ×${n}`,
+    hintIsolate: 'Click a sick (red) person to test them and send them home until they are better.',
+    hintIsolated: '🏠 Isolated: they stay home until they are better.',
+    hintNoTests: (every) => `No tests left — a new one arrives every ${every} days.`,
+    toolsIsolate: (every, max) =>
+      `🏠 isolate sick people by clicking them: a new test every ${every} days (up to ${max} saved)`,
+    hiddenNote: 'Careful: people spread it before they look sick. You only see the known cases.',
+    toolForecast: 'Forecast',
+    forecastTitle: (days) => `🔮 Asking the model: the next ${days} days`,
+    forecastRunning: (done, total) => `💻 Simulating ${total} futures… ${done}/${total}`,
+    scenarios: {
+      same: 'If nothing changes',
+      close: 'If you close the school and market now',
+      open: 'If you open everything again now',
+    },
+    moreDeaths: (lo, hi) => (hi === 0 ? 'no more deaths' : `${span(lo, hi)} more deaths`),
+    moreSick: (lo, hi) => `${span(lo, hi)} more people get sick`,
+    forecastLegend: (alt) =>
+      `red: your town so far · grey: if nothing changes${alt ? ` · green: ${alt.toLowerCase()}` : ''}`,
+    forecastUncertain:
+      'This virus is new, so its numbers are only roughly known: every future guesses them a little differently. The more cases you have seen, the narrower the spread.',
+    forecastNoClosure: 'No closing days left, so there is no other plan to compare.',
+    backToTown: '▶ Back to the town',
     closeSchool: 'Close school',
     openSchool: 'Open school',
     closeMarket: 'Close market',
@@ -110,7 +164,7 @@ const TEXT: Localized<{
     roundBlurbs: {
       flu: 'It spreads steadily. Most people are better in a week, but for grandparents it can be dangerous.',
       fever: 'Very contagious: it races through town and can fill the hospital fast.',
-      unknown: 'A new virus, serious for everyone. Scientists are still making a vaccine.',
+      unknown: 'A new virus, serious for everyone, and people spread it for days before they feel sick. Scientists are still making a vaccine, and nobody knows its numbers exactly yet.',
     },
     contagious: 'Contagious',
     serious: 'Serious',
@@ -142,7 +196,7 @@ const TEXT: Localized<{
     chartCaption: 'Sick people, day by day — grey: the town without you; red: your town',
     tips: {
       flu: 'Tip: this flu is mostly dangerous for grandparents. Protecting them directly saves the most lives.',
-      fever: 'Tip: closing when the wave is building up — not at the very first case — keeps the hospital from overflowing.',
+      fever: 'Tip: close before the wave gets big. Once the hospital is already full, closing comes too late.',
       unknown: 'Tip: closing early buys time until the vaccine arrives.',
     },
     nextRound: '▶ Next round',
@@ -160,6 +214,30 @@ const TEXT: Localized<{
     toolInfect: 'Besmetten',
     toolVaccinate: 'Vaccineren',
     toolSoap: 'Zeep',
+    toolIsolate: 'Isoleren',
+    isolateCount: (n) => `Isoleren ×${n}`,
+    hintIsolate: 'Klik op een zieke (rode) persoon om die te testen en naar huis te sturen tot die beter is.',
+    hintIsolated: '🏠 Geïsoleerd: blijft thuis tot die beter is.',
+    hintNoTests: (every) => `Geen tests meer — elke ${every} dagen komt er een nieuwe.`,
+    toolsIsolate: (every, max) =>
+      `🏠 zieken isoleren door erop te klikken: elke ${every} dagen een nieuwe test (maximaal ${max} bewaren)`,
+    hiddenNote: 'Let op: mensen verspreiden het al voordat ze er ziek uitzien. Je ziet alleen de bekende gevallen.',
+    toolForecast: 'Voorspel',
+    forecastTitle: (days) => `🔮 Het model vragen: de komende ${days} dagen`,
+    forecastRunning: (done, total) => `💻 ${total} toekomsten simuleren… ${done}/${total}`,
+    scenarios: {
+      same: 'Als er niets verandert',
+      close: 'Als je nu de school en de markt sluit',
+      open: 'Als je nu alles weer opent',
+    },
+    moreDeaths: (lo, hi) => (hi === 0 ? 'niemand meer overleden' : `nog ${span(lo, hi)} overleden`),
+    moreSick: (lo, hi) => `nog ${span(lo, hi)} mensen worden ziek`,
+    forecastLegend: (alt) =>
+      `rood: jouw stad tot nu toe · grijs: als er niets verandert${alt ? ` · groen: ${alt.toLowerCase()}` : ''}`,
+    forecastUncertain:
+      'Dit virus is nieuw, dus de getallen zijn maar ongeveer bekend: elke toekomst schat ze een beetje anders. Hoe meer gevallen je hebt gezien, hoe kleiner de spreiding.',
+    forecastNoClosure: 'Geen sluitingsdagen meer, dus er is geen ander plan om mee te vergelijken.',
+    backToTown: '▶ Terug naar de stad',
     closeSchool: 'School dicht',
     openSchool: 'School open',
     closeMarket: 'Markt dicht',
@@ -177,7 +255,7 @@ const TEXT: Localized<{
     roundBlurbs: {
       flu: 'Verspreidt zich gestaag. De meeste mensen zijn binnen een week beter, maar voor opa’s en oma’s kan het gevaarlijk zijn.',
       fever: 'Heel besmettelijk: raast door de stad en kan het ziekenhuis snel vullen.',
-      unknown: 'Een nieuw virus, ernstig voor iedereen. Wetenschappers maken nog een vaccin.',
+      unknown: 'Een nieuw virus, ernstig voor iedereen, en mensen verspreiden het al dagen voordat ze zich ziek voelen. Wetenschappers maken nog een vaccin, en niemand kent de getallen nog precies.',
     },
     contagious: 'Besmettelijk',
     serious: 'Ernstig',
@@ -209,7 +287,7 @@ const TEXT: Localized<{
     chartCaption: 'Zieke mensen, dag na dag — grijs: de stad zonder jou; rood: jouw stad',
     tips: {
       flu: 'Tip: deze griep is vooral gevaarlijk voor opa’s en oma’s. Hen direct beschermen redt de meeste levens.',
-      fever: 'Tip: sluiten als de golf aan het opbouwen is — niet al bij het allereerste geval — houdt het ziekenhuis uit de problemen.',
+      fever: 'Tip: sluit voordat de golf groot wordt. Als het ziekenhuis al vol ligt, komt sluiten te laat.',
       unknown: 'Tip: vroeg sluiten koopt tijd tot het vaccin er is.',
     },
     nextRound: '▶ Volgende ronde',
@@ -227,6 +305,30 @@ const TEXT: Localized<{
     toolInfect: 'Smitt',
     toolVaccinate: 'Vaksiner',
     toolSoap: 'Såpe',
+    toolIsolate: 'Isoler',
+    isolateCount: (n) => `Isoler ×${n}`,
+    hintIsolate: 'Klikk på en syk (rød) person for å teste dem og sende dem hjem til de er friske.',
+    hintIsolated: '🏠 Isolert: blir hjemme til de er friske.',
+    hintNoTests: (every) => `Ingen tester igjen — en ny kommer hver ${every}. dag.`,
+    toolsIsolate: (every, max) =>
+      `🏠 isoler syke ved å klikke på dem: en ny test hver ${every}. dag (opptil ${max} spart opp)`,
+    hiddenNote: 'Obs: folk sprer det før de ser syke ut. Du ser bare de kjente tilfellene.',
+    toolForecast: 'Prognose',
+    forecastTitle: (days) => `🔮 Spør modellen: de neste ${days} dagene`,
+    forecastRunning: (done, total) => `💻 Simulerer ${total} fremtider… ${done}/${total}`,
+    scenarios: {
+      same: 'Hvis ingenting endres',
+      close: 'Hvis du stenger skolen og torget nå',
+      open: 'Hvis du åpner alt igjen nå',
+    },
+    moreDeaths: (lo, hi) => (hi === 0 ? 'ingen flere døde' : `${span(lo, hi)} flere døde`),
+    moreSick: (lo, hi) => `${span(lo, hi)} flere blir syke`,
+    forecastLegend: (alt) =>
+      `rødt: byen din så langt · grått: hvis ingenting endres${alt ? ` · grønt: ${alt.toLowerCase()}` : ''}`,
+    forecastUncertain:
+      'Dette viruset er nytt, så tallene er bare omtrent kjent: hver fremtid gjetter dem litt forskjellig. Jo flere tilfeller du har sett, desto smalere blir spredningen.',
+    forecastNoClosure: 'Ingen stengedager igjen, så det finnes ingen annen plan å sammenligne med.',
+    backToTown: '▶ Tilbake til byen',
     closeSchool: 'Steng skolen',
     openSchool: 'Åpne skolen',
     closeMarket: 'Steng torget',
@@ -244,7 +346,7 @@ const TEXT: Localized<{
     roundBlurbs: {
       flu: 'Sprer seg jevnt og trutt. De fleste er friske igjen etter en uke, men for besteforeldre kan den være farlig.',
       fever: 'Svært smittsom: den raser gjennom byen og kan fylle sykehuset fort.',
-      unknown: 'Et nytt virus, alvorlig for alle. Forskerne holder fortsatt på å lage en vaksine.',
+      unknown: 'Et nytt virus, alvorlig for alle, og folk sprer det i flere dager før de føler seg syke. Forskerne holder fortsatt på å lage en vaksine, og ingen kjenner tallene helt ennå.',
     },
     contagious: 'Smittsom',
     serious: 'Alvorlig',
@@ -276,7 +378,7 @@ const TEXT: Localized<{
     chartCaption: 'Syke, dag for dag — grått: byen uten deg; rødt: byen din',
     tips: {
       flu: 'Tips: denne influensaen er mest farlig for besteforeldre. Å beskytte dem direkte redder flest liv.',
-      fever: 'Tips: å stenge mens bølgen bygger seg opp — ikke allerede ved det aller første tilfellet — hindrer at sykehuset renner over.',
+      fever: 'Tips: steng før bølgen blir stor. Når sykehuset allerede er fullt, kommer stengingen for sent.',
       unknown: 'Tips: å stenge tidlig kjøper tid til vaksinen kommer.',
     },
     nextRound: '▶ Neste runde',
@@ -289,8 +391,28 @@ const TEXT: Localized<{
   },
 };
 
-type Tool = 'infect' | 'vaccine' | 'soap';
-type GamePhase = 'intro' | 'running' | 'summary';
+type Tool = 'infect' | 'vaccine' | 'soap' | 'isolate';
+type GamePhase = 'intro' | 'running' | 'forecast' | 'summary';
+
+interface ForecastView {
+  same: Futures;
+  alt: Futures | null;
+  altKind: Scenario | null;
+  from: number;
+  deathsNow: number;
+  everSickNow: number;
+  chart: HTMLCanvasElement;
+  status: HTMLElement;
+  results: HTMLElement;
+}
+
+/** "3–7", or just "3" when both ends agree. */
+function span(lo: number, hi: number): string {
+  return lo === hi ? String(lo) : `${lo}–${hi}`;
+}
+
+/** Everyone who has caught it so far (sick, recovered or died). */
+const everSick = (sim: OutbreakSim) => sim.counts.i + sim.counts.r + sim.counts.d;
 
 const stars = (n: number) => '★'.repeat(n) + '☆'.repeat(3 - n);
 
@@ -310,6 +432,8 @@ class OutbreakInstance implements GameInstance {
   private quiet = false;
   /** A free-play outbreak is under way (for the "it's over" hints). */
   private toyOutbreak = false;
+  private testsShown = -1;
+  private forecastView: ForecastView | null = null;
 
   private toyBar!: HTMLElement;
   private gameBar!: HTMLElement;
@@ -330,6 +454,7 @@ class OutbreakInstance implements GameInstance {
     }
     const { x, y } = this.toVirtual(e);
     if (this.mode === 'toy') this.toyClick(x, y);
+    else if (this.phase === 'running') this.gameClick(x, y);
   };
 
   constructor(private host: GameHost) {
@@ -359,6 +484,7 @@ class OutbreakInstance implements GameInstance {
         this.hint.textContent = everSick < 10 ? pick(TEXT).fizzled : pick(TEXT).outbreakOver;
       }
     } else if (this.phase === 'running') this.stepRound(dt);
+    else if (this.phase === 'forecast') this.stepForecast();
     if (this.futures && !this.futures.complete) {
       this.futures.work(FUTURES_BUDGET_MS);
       this.updateFuturesLine();
@@ -453,7 +579,8 @@ class OutbreakInstance implements GameInstance {
       const [contagious, serious] = RATINGS[round.id];
       const rating = document.createElement('p');
       rating.className = 'outbreak-rating';
-      rating.textContent = `${T.contagious} ${stars(contagious)}   ·   ${T.serious} ${stars(serious)}`;
+      const rate = (n: number) => (round.uncertain ? '???' : stars(n));
+      rating.textContent = `${T.contagious} ${rate(contagious)}   ·   ${T.serious} ${rate(serious)}`;
       const blurb = document.createElement('p');
       blurb.className = 'score-flow-prompt';
       blurb.textContent = T.roundBlurbs[round.id];
@@ -463,7 +590,9 @@ class OutbreakInstance implements GameInstance {
       const lines: string[] = [];
       if (now > 0) lines.push(T.vaccineNow(now, BATCH_DOSES));
       for (const day of round.batches.filter((d) => d > 0)) lines.push(T.vaccineLater(day, BATCH_DOSES));
+      lines.push(T.toolsIsolate(round.tests.every, round.tests.max));
       lines.push(T.closing(round.closureDays));
+      lines.push(`🔮 ${T.toolForecast}`);
       for (const text of lines) {
         const li = document.createElement('li');
         li.textContent = text;
@@ -488,7 +617,10 @@ class OutbreakInstance implements GameInstance {
         this.updateGameButtons();
       });
       actions.appendChild(go);
-      card.append(heading, name, rating, blurb, toolsIntro, tools, this.futuresLine, actions);
+      const hidden = document.createElement('p');
+      hidden.className = 'outbreak-tip';
+      hidden.textContent = T.hiddenNote;
+      card.append(heading, name, rating, blurb, hidden, toolsIntro, tools, this.futuresLine, actions);
     });
   }
 
@@ -524,7 +656,152 @@ class OutbreakInstance implements GameInstance {
         this.updateGameButtons();
       }
     }
+    if (run.testsReady !== this.testsShown) this.updateGameButtons();
     if (run.finished) this.endRound();
+  }
+
+  private gameClick(x: number, y: number): void {
+    const run = this.run;
+    if (!run || x > MAP_W) return;
+    const T = pick(TEXT);
+    const agent = this.sim.sickNear(x, y, PICK_RADIUS);
+    if (!agent) return;
+    if (run.testsReady <= 0) {
+      this.hint.textContent = T.hintNoTests(run.round.tests.every);
+      return;
+    }
+    if (run.isolate(agent)) {
+      this.ripples.push({ x: agent.x, y: agent.y, t: 0, color: '#eef2ff', size: 30 });
+      this.hint.textContent = T.hintIsolated;
+      this.updateGameButtons();
+    }
+  }
+
+  // ---- asking the model ----
+
+  private openForecast(): void {
+    const run = this.run;
+    if (this.phase !== 'running' || !run) return;
+    const T = pick(TEXT);
+    const anyClosed = !this.sim.schoolOpen || !this.sim.marketOpen;
+    const altKind: Scenario | null = anyClosed ? 'open' : run.closureLeft > 0 ? 'close' : null;
+    this.phase = 'forecast';
+    this.updateGameButtons();
+    this.showCard((card) => {
+      card.classList.add('outbreak-summary');
+      const heading = document.createElement('h2');
+      heading.textContent = T.forecastTitle(FORECAST_DAYS);
+      const chart = document.createElement('canvas');
+      chart.className = 'outbreak-chart';
+      const caption = document.createElement('p');
+      caption.className = 'outbreak-caption';
+      caption.textContent = T.forecastLegend(altKind ? T.scenarios[altKind] : null);
+      const status = document.createElement('p');
+      status.className = 'outbreak-futures';
+      const results = document.createElement('div');
+      results.className = 'outbreak-forecast-results';
+      const notes: string[] = [];
+      if (run.round.uncertain) notes.push(T.forecastUncertain);
+      if (!altKind) notes.push(T.forecastNoClosure);
+      const actions = document.createElement('div');
+      actions.className = 'score-flow-actions';
+      const back = document.createElement('button');
+      back.className = 'arcade-button';
+      back.textContent = T.backToTown;
+      back.addEventListener('click', () => this.closeForecast());
+      actions.appendChild(back);
+      card.append(heading, chart, caption, status, results);
+      for (const text of notes) {
+        const p = document.createElement('p');
+        p.className = 'outbreak-tip';
+        p.textContent = text;
+        card.appendChild(p);
+      }
+      card.appendChild(actions);
+      this.forecastView = {
+        same: forecast(run, 'same', FORECAST_RUNS),
+        alt: altKind ? forecast(run, altKind, FORECAST_RUNS) : null,
+        altKind,
+        from: this.sim.day,
+        deathsNow: this.sim.counts.d,
+        everSickNow: everSick(this.sim),
+        chart,
+        status,
+        results,
+      };
+    });
+    this.stepForecast();
+  }
+
+  private stepForecast(): void {
+    const view = this.forecastView;
+    if (!view || view.results.childElementCount > 0) return;
+    const T = pick(TEXT);
+    const sets = [view.same, ...(view.alt ? [view.alt] : [])];
+    const total = sets.length * FORECAST_RUNS;
+    for (const f of sets) if (!f.complete) f.work(FUTURES_BUDGET_MS);
+    const done = sets.reduce((a, f) => a + f.done, 0);
+    view.status.textContent = T.forecastRunning(done, total);
+    this.drawForecastChart(view);
+    if (!sets.every((f) => f.complete)) return;
+    view.status.textContent = '';
+    const describe = (label: string, f: Futures, className: string) => {
+      const more = f.runs.map((r) => r.sim.counts.d - view.deathsNow);
+      const sick = f.runs.map((r) => everSick(r.sim) - view.everSickNow);
+      const p = document.createElement('p');
+      p.className = className;
+      const strong = document.createElement('strong');
+      strong.textContent = `${label}: `;
+      p.append(
+        strong,
+        `${T.moreSick(Math.min(...sick), Math.max(...sick))}, ${T.moreDeaths(Math.min(...more), Math.max(...more))}`,
+      );
+      view.results.appendChild(p);
+    };
+    describe(T.scenarios.same, view.same, 'outbreak-scenario');
+    if (view.alt && view.altKind) {
+      describe(T.scenarios[view.altKind], view.alt, 'outbreak-scenario alt');
+    }
+  }
+
+  private drawForecastChart(view: ForecastView): void {
+    const canvas = view.chart;
+    const w = 520;
+    const h = 190;
+    const dpr = this.host.dpr;
+    if (canvas.width !== w * dpr) {
+      canvas.width = w * dpr;
+      canvas.height = h * dpr;
+    }
+    const ctx = canvas.getContext('2d')!;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    const range: [number, number] = [Math.max(0, view.from - 15), view.from + FORECAST_DAYS];
+    const box = { x: 6, y: 8, w: w - 12, h: h - 34 };
+    drawSickLines(ctx, box, range, [
+      { runs: view.same.runs.map((r) => r.sim.history), color: LINE_GREY, width: 1.6 },
+      ...(view.alt
+        ? [{ runs: view.alt.runs.map((r) => r.sim.history), color: LINE_GREEN, width: 1.6 }]
+        : []),
+      { runs: [this.sim.history], color: COLOR.i, width: 4 },
+    ]);
+    const nowX = box.x + (box.w * (view.from - range[0])) / (range[1] - range[0]);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+    ctx.setLineDash([5, 5]);
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(nowX, box.y);
+    ctx.lineTo(nowX, box.y + box.h);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  private closeForecast(): void {
+    this.forecastView = null;
+    this.card?.remove();
+    this.card = null;
+    if (this.phase === 'forecast') this.phase = 'running';
+    this.updateGameButtons();
   }
 
   private giveVaccine(age: Age): void {
@@ -619,13 +896,10 @@ class OutbreakInstance implements GameInstance {
     canvas.height = h * dpr;
     const ctx = canvas.getContext('2d')!;
     ctx.scale(dpr, dpr);
-    drawSickLines(
-      ctx,
-      { x: 6, y: 8, w: w - 12, h: h - 34 },
-      [0, lastDay],
-      futures.runs.map((r) => r.sim.history),
-      this.sim.history,
-    );
+    drawSickLines(ctx, { x: 6, y: 8, w: w - 12, h: h - 34 }, [0, lastDay], [
+      { runs: futures.runs.map((r) => r.sim.history), color: LINE_GREY, width: 1.6 },
+      { runs: [this.sim.history], color: COLOR.i, width: 4 },
+    ]);
     return canvas;
   }
 
@@ -687,6 +961,11 @@ class OutbreakInstance implements GameInstance {
     } else if (this.tool === 'soap') {
       const venue = this.sim.venueAt(x, y);
       if (venue >= 0) this.sim.venues[venue].soap = !this.sim.venues[venue].soap;
+    } else if (this.tool === 'isolate') {
+      const agent = this.sim.sickNear(x, y, PICK_RADIUS);
+      if (agent && this.sim.isolate(agent)) {
+        this.ripples.push({ x: agent.x, y: agent.y, t: 0, color: '#eef2ff', size: 30 });
+      }
     }
   }
 
@@ -732,6 +1011,10 @@ class OutbreakInstance implements GameInstance {
     add(this.toyBar, 'infect', '🦠', T.toolInfect, () => this.setTool('infect'));
     add(this.toyBar, 'toyVaccine', '💉', T.toolVaccinate, () => this.setTool('vaccine'));
     add(this.toyBar, 'toySoap', '🧼', T.toolSoap, () => this.setTool('soap'));
+    add(this.toyBar, 'toyIsolate', '🏠', T.toolIsolate, () => {
+      this.setTool('isolate');
+      this.hint.textContent = pick(TEXT).hintIsolate;
+    });
     add(this.toyBar, 'toySchool', '🏫', T.closeSchool, () => this.toggleVenue(0));
     add(this.toyBar, 'toyMarket', '🛒', T.closeMarket, () => this.toggleVenue(1));
     add(this.toyBar, 'reset', '🧹', T.reset, () => {
@@ -752,8 +1035,12 @@ class OutbreakInstance implements GameInstance {
         this.giveVaccine(age),
       );
     }
+    add(this.gameBar, 'gameIsolate', '🏠', T.isolateCount(0), () => {
+      this.hint.textContent = pick(TEXT).hintIsolate;
+    });
     add(this.gameBar, 'gameSchool', '🏫', T.closeSchool, () => this.toggleVenue(0));
     add(this.gameBar, 'gameMarket', '🛒', T.closeMarket, () => this.toggleVenue(1));
+    add(this.gameBar, 'forecast', '🔮', T.toolForecast, () => this.openForecast());
     add(this.gameBar, 'stop', '⏹', T.stop, () => this.exitToToy());
 
     this.hud = document.createElement('div');
@@ -771,6 +1058,7 @@ class OutbreakInstance implements GameInstance {
     this.buttons.infect?.classList.toggle('active', tool === 'infect');
     this.buttons.toyVaccine?.classList.toggle('active', tool === 'vaccine');
     this.buttons.toySoap?.classList.toggle('active', tool === 'soap');
+    this.buttons.toyIsolate?.classList.toggle('active', tool === 'isolate');
   }
 
   private setLabel(button: HTMLButtonElement, text: string): void {
@@ -799,6 +1087,11 @@ class OutbreakInstance implements GameInstance {
       b.disabled = !running || ready === 0;
       b.classList.toggle('ready', running && ready > 0);
     }
+    const isolate = this.buttons.gameIsolate;
+    this.setLabel(isolate, T.isolateCount(run.testsReady));
+    isolate.disabled = !running;
+    this.testsShown = run.testsReady;
+    this.buttons.forecast.disabled = !running;
     const venues: [string, number, string, string][] = [
       ['gameSchool', 0, T.closeSchool, T.openSchool],
       ['gameMarket', 1, T.closeMarket, T.openMarket],
@@ -865,6 +1158,7 @@ class OutbreakInstance implements GameInstance {
       highlightVenues: toy && this.tool === 'soap',
       showDeaths: this.sim.deaths,
       lastDay: toy ? undefined : ROUNDS[this.round].lastDay,
+      known: !toy,
     });
   }
 }

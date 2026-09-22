@@ -45,6 +45,8 @@ export interface Disease {
   daysSick: number;
   /** How easily each age catches it (multiplies beta; default 1). */
   catches?: Record<Age, number>;
+  /** Days a new case is contagious before it shows (looks healthy); default 0. */
+  hiddenDays?: number;
   /** Chance an infection turns serious, per age. */
   serious: Record<Age, number>;
   /** Chance a serious case dies if it had a hospital bed the whole time. */
@@ -55,8 +57,9 @@ export interface Disease {
 
 /** Free play: a flu-like disease, a little faster than the challenge's first round. */
 export const TOY_DISEASE: Disease = {
-  beta: 0.7,
+  beta: 1.2,
   daysSick: 8,
+  hiddenDays: 1,
   serious: { kid: 0.01, adult: 0.05, elder: 0.4 },
   dieInBed: { kid: 0, adult: 0.05, elder: 0.2 },
   dieNoBed: { kid: 0.1, adult: 0.3, elder: 0.6 },
@@ -66,9 +69,17 @@ export const TOY_DISEASE: Disease = {
 export const WEIGHTS = { home: 0.5, school: 2, market: 0.35, street: 0.12 };
 /** How strongly a hand-wash station damps transmission at its venue. */
 const SOAP_FACTOR = 0.25;
-/** Serious cases worsen after this share of their illness. */
+/** Serious cases worsen after this share of their illness (and not while hidden). */
 const SERIOUS_ONSET = 0.3;
+/** Isolated people still infect their household, but much less. */
+const ISOLATION_FACTOR = 0.3;
 const HOUSEHOLD_SPREAD = 9;
+/** Mean days per outing and at home between outings, per age (see visitStay/homeStay). */
+const ROUTINE: Record<Age, [number, number]> = {
+  kid: [6, 7],
+  adult: [4.5, 11],
+  elder: [4.5, 29],
+};
 /** Samples per simulated day in `history`. */
 const SAMPLES_PER_DAY = 4;
 
@@ -119,6 +130,8 @@ export interface Agent {
   /** Total days of this illness. */
   sickTotal: number;
   serious: boolean;
+  /** Told to stay home until better (the isolate tool). */
+  isolated: boolean;
   /** Bed index while in hospital, else -1. */
   bed: number;
   /** Days spent seriously ill without a bed. */
@@ -137,6 +150,10 @@ export interface Counts {
   /** Susceptible but vaccinated: protected. */
   v: number;
   i: number;
+  /** Of the sick: not showing it yet. */
+  hidden: number;
+  /** Of the sick: isolating at home. */
+  isolated: number;
   r: number;
   d: number;
   /** Beds in use. */
@@ -170,6 +187,8 @@ const emptyCounts = (): Counts => ({
   s: 0,
   v: 0,
   i: 0,
+  hidden: 0,
+  isolated: 0,
   r: 0,
   d: 0,
   beds: 0,
@@ -264,7 +283,7 @@ export class OutbreakSim {
         const homeX = house.x + this.rand(-HOUSEHOLD_SPREAD, HOUSEHOLD_SPREAD);
         const homeY = house.y + this.rand(-HOUSEHOLD_SPREAD, HOUSEHOLD_SPREAD);
         const age = ages[i];
-        this.agents.push({
+        const agent: Agent = {
           id: this.agents.length,
           x: homeX,
           y: homeY,
@@ -283,15 +302,41 @@ export class OutbreakSim {
           sickLeft: 0,
           sickTotal: 0,
           serious: false,
+          isolated: false,
           bed: -1,
           daysNoBed: 0,
           infectedBy: -1,
           caused: 0,
           changedAt: -99,
-        });
+        };
+        this.startRoutine(agent);
+        this.agents.push(agent);
       }
     }
     this.updateCounts();
+  }
+
+  /**
+   * Put a fresh agent somewhere in its daily routine, as if the town had been
+   * living for a while: some already out at the school or market, the rest
+   * part-way through their time at home. (Starting everyone at home would
+   * send the whole town out together in the first days.)
+   */
+  private startRoutine(a: Agent): void {
+    const [visit, home] = ROUTINE[a.age];
+    if (this.rand() < visit / (visit + home)) {
+      const venue = a.age === 'kid' ? 0 : 1;
+      const v = this.venues[venue];
+      const angle = this.rand() * Math.PI * 2;
+      const r = Math.sqrt(this.rand()) * (v.r - 12);
+      a.x = a.targetX = v.x + Math.cos(angle) * r;
+      a.y = a.targetY = v.y + Math.sin(angle) * r;
+      a.venue = venue;
+      a.phase = 'visit';
+      a.timer = this.rand() * this.visitStay(a);
+    } else {
+      a.timer = this.rand() * this.homeStay(a);
+    }
   }
 
   /** Independent copy with its own random stream, for "what if" futures. */
@@ -410,6 +455,56 @@ export class OutbreakSim {
     return this.venues.findIndex((v) => Math.hypot(x - v.x, y - v.y) < v.r + 20);
   }
 
+  /** Send a visibly sick person home to stay there until better; true on success. */
+  isolate(a: Agent): boolean {
+    if (a.state !== 'I' || a.bed >= 0 || a.isolated || this.isHidden(a)) return false;
+    a.isolated = true;
+    if (a.phase === 'out' || a.phase === 'visit') this.sendHome(a);
+    this.updateCounts();
+    return true;
+  }
+
+  /** The visibly sick, not yet isolated person nearest to (x, y) within `radius`. */
+  sickNear(x: number, y: number, radius: number): Agent | null {
+    let best: Agent | null = null;
+    let bestDist = radius;
+    for (const a of this.agents) {
+      if (a.state !== 'I' || a.bed >= 0 || a.isolated || this.isHidden(a)) continue;
+      const d = Math.hypot(a.x - x, a.y - y);
+      if (d < bestDist) {
+        bestDist = d;
+        best = a;
+      }
+    }
+    return best;
+  }
+
+  /** Infected, contagious, but not showing it yet. */
+  isHidden(a: Agent): boolean {
+    return a.state === 'I' && a.sickTotal - a.sickLeft < this.hiddenFor(a);
+  }
+
+  /**
+   * R measured from the infection tree: how many people each recent case
+   * (caught in the last 2–10 days) has infected so far, scaled up for those
+   * still sick by how far into their illness they are. Lags the epidemic by a
+   * few days, like every real R estimate. Null while there are too few cases.
+   */
+  recentR(): number | null {
+    let caused = 0;
+    let weight = 0;
+    for (const a of this.agents) {
+      if (a.state === 'S' || a.sickTotal <= 0) continue;
+      const sick = a.state === 'I';
+      const infectedAt = sick ? a.changedAt : a.changedAt - a.sickTotal;
+      if (infectedAt < this.day - 10 || infectedAt > this.day - 2) continue;
+      const elapsed = sick ? a.sickTotal - a.sickLeft : a.sickTotal;
+      weight += Math.min(1, elapsed / a.sickTotal);
+      caused += a.caused;
+    }
+    return weight >= 4 ? caused / weight : null;
+  }
+
   /** Mean number of others infected by people whose illness is over (a measured R). */
   measuredR(sinceDay = 0, untilDay = Infinity): { r: number; n: number } {
     let sum = 0;
@@ -453,9 +548,16 @@ export class OutbreakSim {
 
   /** Seriously ill and not (yet) in a hospital bed. */
   needsBed(a: Agent): boolean {
-    return (
-      a.state === 'I' && a.serious && a.bed < 0 && a.sickLeft < a.sickTotal * (1 - SERIOUS_ONSET)
-    );
+    return a.state === 'I' && a.serious && a.bed < 0 && a.sickTotal - a.sickLeft >= this.onset(a);
+  }
+
+  private hiddenFor(a: Agent): number {
+    return Math.min(this.disease.hiddenDays ?? 0, 0.5 * a.sickTotal);
+  }
+
+  /** When a serious case starts needing a bed. */
+  private onset(a: Agent): number {
+    return Math.max(SERIOUS_ONSET * a.sickTotal, this.hiddenFor(a));
   }
 
   private move(a: Agent, dt: number): void {
@@ -465,11 +567,15 @@ export class OutbreakSim {
         break;
       case 'home':
         if (this.needsBed(a)) break; // too ill to go out
+        if (a.isolated && a.state === 'I') break;
         a.timer -= dt;
         if (a.timer <= 0) {
           const venue = a.age === 'kid' ? 0 : 1;
           if (!this.isOpen(venue)) {
-            a.timer = this.rand(3, 8); // closed: stay home, check later
+            // Closed: skip this outing but keep its rhythm (the visit plus the
+            // stay at home after it), so reopening does not send everyone out
+            // at once — a crowded venue would make a false rebound.
+            a.timer = this.visitStay(a) + this.homeStay(a);
             return;
           }
           const v = this.venues[venue];
@@ -486,15 +592,10 @@ export class OutbreakSim {
         if (this.walk(a, dt)) {
           if (a.phase === 'out') {
             a.phase = 'visit';
-            a.timer = a.age === 'kid' ? this.rand(4, 8) : this.rand(3, 6);
+            a.timer = this.visitStay(a);
           } else {
             a.phase = 'home';
-            a.timer =
-              a.age === 'kid'
-                ? this.rand(4, 10)
-                : a.age === 'adult'
-                  ? this.rand(6, 16)
-                  : this.rand(18, 40);
+            a.timer = this.homeStay(a);
           }
         }
         break;
@@ -518,6 +619,18 @@ export class OutbreakSim {
         break;
       }
     }
+  }
+
+  /** Days spent at the school or market per outing. */
+  private visitStay(a: Agent): number {
+    return a.age === 'kid' ? this.rand(4, 8) : this.rand(3, 6);
+  }
+
+  /** Days at home between outings. */
+  private homeStay(a: Agent): number {
+    if (a.age === 'kid') return this.rand(4, 10);
+    if (a.age === 'adult') return this.rand(6, 16);
+    return this.rand(18, 40);
   }
 
   /** Straight-line step toward the target; true when arrived. */
@@ -558,6 +671,7 @@ export class OutbreakSim {
     for (const a of this.agents) {
       if (a.state !== 'I' || a.bed >= 0) continue; // hospital patients are isolated
       const sa = this.setting(a);
+      const own = a.isolated ? ISOLATION_FACTOR : 1;
       const cx = Math.floor(a.x / cell);
       const cy = Math.floor(a.y / cell);
       for (let gx = cx - 1; gx <= cx + 1; gx++) {
@@ -574,7 +688,7 @@ export class OutbreakSim {
             else if (sb === 0) w = WEIGHTS.school;
             else if (sb === 1) w = WEIGHTS.market;
             if (sb >= 0 && sb < 2 && this.venues[sb].soap) w *= SOAP_FACTOR;
-            const p = beta * w * (catches?.[b.age] ?? 1) * dt * (1 - d / INFECTION_RADIUS);
+            const p = beta * w * own * (catches?.[b.age] ?? 1) * dt * (1 - d / INFECTION_RADIUS);
             if (this.rand() < p) this.infect(b, a.id);
           }
         }
@@ -596,13 +710,14 @@ export class OutbreakSim {
       if (a.sickLeft > 0) continue;
       let dies = false;
       if (a.serious && this.deaths) {
-        const seriousDays = a.sickTotal * (1 - SERIOUS_ONSET);
+        const seriousDays = a.sickTotal - this.onset(a);
         const untreated = Math.min(1, a.daysNoBed / seriousDays);
         const p = dz.dieInBed[a.age] + (dz.dieNoBed[a.age] - dz.dieInBed[a.age]) * untreated;
         dies = this.rand() < p;
       }
       if (a.bed >= 0) this.beds[a.bed] = -1;
       a.bed = -1;
+      a.isolated = false;
       a.changedAt = this.day;
       if (dies) {
         a.state = 'D';
@@ -642,6 +757,8 @@ export class OutbreakSim {
         else c.s++;
       } else if (a.state === 'I') {
         c.i++;
+        if (this.isHidden(a)) c.hidden++;
+        if (a.isolated) c.isolated++;
         if (a.bed >= 0) c.beds++;
         else if (this.needsBed(a)) c.waiting++;
       } else if (a.state === 'R') c.r++;

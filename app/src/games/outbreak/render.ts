@@ -9,6 +9,10 @@ const TEXT: Localized<{
   healthy: string;
   vaccinated: string;
   sick: string;
+  sickKnown: string;
+  rLabel: string;
+  rUnknown: string;
+  rCaption: string;
   recovered: string;
   died: string;
   everyone: string;
@@ -26,6 +30,10 @@ const TEXT: Localized<{
     healthy: 'Healthy',
     vaccinated: 'Vaccinated',
     sick: 'Sick',
+    sickKnown: 'Sick (known)',
+    rLabel: 'R',
+    rUnknown: 'R: not known yet',
+    rCaption: 'people infected per recent case',
     recovered: 'Recovered',
     died: 'Died',
     everyone: 'Everyone, day by day',
@@ -43,6 +51,10 @@ const TEXT: Localized<{
     healthy: 'Gezond',
     vaccinated: 'Gevaccineerd',
     sick: 'Ziek',
+    sickKnown: 'Ziek (bekend)',
+    rLabel: 'R',
+    rUnknown: 'R: nog niet bekend',
+    rCaption: 'besmettingen per recent geval',
     recovered: 'Hersteld',
     died: 'Overleden',
     everyone: 'Iedereen, dag na dag',
@@ -60,6 +72,10 @@ const TEXT: Localized<{
     healthy: 'Frisk',
     vaccinated: 'Vaksinert',
     sick: 'Syk',
+    sickKnown: 'Syk (kjent)',
+    rLabel: 'R',
+    rUnknown: 'R: ikke kjent ennå',
+    rCaption: 'smittet per nytt tilfelle',
     recovered: 'Frisk igjen',
     died: 'Døde',
     everyone: 'Alle sammen, dag for dag',
@@ -200,7 +216,16 @@ export function drawCity(
   }
 }
 
-export function drawAgents(ctx: CanvasRenderingContext2D, sim: OutbreakSim, time: number): void {
+/**
+ * People as dots. Cases that do not show yet look healthy unless
+ * `revealHidden` (free play and the explainer), where they get a dashed ring.
+ */
+export function drawAgents(
+  ctx: CanvasRenderingContext2D,
+  sim: OutbreakSim,
+  time: number,
+  revealHidden = true,
+): void {
   const paths = {
     d: new Path2D(),
     r: new Path2D(),
@@ -211,6 +236,8 @@ export function drawAgents(ctx: CanvasRenderingContext2D, sim: OutbreakSim, time
   const halos = new Path2D();
   const elderRings = new Path2D();
   const waitRings = new Path2D();
+  const hiddenRings = new Path2D();
+  const homeBoxes = new Path2D();
   const fresh = new Path2D();
   let k = 0;
   for (const a of sim.agents) {
@@ -227,8 +254,15 @@ export function drawAgents(ctx: CanvasRenderingContext2D, sim: OutbreakSim, time
       continue;
     }
     let path = paths.s;
-    if (a.state === 'I') {
+    if (a.state === 'I' && sim.isHidden(a)) {
+      if (revealHidden) {
+        const r = size + 4;
+        hiddenRings.moveTo(a.x + r, a.y);
+        hiddenRings.arc(a.x, a.y, r, 0, Math.PI * 2);
+      }
+    } else if (a.state === 'I') {
       path = paths.i;
+      if (a.isolated) homeBoxes.rect(a.x - 9, a.y - 9, 18, 18);
       if (a.bed < 0) {
         const r = INFECTION_RADIUS * (1 + 0.12 * Math.sin(time * 4 + k++));
         halos.moveTo(a.x + r, a.y);
@@ -269,6 +303,14 @@ export function drawAgents(ctx: CanvasRenderingContext2D, sim: OutbreakSim, time
   ctx.strokeStyle = COLOR.wait;
   ctx.lineWidth = 2.5;
   ctx.stroke(waitRings);
+  ctx.strokeStyle = 'rgba(255, 90, 110, 0.85)';
+  ctx.lineWidth = 1.6;
+  ctx.setLineDash([3, 3]);
+  ctx.stroke(hiddenRings);
+  ctx.setLineDash([]);
+  ctx.strokeStyle = 'rgba(238, 242, 255, 0.8)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke(homeBoxes);
 }
 
 export function drawRipples(ctx: CanvasRenderingContext2D, ripples: Ripple[]): void {
@@ -295,7 +337,7 @@ export function dayRange(sim: OutbreakSim, lastDay?: number): [number, number] {
 export function drawDashboard(
   ctx: CanvasRenderingContext2D,
   sim: OutbreakSim,
-  opts: { range: [number, number]; showDeaths: boolean; lastDay?: number },
+  opts: { range: [number, number]; showDeaths: boolean; lastDay?: number; known: boolean },
 ): void {
   const T = pick(TEXT);
   const x0 = DASH_X;
@@ -310,12 +352,15 @@ export function drawDashboard(
   ctx.font = 'bold 34px system-ui, sans-serif';
   const dayText = T.day(Math.floor(sim.day));
   ctx.fillText(opts.lastDay ? `${dayText} / ${opts.lastDay}` : dayText, x0, 92);
+  drawR(ctx, sim, x0 + w, 80);
 
   const c = sim.counts;
+  // In the challenge you only see the cases that show: hidden ones look healthy.
+  const hidden = opts.known ? c.hidden : 0;
   const rows: { color: string; label: string; n: number }[] = [
-    { color: COLOR.s, label: T.healthy, n: c.s },
+    { color: COLOR.s, label: T.healthy, n: c.s + hidden },
     { color: COLOR.v, label: T.vaccinated, n: c.v },
-    { color: COLOR.i, label: T.sick, n: c.i },
+    { color: COLOR.i, label: opts.known ? T.sickKnown : T.sick, n: c.i - hidden },
     { color: COLOR.r, label: T.recovered, n: c.r },
   ];
   if (opts.showDeaths) rows.push({ color: COLOR.d, label: T.died, n: c.d });
@@ -346,7 +391,7 @@ export function drawDashboard(
   ctx.font = 'bold 18px system-ui, sans-serif';
   ctx.fillStyle = INK_DIM;
   ctx.fillText(T.everyone, x0, 272);
-  drawStackedChart(ctx, sim.history, { x: x0, y: 284, w, h: 250 }, opts.range, sim.day);
+  drawStackedChart(ctx, sim.history, { x: x0, y: 284, w, h: 250 }, opts.range, sim.day, opts.known);
 
   ctx.textAlign = 'left';
   ctx.font = 'bold 18px system-ui, sans-serif';
@@ -370,13 +415,36 @@ export function drawDashboard(
   }
 }
 
-/** Stacked areas, bottom to top: died, sick, recovered, vaccinated, healthy. */
+/** Live R, top right of the dashboard: red above 1, green below. */
+function drawR(ctx: CanvasRenderingContext2D, sim: OutbreakSim, right: number, y: number): void {
+  const T = pick(TEXT);
+  const r = sim.recentR();
+  ctx.textAlign = 'right';
+  if (r === null) {
+    ctx.font = '18px system-ui, sans-serif';
+    ctx.fillStyle = INK_DIM;
+    ctx.fillText(T.rUnknown, right, y + 6);
+    return;
+  }
+  ctx.font = 'bold 30px system-ui, sans-serif';
+  ctx.fillStyle = r > 1.05 ? COLOR.i : r < 0.95 ? COLOR.v : INK;
+  ctx.fillText(`${T.rLabel} ≈ ${r.toFixed(1)}`, right, y + 6);
+  ctx.font = '13px system-ui, sans-serif';
+  ctx.fillStyle = INK_DIM;
+  ctx.fillText(T.rCaption, right, y + 26);
+}
+
+/**
+ * Stacked areas, bottom to top: died, sick, recovered, vaccinated, healthy.
+ * With `known`, cases that do not show yet are counted as healthy.
+ */
 export function drawStackedChart(
   ctx: CanvasRenderingContext2D,
   history: Sample[],
   box: Box,
   range: [number, number],
   today: number,
+  known = false,
 ): void {
   ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
   ctx.fillRect(box.x, box.y, box.w, box.h);
@@ -400,9 +468,15 @@ export function drawStackedChart(
     ['v', 'rgba(79, 208, 138, 0.6)'],
     ['s', 'rgba(211, 226, 244, 0.16)'],
   ];
+  const value = (s: Sample, key: keyof Sample): number => {
+    const hidden = known ? s.hidden : 0;
+    if (key === 'i') return s.i - hidden;
+    if (key === 's') return s.s + hidden;
+    return s[key] as number;
+  };
   const base = samples.map(() => 0);
   for (const [key, color] of layers) {
-    const top = samples.map((s, k) => base[k] + (s[key] as number));
+    const top = samples.map((s, k) => base[k] + value(s, key));
     ctx.fillStyle = color;
     ctx.beginPath();
     samples.forEach((s, k) => {
@@ -470,19 +544,25 @@ export function drawHospitalChart(
   ctx.fillText(`${BEDS} ${T.capacity}`, box.x + box.w - 6, capY - 6);
 }
 
+export interface LineGroup {
+  runs: Sample[][];
+  color: string;
+  width: number;
+}
+
 /**
- * Sick-people curves of several runs as thin lines, optionally with one run
- * drawn bold on top (the player's town, against its do-nothing futures).
+ * Sick-people curves of several groups of runs on one shared scale — e.g. the
+ * player's town over its do-nothing futures, or two forecast scenarios.
  */
 export function drawSickLines(
   ctx: CanvasRenderingContext2D,
   box: Box,
   range: [number, number],
-  runs: Sample[][],
-  you?: Sample[],
+  groups: LineGroup[],
 ): void {
-  const all = [...runs, ...(you ? [you] : [])];
-  const peak = Math.max(10, ...all.flatMap((h) => h.map((s) => s.i))) * 1.08;
+  const inRange = (h: Sample[]) => h.filter((s) => s.day >= range[0] && s.day <= range[1]);
+  const peak =
+    Math.max(10, ...groups.flatMap((g) => g.runs.flatMap((h) => inRange(h).map((s) => s.i)))) * 1.08;
   const xAt = (day: number) => box.x + (box.w * (day - range[0])) / (range[1] - range[0]);
   const yAt = (n: number) => box.y + box.h - (box.h * n) / peak;
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
@@ -491,28 +571,27 @@ export function drawSickLines(
   ctx.moveTo(box.x, box.y + box.h);
   ctx.lineTo(box.x + box.w, box.y + box.h);
   ctx.stroke();
-  const line = (h: Sample[]) => {
-    ctx.beginPath();
-    h.forEach((s, k) => {
-      if (s.day < range[0] || s.day > range[1]) return;
-      if (k === 0) ctx.moveTo(xAt(s.day), yAt(s.i));
-      else ctx.lineTo(xAt(s.day), yAt(s.i));
-    });
-    ctx.stroke();
-  };
-  ctx.lineWidth = 1.6;
-  ctx.strokeStyle = 'rgba(190, 196, 214, 0.45)';
-  for (const h of runs) line(h);
-  if (you) {
-    ctx.lineWidth = 4;
-    ctx.strokeStyle = COLOR.i;
-    line(you);
+  for (const g of groups) {
+    ctx.lineWidth = g.width;
+    ctx.strokeStyle = g.color;
+    for (const h of g.runs) {
+      ctx.beginPath();
+      inRange(h).forEach((s, k) => {
+        if (k === 0) ctx.moveTo(xAt(s.day), yAt(s.i));
+        else ctx.lineTo(xAt(s.day), yAt(s.i));
+      });
+      ctx.stroke();
+    }
   }
   ctx.fillStyle = INK_DIM;
   ctx.font = '14px system-ui, sans-serif';
   ctx.textAlign = 'right';
   ctx.fillText(pick(TEXT).days, box.x + box.w, box.y + box.h + 18);
 }
+
+/** Grey for "without you" / "if nothing changes", green for the alternative. */
+export const LINE_GREY = 'rgba(190, 196, 214, 0.45)';
+export const LINE_GREEN = 'rgba(79, 208, 138, 0.6)';
 
 /** Full scene in virtual coordinates: map on the left, dashboard on the right. */
 export function drawScene(
@@ -525,14 +604,18 @@ export function drawScene(
     highlightVenues: boolean;
     showDeaths: boolean;
     lastDay?: number;
+    /** Hide cases that do not show yet (the challenge). */
+    known?: boolean;
   },
 ): void {
+  const known = opts.known ?? false;
   drawCity(ctx, sim, opts);
-  drawAgents(ctx, sim, opts.time);
+  drawAgents(ctx, sim, opts.time, !known);
   drawRipples(ctx, ripples);
   drawDashboard(ctx, sim, {
     range: dayRange(sim, opts.lastDay),
     showDeaths: opts.showDeaths,
     lastDay: opts.lastDay,
+    known,
   });
 }

@@ -41,6 +41,8 @@
 
 .outbreak-summary {
   max-width: min(40rem, 94%);
+  max-height: 94vh;
+  overflow-y: auto;
 }
 
 .outbreak-chart {
@@ -59,4 +61,21 @@
   margin-top: 0.9rem;
   font-size: 0.95rem;
   color: #fbd38d;
+}
+
+.outbreak-forecast-results {
+  margin-top: 0.6rem;
+  text-align: left;
+  max-width: 34rem;
+  margin-inline: auto;
+}
+
+.outbreak-scenario {
+  margin-top: 0.35rem;
+  padding-left: 0.8rem;
+  border-left: 4px solid rgba(190, 196, 214, 0.7);
+}
+
+.outbreak-scenario.alt {
+  border-left-color: #4fd08a;
 }
