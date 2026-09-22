@@ -50,6 +50,10 @@ Planned first games (see [docs/plan.md](docs/plan.md) for the full implementatio
 3. **Save the Netherlands** — build dikes against a storm surge, on a budget.
 4. **Creature Lab** — build a stick creature and watch evolution teach it to walk;
    race your champion against the reigning champ of the day.
+5. **Weather Detective** — a real KNMI weather map hides under the fog; place
+   thermometers and a Gaussian process guesses the rest, shows how sure it is, and
+   "dreams" possible weathers. Three cases: find the hottest place, make the weather
+   map for the news, catch the lying home weather stations.
 
 ## Running the app
 
@@ -110,10 +114,23 @@ Rusanov fluxes, wetting and drying, and an ocean boundary.
 The diorama includes dike previews, undo, scrubbable surge and three-wave challenges,
 a permanent pond with automatic pumping, hold-to-build sand, and a numerical model view. See [the remake notes](docs/floodland-remake.md) for scope and validation.
 
+Weather Detective (`app/src/games/detective/`) grew out of our group's project with
+[KNMI](https://www.knmi.nl/) on multi-fidelity Gaussian process regression of
+crowdsourced (home) and official weather stations, and out of last year's Science Day
+game about that project,
+[CWI_gp_temp_scienceday](https://github.com/rik-stra/CWI_gp_temp_scienceday) by Rik
+Hoekstra. Its temperature maps are KNMI's high-resolution weather maps of four days in
+2025 (from that game), adapted for play; the Europe dot map in its explainer shows
+the official stations and synthetic home stations shaped like the project's data (no
+real home-station locations). `tools/detective/prep.jl`
+turns them into the game's data file. See [the notes](docs/weather-detective.md) for
+the model, the cases and their calibration (`npm run test:detective`).
+
 ## Repository layout
 
 - `README.md` — this file, the entry point.
 - `docs/message.md` — goals: what the stand should achieve and communicate.
 - `docs/ideas.md` — catalog of game ideas (built, planned, and future).
 - `docs/plan.md` — architecture and phased implementation plan.
+- `tools/` — one-off data preparation scripts (not shipped).
 - `app/` — the arcade web app (Vite + TypeScript; games live in `app/src/games/`).
