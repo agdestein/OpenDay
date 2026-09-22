@@ -1,0 +1,62 @@
+/* Outbreak!: round cards, the end-of-round comparison, vaccine buttons. */
+
+.tool-button.ready {
+  border-color: #4fd08a;
+  box-shadow: 0 0 0 0 rgba(79, 208, 138, 0.6);
+  animation: outbreak-ready 1.6s ease-out infinite;
+}
+
+@keyframes outbreak-ready {
+  to {
+    box-shadow: 0 0 0 0.6rem rgba(79, 208, 138, 0);
+  }
+}
+
+.outbreak-rating {
+  margin-top: 0.4rem;
+  font-size: 1.05rem;
+  letter-spacing: 0.02em;
+  opacity: 0.85;
+}
+
+.outbreak-tools-intro {
+  margin-top: 1rem;
+  font-weight: 700;
+}
+
+.outbreak-tools {
+  margin: 0.3rem auto 0;
+  padding: 0;
+  list-style: none;
+  max-width: 34rem;
+  text-align: left;
+  line-height: 1.6;
+}
+
+.outbreak-futures {
+  margin-top: 1rem;
+  font-size: 0.95rem;
+  color: #7dd3fc;
+}
+
+.outbreak-summary {
+  max-width: min(40rem, 94%);
+}
+
+.outbreak-chart {
+  display: block;
+  width: min(520px, 100%);
+  height: auto;
+  margin: 1rem auto 0;
+}
+
+.outbreak-caption {
+  font-size: 0.85rem;
+  opacity: 0.65;
+}
+
+.outbreak-tip {
+  margin-top: 0.9rem;
+  font-size: 0.95rem;
+  color: #fbd38d;
+}
