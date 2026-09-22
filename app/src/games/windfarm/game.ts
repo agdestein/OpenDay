@@ -11,6 +11,8 @@ import type { FluidSolver } from './fluid';
 const TEXT: Localized<{
   hintComputer: string;
   hintHuman: string;
+  windTurning: (seconds: number) => string;
+  windTurned: string;
   legendFull: string;
   legendWake: string;
   headingComputerDone: string;
@@ -22,9 +24,12 @@ const TEXT: Localized<{
   computersTurn: string;
 }> = {
   en: {
-    hintComputer: '🤖 The computer is placing turbines — watch it dodge the orange wakes…',
+    hintComputer:
+      '🤖 The computer is planning its farm for all three wind directions at once — watch where the wakes go when the wind turns…',
     hintHuman:
-      'Click to place turbines — orange wakes steal wind from turbines behind! Click one to take it back.',
+      'Click to place turbines — orange wakes steal wind from turbines behind! The wind will turn twice, so plan ahead. Click a turbine to take it back.',
+    windTurning: (n) => `🌬️ The wind turns in ${n}…`,
+    windTurned: '🌬️ The wind has turned! Are your turbines in each other’s wakes now?',
     legendFull: 'full wind',
     legendWake: 'wake (slow)',
     headingComputerDone: '🤖 The computer is done!',
@@ -36,9 +41,12 @@ const TEXT: Localized<{
     computersTurn: '🤖 Computer’s turn',
   },
   nl: {
-    hintComputer: '🤖 De computer plaatst turbines — kijk hoe hij de oranje zog-gebieden ontwijkt…',
+    hintComputer:
+      '🤖 De computer plant zijn park voor alle drie de windrichtingen tegelijk — kijk waar het zog heen gaat als de wind draait…',
     hintHuman:
-      'Klik om turbines te plaatsen — oranje zog steelt wind van turbines erachter! Klik op een turbine om hem terug te pakken.',
+      'Klik om turbines te plaatsen — oranje zog steelt wind van turbines erachter! De wind draait twee keer, dus denk vooruit. Klik op een turbine om hem terug te pakken.',
+    windTurning: (n) => `🌬️ De wind draait over ${n}…`,
+    windTurned: '🌬️ De wind is gedraaid! Staan je turbines nu in elkaars zog?',
     legendFull: 'volle wind',
     legendWake: 'zog (langzaam)',
     headingComputerDone: '🤖 De computer is klaar!',
@@ -51,9 +59,11 @@ const TEXT: Localized<{
   },
   no: {
     hintComputer:
-      '🤖 Datamaskinen plasserer turbiner — se hvordan den unngår de oransje kjølvannssonene…',
+      '🤖 Datamaskinen planlegger vindparken for alle tre vindretningene samtidig — se hvor kjølvannet går når vinden snur…',
     hintHuman:
-      'Klikk for å plassere turbiner — oransje kjølvann stjeler vind fra turbinene bak! Klikk på en turbin for å ta den tilbake.',
+      'Klikk for å plassere turbiner — oransje kjølvann stjeler vind fra turbinene bak! Vinden snur to ganger, så tenk fremover. Klikk på en turbin for å ta den tilbake.',
+    windTurning: (n) => `🌬️ Vinden snur om ${n}…`,
+    windTurned: '🌬️ Vinden har snudd! Står turbinene dine i kjølvannet til hverandre nå?',
     legendFull: 'full vind',
     legendWake: 'kjølvann (sakte)',
     headingComputerDone: '🤖 Datamaskinen er ferdig!',
@@ -70,12 +80,33 @@ export const TURBINE_BUDGET = 8;
 export const ROUND_SECONDS = 60;
 /** Rotor radius as a fraction of the screen height (drag disk and sprite). */
 const TURBINE_R = 0.045;
-/** Free-stream wind, must match WIND_SPEED in index.ts (grid cells/sec). */
+/** Free-stream wind, must match WIND_SPEED in index.ts (reference cells/sec). */
 const FREE_WIND = 60;
-/** kW per turbine in undisturbed wind; power scales with (speed/FREE_WIND)^3. */
+/**
+ * Inflow speed a lone turbine measures in undisturbed wind, as a fraction of
+ * FREE_WIND: the probe sits in the rotor's own slow-down zone just upstream.
+ * Calibrated so a turbine in clean wind reads P_MAX.
+ */
+const LONE_INFLOW = 0.845;
+/** kW per turbine in undisturbed wind; power scales with (speed / inflow)^3. */
 const P_MAX = 100;
-/** Sample the incoming wind this far upstream of the rotor (uv units). */
-const PROBE_UPSTREAM = 0.03;
+/** Sample the incoming wind this far upstream of the rotor (screen heights). */
+const PROBE_UPSTREAM = 0.053;
+/**
+ * The wind turns twice per round: from each phase's start time (seconds into
+ * the round) it swings to the phase's direction (degrees, 0 = blowing left to
+ * right, positive = blowing upward) over TURN_SECONDS. A layout that only
+ * dodges the first wind's wakes gets caught by the others — the real reason
+ * wind-farm layout is hard.
+ */
+export const WIND_PHASES = [
+  { at: 0, deg: 0 },
+  { at: 20, deg: 40 },
+  { at: 40, deg: -40 },
+];
+const TURN_SECONDS = 3;
+/** Warn this many seconds before the wind turns. */
+const TURN_WARNING = 5;
 /** Sim-seconds between GPU wind-speed readbacks. */
 const SAMPLE_INTERVAL = 0.05;
 const MARGIN = { x0: 0.05, x1: 0.9, y0: 0.08, y1: 0.92 };
@@ -139,14 +170,35 @@ function createTurbine(layer: HTMLElement, x: number, y: number): Turbine {
   };
 }
 
+function canvasAspect(host: GameHost): number {
+  return host.canvas.clientWidth / Math.max(1, host.canvas.clientHeight);
+}
+
+/** Wind direction (radians) at time `elapsed` seconds into a round. */
+export function windAngleAt(elapsed: number): number {
+  let angle = 0;
+  let prev = 0;
+  for (const phase of WIND_PHASES) {
+    if (elapsed < phase.at) break;
+    const k = clamp((elapsed - phase.at) / TURN_SECONDS, 0, 1);
+    const eased = k * k * (3 - 2 * k);
+    angle = prev + (phase.deg - prev) * eased;
+    prev = phase.deg;
+  }
+  return (angle * Math.PI) / 180;
+}
+
 /** Probe each turbine's inflow and update its speed, power, and kW label. */
-function sampleTurbinePowers(solver: FluidSolver, turbines: Turbine[]): void {
+function sampleTurbinePowers(solver: FluidSolver, turbines: Turbine[], aspect: number): void {
+  // Probe upstream along the current wind direction.
+  const ux = (Math.cos(solver.windAngle) * PROBE_UPSTREAM) / aspect;
+  const uy = Math.sin(solver.windAngle) * PROBE_UPSTREAM;
   const v = solver.sampleVelocities(
-    turbines.map((t) => ({ x: Math.max(0.005, t.x - PROBE_UPSTREAM), y: t.y })),
+    turbines.map((t) => ({ x: clamp(t.x - ux, 0.005, 0.995), y: clamp(t.y - uy, 0.005, 0.995) })),
   );
   turbines.forEach((t, i) => {
     t.speed = Math.hypot(v[i * 2], v[i * 2 + 1]);
-    const frac = clamp(t.speed / FREE_WIND, 0, 1.1);
+    const frac = clamp(t.speed / (LONE_INFLOW * FREE_WIND), 0, 1);
     t.power = P_MAX * frac * frac * frac;
     t.label.textContent = `${Math.round(t.power)} kW`;
     t.el.style.opacity = String(0.4 + 0.6 * clamp(t.power / P_MAX, 0, 1));
@@ -154,20 +206,21 @@ function sampleTurbinePowers(solver: FluidSolver, turbines: Turbine[]): void {
 }
 
 /** Small alternating cross-wind puffs just downstream: wakes meander. */
-function shedTurbulence(solver: FluidSolver, turbines: Turbine[], dt: number): void {
+function shedTurbulence(solver: FluidSolver, turbines: Turbine[], dt: number, aspect: number): void {
+  const cos = Math.cos(solver.windAngle);
+  const sin = Math.sin(solver.windAngle);
   for (const t of turbines) {
     t.shedIn -= dt;
     if (t.shedIn > 0) continue;
     t.shedIn = randRange(0.09, 0.16);
     t.shedSign *= -1;
     if (t.speed < 8) continue;
-    solver.splatVelocity(
-      t.x + 0.02,
-      t.y + (Math.random() - 0.5) * TURBINE_R,
-      0,
-      t.shedSign * t.speed * 0.4,
-      0.0008,
-    );
+    // 0.035 screen heights downstream, jittered across the rotor.
+    const across = (Math.random() - 0.5) * TURBINE_R;
+    const dx = 0.035 * cos - across * sin;
+    const dy = 0.035 * sin + across * cos;
+    const push = t.shedSign * t.speed * 0.4;
+    solver.splatVelocity(t.x + dx / aspect, t.y + dy, -sin * push, cos * push, 0.0008);
   }
 }
 
@@ -177,6 +230,43 @@ function spinRotors(turbines: Turbine[], dt: number): void {
     t.angle = (t.angle + t.speed * 6 * dt) % 360;
     t.rotor.setAttribute('transform', `rotate(${t.angle})`);
   }
+}
+
+/**
+ * Engineering wake model for the computer player: every turbine leaves a
+ * Gaussian-shaped wind deficit that widens and fades downstream (a smooth
+ * cousin of the classic Jensen/Park model), overlapping wakes add up in
+ * squares, and power goes with the cube of the remaining wind. Returns the
+ * total power of the layout, in units of lone turbines, summed over the
+ * round's wind directions. Tuned by eye to match the simulated wakes.
+ */
+const WAKE = { depth: 0.45, length: 1.2, sigma0: 0.8 * TURBINE_R, spread: 0.05 };
+
+function modelFarmPower(spots: { x: number; y: number }[], aspect: number): number {
+  let total = 0;
+  for (const phase of WIND_PHASES) {
+    const c = Math.cos((phase.deg * Math.PI) / 180);
+    const s = Math.sin((phase.deg * Math.PI) / 180);
+    for (const target of spots) {
+      let deficit2 = 0;
+      for (const source of spots) {
+        if (source === target) continue;
+        // Offset in screen-height units, split along / across the wind.
+        const dx = (target.x - source.x) * aspect;
+        const dy = target.y - source.y;
+        const along = dx * c + dy * s;
+        if (along <= 0) continue;
+        const across = -dx * s + dy * c;
+        const sigma = WAKE.sigma0 + WAKE.spread * along;
+        const deficit =
+          WAKE.depth * Math.exp(-along / WAKE.length) * Math.exp(-(across * across) / (2 * sigma * sigma));
+        deficit2 += deficit * deficit;
+      }
+      const wind = 1 - Math.min(0.9, Math.sqrt(deficit2));
+      total += wind * wind * wind;
+    }
+  }
+  return total;
 }
 
 /**
@@ -190,7 +280,7 @@ export class WakeDemo {
   private sinceSample = SAMPLE_INTERVAL;
 
   constructor(
-    host: GameHost,
+    private host: GameHost,
     private solver: FluidSolver,
   ) {
     const T = pick(TEXT);
@@ -218,9 +308,9 @@ export class WakeDemo {
     this.sinceSample += dt;
     if (this.sinceSample >= SAMPLE_INTERVAL) {
       this.sinceSample = 0;
-      sampleTurbinePowers(this.solver, this.turbines);
+      sampleTurbinePowers(this.solver, this.turbines, canvasAspect(this.host));
     }
-    shedTurbulence(this.solver, this.turbines, dt);
+    shedTurbulence(this.solver, this.turbines, dt, canvasAspect(this.host));
     spinRotors(this.turbines, dt);
   }
 
@@ -242,6 +332,9 @@ export class Challenge {
   private hudTime!: HTMLElement;
   private hudEnergy!: HTMLElement;
   private hudLeft!: HTMLElement;
+  private hudArrow!: SVGElement;
+  private hint!: HTMLElement;
+  private baseHint: string;
   private flow: ScoreFlowHandle | null = null;
 
   constructor(
@@ -261,11 +354,18 @@ export class Challenge {
     this.hudTime.className = 'hud-time';
     this.hudEnergy = document.createElement('span');
     this.hudLeft = document.createElement('span');
-    hud.append(this.hudTime, this.hudEnergy, this.hudLeft);
+    // Wind-direction arrow; rotates as the wind turns.
+    const wind = document.createElement('span');
+    wind.className = 'hud-wind';
+    wind.innerHTML =
+      '🌬️<svg viewBox="-12 -12 24 24"><path d="M-9 0H7M1-6l7 6-7 6"/></svg>';
+    this.hudArrow = wind.querySelector('svg')!;
+    hud.append(this.hudTime, wind, this.hudEnergy, this.hudLeft);
 
-    const hint = document.createElement('p');
-    hint.className = 'challenge-hint';
-    hint.textContent = computer ? T.hintComputer : T.hintHuman;
+    this.baseHint = computer ? T.hintComputer : T.hintHuman;
+    this.hint = document.createElement('p');
+    this.hint.className = 'challenge-hint';
+    this.hint.textContent = this.baseHint;
 
     const legend = document.createElement('div');
     legend.className = 'wake-legend';
@@ -273,9 +373,14 @@ export class Challenge {
       `<span class="wake-swatch wake-swatch-full"></span> ${T.legendFull}` +
       `<span class="wake-swatch wake-swatch-wake"></span> ${T.legendWake}`;
 
-    this.layer.append(hud, hint, legend);
+    this.layer.append(hud, this.hint, legend);
     host.overlay.appendChild(this.layer);
     this.updateHud(0);
+  }
+
+  /** Current wind direction (radians) on the round's schedule. */
+  get windAngle(): number {
+    return windAngleAt(ROUND_SECONDS - this.timeLeft);
   }
 
   /** Computer rounds run the sim at 2x so the queue at the stand keeps moving. */
@@ -302,15 +407,16 @@ export class Challenge {
       this.sinceSample += dt;
       if (this.sinceSample >= SAMPLE_INTERVAL && this.turbines.length > 0) {
         this.sinceSample = 0;
-        sampleTurbinePowers(this.solver, this.turbines);
+        sampleTurbinePowers(this.solver, this.turbines, this.aspect());
       }
       let total = 0;
       for (const t of this.turbines) total += t.power;
       this.energy += total * dt;
       this.timeLeft -= dt;
-      shedTurbulence(this.solver, this.turbines, dt);
+      shedTurbulence(this.solver, this.turbines, dt, this.aspect());
       if (this.computer) this.cpuTick(dt);
       this.updateHud(total);
+      this.updateHint();
       if (this.timeLeft <= 0) this.finish();
     }
     spinRotors(this.turbines, dt);
@@ -368,38 +474,47 @@ export class Challenge {
   }
 
   /**
-   * Greedy optimizer: probe the live wind field on a coarse grid of legal
-   * spots and take the fastest one. Later placements automatically avoid the
-   * wakes of earlier ones, because the probes read the simulated flow.
+   * Greedy optimizer: try every legal spot on a coarse grid and keep the one
+   * that gives the most total farm power, averaged over all wind directions
+   * of the round. The live simulation can only show today's wind, so the
+   * computer plans with a quick engineering wake formula instead — the same
+   * trick real wind-farm designers use for a first layout, before checking
+   * it with big simulations. (Here the simulation does the checking: the
+   * score comes from the simulated wind, not from the formula.)
    */
   private placeBest(): void {
-    const candidates: { x: number; y: number }[] = [];
-    for (let i = 0; i < 12; i++) {
-      for (let j = 0; j < 8; j++) {
-        const x = MARGIN.x0 + 0.02 + (0.8 * i) / 11;
-        const y = MARGIN.y0 + 0.02 + ((MARGIN.y1 - MARGIN.y0 - 0.04) * j) / 7;
-        if (!this.turbines.some((t) => this.distance(x, y, t.x, t.y) < MIN_SPACING)) {
-          candidates.push({ x, y });
-        }
-      }
-    }
+    const aspect = this.aspect();
+    const farm = this.turbines.map((t) => ({ x: t.x, y: t.y }));
     let best: { x: number; y: number } | null = null;
-    let bestSpeed = -1;
-    for (let i = 0; i < candidates.length; i += 16) {
-      const chunk = candidates.slice(i, i + 16);
-      const v = this.solver.sampleVelocities(
-        chunk.map((c) => ({ x: Math.max(0.005, c.x - PROBE_UPSTREAM), y: c.y })),
-      );
-      for (let k = 0; k < chunk.length; k++) {
-        // Tiny jitter so ties (uniform free stream) don't always pick the same corner.
-        const speed = Math.hypot(v[k * 2], v[k * 2 + 1]) + Math.random() * 1.5;
-        if (speed > bestSpeed) {
-          bestSpeed = speed;
-          best = chunk[k];
+    let bestPower = -Infinity;
+    for (let i = 0; i < 14; i++) {
+      for (let j = 0; j < 9; j++) {
+        const x = MARGIN.x0 + ((MARGIN.x1 - MARGIN.x0) * i) / 13;
+        const y = MARGIN.y0 + ((MARGIN.y1 - MARGIN.y0) * j) / 8;
+        if (this.turbines.some((t) => this.distance(x, y, t.x, t.y) < MIN_SPACING)) continue;
+        // Tiny jitter so ties (e.g. the very first turbine) vary between rounds.
+        const power = modelFarmPower([...farm, { x, y }], aspect) + Math.random() * 1e-3;
+        if (power > bestPower) {
+          bestPower = power;
+          best = { x, y };
         }
       }
     }
     if (best) this.place(best.x, best.y);
+  }
+
+  /** Swap the hint for a countdown before each wind turn, and a note after. */
+  private updateHint(): void {
+    const T = pick(TEXT);
+    const elapsed = ROUND_SECONDS - this.timeLeft;
+    let text = this.baseHint;
+    for (const phase of WIND_PHASES) {
+      if (phase.at === 0) continue;
+      const until = phase.at - elapsed;
+      if (until > 0 && until <= TURN_WARNING) text = T.windTurning(Math.ceil(until));
+      else if (until <= 0 && until > -TURN_SECONDS - 3) text = T.windTurned;
+    }
+    if (this.hint.textContent !== text) this.hint.textContent = text;
   }
 
   private updateHud(totalPower: number): void {
@@ -407,6 +522,10 @@ export class Challenge {
     this.hudTime.classList.toggle('urgent', this.timeLeft <= 10 && !this.over);
     this.hudEnergy.textContent = `⚡ ${fmtNumber(Math.round(this.energy))} kJ (${fmtNumber(Math.round(totalPower))} kW)`;
     this.hudLeft.textContent = `🌀 ×${TURBINE_BUDGET - this.turbines.length}`;
+    // Screen y points down, so an upward (positive) wind angle is a
+    // counterclockwise, i.e. negative, CSS rotation.
+    const deg = (-this.windAngle * 180) / Math.PI;
+    this.hudArrow.style.transform = `rotate(${deg.toFixed(1)}deg)`;
   }
 
   private finish(): void {

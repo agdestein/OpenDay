@@ -186,6 +186,7 @@ class FluidInstance implements GameInstance {
     if (!solver) return;
 
     solver.wind = this.windOn || this.challenge ? WIND_SPEED : 0;
+    solver.windAngle = this.challenge?.windAngle ?? 0;
     // Wake view (wind-speed coloring) whenever turbines are on screen.
     const wakeView = this.challenge !== null || this.wakeDemo !== null;
     solver.curlStrength = wakeView ? WAKE_CURL : TOY_CURL;
@@ -279,9 +280,13 @@ class FluidInstance implements GameInstance {
     if (!this.solver) return;
     this.closeDelve();
     this.challenge?.destroy();
-    // A fair, clean start: no leftover obstacles, dye, or momentum.
+    // A fair, clean start: no leftover obstacles, dye, or swirls — and the
+    // wind already blowing steadily everywhere, rather than still air that
+    // first has to be blown off the screen.
     this.obstacles = [];
     this.solver.setObstacles([]);
+    this.solver.wind = WIND_SPEED;
+    this.solver.windAngle = 0;
     this.solver.reset();
     this.pointerDown = false;
     this.challenge = new Challenge(this.host, this.solver, computer, (next) =>

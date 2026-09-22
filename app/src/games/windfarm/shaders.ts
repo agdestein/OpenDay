@@ -42,9 +42,13 @@ uniform sampler2D uSource;
 uniform vec2 uVelToUv;
 uniform float uDt;
 uniform float uDissipation;
+// Dissipation decays the field toward this uniform value: zero for dye, the
+// wind vector for velocity (so the free stream stays at full wind speed all
+// the way across, and only deviations such as wakes and swirls fade).
+uniform vec4 uBase;
 void main() {
   vec2 coord = vUv - uDt * texture(uVelocity, vUv).xy * uVelToUv;
-  frag = texture(uSource, coord) / (1.0 + uDissipation * uDt);
+  frag = uBase + (texture(uSource, coord) - uBase) / (1.0 + uDissipation * uDt);
 }
 `;
 
@@ -114,12 +118,17 @@ void main() {
 }
 `;
 
-// The right edge is an open outflow: pressure is pinned to zero just outside
-// it (Dirichlet), so air leaves freely instead of piling up against a wall.
-// The other edges keep the clamp-to-edge (zero-gradient) condition.
-const outflowPressure = `
-float sampleR(sampler2D p, vec2 uv, vec2 texel) {
-  return uv.x + texel.x > 1.0 ? 0.0 : texture(p, uv + vec2(texel.x, 0.0)).x;
+// Pressure neighbours with per-edge boundary conditions. An open (outflow)
+// edge pins the pressure to zero just outside it (Dirichlet), so air leaves
+// freely instead of piling up against a wall; a closed edge keeps the
+// clamp-to-edge (zero-gradient) condition. uOpen = (left, right, bottom, top).
+const edgePressure = `
+uniform vec4 uOpen;
+void neighbours(sampler2D p, vec2 uv, vec2 texel, out float L, out float R, out float B, out float T) {
+  L = uv.x - texel.x < 0.0 && uOpen.x > 0.5 ? 0.0 : texture(p, uv - vec2(texel.x, 0.0)).x;
+  R = uv.x + texel.x > 1.0 && uOpen.y > 0.5 ? 0.0 : texture(p, uv + vec2(texel.x, 0.0)).x;
+  B = uv.y - texel.y < 0.0 && uOpen.z > 0.5 ? 0.0 : texture(p, uv - vec2(0.0, texel.y)).x;
+  T = uv.y + texel.y > 1.0 && uOpen.w > 0.5 ? 0.0 : texture(p, uv + vec2(0.0, texel.y)).x;
 }
 `;
 
@@ -127,12 +136,10 @@ export const pressureSrc = `${header}
 uniform sampler2D uPressure;
 uniform sampler2D uDivergence;
 uniform vec2 uTexel;
-${outflowPressure}
+${edgePressure}
 void main() {
-  float L = texture(uPressure, vUv - vec2(uTexel.x, 0.0)).x;
-  float R = sampleR(uPressure, vUv, uTexel);
-  float B = texture(uPressure, vUv - vec2(0.0, uTexel.y)).x;
-  float T = texture(uPressure, vUv + vec2(0.0, uTexel.y)).x;
+  float L, R, B, T;
+  neighbours(uPressure, vUv, uTexel, L, R, B, T);
   float divergence = texture(uDivergence, vUv).x;
   frag = vec4(0.25 * (L + R + B + T - divergence), 0.0, 0.0, 1.0);
 }
@@ -142,24 +149,26 @@ export const gradientSubtractSrc = `${header}
 uniform sampler2D uPressure;
 uniform sampler2D uVelocity;
 uniform vec2 uTexel;
-${outflowPressure}
+${edgePressure}
 void main() {
-  float L = texture(uPressure, vUv - vec2(uTexel.x, 0.0)).x;
-  float R = sampleR(uPressure, vUv, uTexel);
-  float B = texture(uPressure, vUv - vec2(0.0, uTexel.y)).x;
-  float T = texture(uPressure, vUv + vec2(0.0, uTexel.y)).x;
+  float L, R, B, T;
+  neighbours(uPressure, vUv, uTexel, L, R, B, T);
   vec2 velocity = texture(uVelocity, vUv).xy - 0.5 * vec2(R - L, T - B);
   frag = vec4(velocity, 0.0, 1.0);
 }
 `;
 
-/** Wind inflow at the left edge, outflow-only walls, zero velocity inside obstacles. */
+/**
+ * Wind inflow on the upstream edges, outflow-only walls elsewhere, turbine
+ * drag disks, zero velocity inside obstacles.
+ */
 export const constrainSrc = `${header}
 uniform sampler2D uVelocity;
 uniform float uAspect;
 uniform int uCount;
 uniform vec3 uObstacles[${MAX_OBSTACLES}];
-uniform float uWind;
+uniform vec2 uWind; // wind vector, reference-grid cells/sec; zero = no wind
+uniform vec2 uWindDir; // unit wind direction on screen (isotropic units)
 uniform float uDt;
 uniform vec2 uTexel;
 uniform int uTurbineCount;
@@ -169,35 +178,45 @@ uniform vec3 uTurbines[${MAX_TURBINES}];
 const float DISK_DRAG = 14.0;
 void main() {
   vec2 velocity = texture(uVelocity, vUv).xy;
-  if (uWind > 0.0) {
+  float windSpeed = length(uWind);
+  vec2 dir = uWindDir;
+  if (windSpeed > 0.0) {
     // Gentle relaxation toward a uniform wind everywhere (a constant field is
     // divergence-free, so the pressure projection preserves it), plus a strong
-    // pull in the inflow strip at the left edge.
-    float inflow = smoothstep(0.06, 0.0, vUv.x);
-    velocity = mix(velocity, vec2(uWind, 0.0), min(1.0, uDt * (0.6 + inflow * 10.0)));
+    // pull in the inflow strips along the upstream edges — weighted by how
+    // squarely the wind blows in through each edge, so a turning wind moves
+    // its inflow smoothly from edge to edge.
+    float inflow = max(
+      max(smoothstep(0.06, 0.0, vUv.x) * clamp(2.0 * dir.x, 0.0, 1.0),
+          smoothstep(0.94, 1.0, vUv.x) * clamp(-2.0 * dir.x, 0.0, 1.0)),
+      max(smoothstep(0.1, 0.0, vUv.y) * clamp(2.0 * dir.y, 0.0, 1.0),
+          smoothstep(0.9, 1.0, vUv.y) * clamp(-2.0 * dir.y, 0.0, 1.0)));
+    velocity = mix(velocity, uWind, min(1.0, uDt * (0.6 + inflow * 10.0)));
   }
-  // Edges are open outflow: an edge texel must never hold inward velocity.
-  // Advection clamps its backtrace at the walls, so an edge texel with inward
-  // velocity samples itself and re-injects that velocity every frame — and the
-  // divergence stencil clamps too, so the pressure solve can't see the jet. A
-  // burst rebounding off a wall would otherwise seed a runaway inflow. The
-  // left edge stays open for the deliberate wind inflow.
-  if (vUv.x < uTexel.x && uWind <= 0.0) velocity.x = min(velocity.x, 0.0);
-  if (vUv.x > 1.0 - uTexel.x) velocity.x = max(velocity.x, 0.0);
-  if (vUv.y < uTexel.y) velocity.y = min(velocity.y, 0.0);
-  if (vUv.y > 1.0 - uTexel.y) velocity.y = max(velocity.y, 0.0);
+  // Edges are open outflow: an edge texel must never hold more inward
+  // velocity than the wind itself blows in. Advection clamps its backtrace at
+  // the walls, so an edge texel with inward velocity samples itself and
+  // re-injects that velocity every frame — and the divergence stencil clamps
+  // too, so the pressure solve can't see the jet. A burst rebounding off a
+  // wall would otherwise seed a runaway inflow.
+  if (vUv.x < uTexel.x) velocity.x = min(velocity.x, max(uWind.x, 0.0));
+  if (vUv.x > 1.0 - uTexel.x) velocity.x = max(velocity.x, min(uWind.x, 0.0));
+  if (vUv.y < uTexel.y) velocity.y = min(velocity.y, max(uWind.y, 0.0));
+  if (vUv.y > 1.0 - uTexel.y) velocity.y = max(velocity.y, min(uWind.y, 0.0));
   // Turbines are porous drag disks (actuator disks), not solid obstacles: they
   // slow the flow passing through, leaving a momentum-deficit wake downstream.
-  // The disk weight is smooth — a thin Gaussian across the flow direction and
-  // soft rotor tips — because a hard-edged disk only a few cells wide drags
-  // each grid row by a different amount, and the wind carries those rows
-  // downstream as stripes.
+  // Like real turbines they yaw to face the wind. The disk weight is smooth —
+  // a thin Gaussian along the wind and soft rotor tips — because a hard-edged
+  // disk only a few cells wide drags each grid row by a different amount, and
+  // the wind carries those rows downstream as stripes.
   for (int i = 0; i < ${MAX_TURBINES}; i++) {
     if (i >= uTurbineCount) break;
     float r = uTurbines[i].z;
     vec2 t = (vUv - uTurbines[i].xy) / r;
     t.x *= uAspect;
-    float w = exp(-t.x * t.x * 15.0) * (1.0 - smoothstep(0.75, 1.1, abs(t.y)));
+    float along = dot(t, dir);
+    float across = dot(t, vec2(-dir.y, dir.x));
+    float w = exp(-along * along * 15.0) * (1.0 - smoothstep(0.75, 1.1, abs(across)));
     velocity *= exp(-DISK_DRAG * w * uDt);
   }
   // Solid obstacles, with a soft edge about 1.5 cells wide so the stair-stepped
@@ -233,7 +252,7 @@ uniform float uAspect;
 uniform int uCount;
 uniform vec3 uObstacles[${MAX_OBSTACLES}];
 uniform float uWakeMode;
-uniform float uWind;
+uniform float uWind; // wind speed
 
 // Cubic B-spline texture lookup from four bilinear taps (Sigg & Hadwiger,
 // GPU Gems 2 ch. 20). The coarse velocity grid is stretched ~8x onto the
@@ -266,9 +285,7 @@ void main() {
     // glows warm against the cool full-speed flow. One continuous ramp
     // (deep red -> orange -> sea blue) rather than narrow bands, so small
     // speed ripples read as gentle shading, not hard-edged blotches.
-    // Velocity dissipation drags the free stream below the inflow speed, so
-    // normalize against that, not the raw inflow.
-    float frac = length(textureBSpline(uVelocity, vUv).xy) / max(0.88 * uWind, 1.0);
+    float frac = length(textureBSpline(uVelocity, vUv).xy) / max(uWind, 1.0);
     float t = clamp((frac - 0.2) / 0.8, 0.0, 1.0);
     vec3 slow = vec3(0.55, 0.07, 0.07);
     vec3 mid = vec3(0.94, 0.55, 0.12);

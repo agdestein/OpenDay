@@ -114,8 +114,13 @@ function compileShader(gl: WebGL2RenderingContext, type: number, src: string): W
 export class FluidSolver {
   /** False when WebGL2 float render targets are unavailable on this machine. */
   readonly ok: boolean;
-  /** Wind inflow speed in grid cells per second; 0 disables wind. */
+  /** Wind speed in reference-grid cells per second; 0 disables wind. */
   wind = 0;
+  /**
+   * Direction the wind blows toward, in radians: 0 = left to right, positive
+   * = turning upward (counterclockwise on screen).
+   */
+  windAngle = 0;
   /**
    * Vorticity-confinement strength. High values keep stirred swirls lively,
    * but also amplify grid-scale noise into speckle — fine in the dye view,
@@ -284,7 +289,9 @@ export class FluidSolver {
     gl.uniform1f(p.constrain.loc('uAspect'), this.aspect());
     gl.uniform1i(p.constrain.loc('uCount'), this.obstacleCount);
     gl.uniform3fv(p.constrain.loc('uObstacles[0]'), this.obstacleData);
-    gl.uniform1f(p.constrain.loc('uWind'), this.wind);
+    const [wx, wy] = this.windVector();
+    gl.uniform2f(p.constrain.loc('uWind'), wx, wy);
+    gl.uniform2f(p.constrain.loc('uWindDir'), Math.cos(this.windAngle), Math.sin(this.windAngle));
     gl.uniform1f(p.constrain.loc('uDt'), dt);
     gl.uniform1i(p.constrain.loc('uTurbineCount'), this.turbineCount);
     gl.uniform3fv(p.constrain.loc('uTurbines[0]'), this.turbineData);
@@ -304,8 +311,10 @@ export class FluidSolver {
     this.blit(this.pressure.write);
     this.swap(this.pressure);
 
+    const open = this.openEdges();
     p.pressure.bind();
     gl.uniform2f(p.pressure.loc('uTexel'), texel[0], texel[1]);
+    gl.uniform4fv(p.pressure.loc('uOpen'), open);
     this.bindTexture(p.pressure.loc('uDivergence'), this.divergence.tex, 1);
     for (let i = 0; i < this.pressureIterations; i++) {
       this.bindTexture(p.pressure.loc('uPressure'), this.pressure.read.tex, 0);
@@ -315,6 +324,7 @@ export class FluidSolver {
 
     p.gradientSubtract.bind();
     gl.uniform2f(p.gradientSubtract.loc('uTexel'), texel[0], texel[1]);
+    gl.uniform4fv(p.gradientSubtract.loc('uOpen'), open);
     this.bindTexture(p.gradientSubtract.loc('uPressure'), this.pressure.read.tex, 0);
     this.bindTexture(p.gradientSubtract.loc('uVelocity'), this.velocity.read.tex, 1);
     this.blit(this.velocity.write);
@@ -325,12 +335,14 @@ export class FluidSolver {
     gl.uniform2f(p.advection.loc('uVelToUv'), 1 / REF_W, 1 / REF_H);
     gl.uniform1f(p.advection.loc('uDt'), dt);
     gl.uniform1f(p.advection.loc('uDissipation'), VELOCITY_DISSIPATION);
+    gl.uniform4f(p.advection.loc('uBase'), wx, wy, 0, 0);
     this.bindTexture(p.advection.loc('uVelocity'), this.velocity.read.tex, 0);
     this.bindTexture(p.advection.loc('uSource'), this.velocity.read.tex, 0);
     this.blit(this.velocity.write);
     this.swap(this.velocity);
 
     gl.uniform1f(p.advection.loc('uDissipation'), DYE_DISSIPATION);
+    gl.uniform4f(p.advection.loc('uBase'), 0, 0, 0, 0);
     this.bindTexture(p.advection.loc('uVelocity'), this.velocity.read.tex, 0);
     this.bindTexture(p.advection.loc('uSource'), this.dye.read.tex, 1);
     this.blit(this.dye.write);
@@ -352,16 +364,18 @@ export class FluidSolver {
     this.blit(null);
   }
 
-  /** Clear dye, velocity, and pressure (obstacles are the caller's state). */
+  /**
+   * Clear dye and pressure, and set the velocity to the current wind
+   * everywhere — the steady state of an empty wind tunnel — so a fresh round
+   * starts in full wind instead of in still air that must first be blown
+   * away. (Obstacles are the caller's state.)
+   */
   reset(): void {
-    for (const target of [
-      this.velocity.read,
-      this.velocity.write,
-      this.dye.read,
-      this.dye.write,
-      this.pressure.read,
-      this.pressure.write,
-    ]) {
+    const [wx, wy] = this.windVector();
+    for (const target of [this.velocity.read, this.velocity.write]) {
+      this.clearTarget(target, [wx, wy, 0, 1]);
+    }
+    for (const target of [this.dye.read, this.dye.write, this.pressure.read, this.pressure.write]) {
       this.clearTarget(target);
     }
   }
@@ -438,6 +452,31 @@ export class FluidSolver {
     gl.disable(gl.SCISSOR_TEST);
   }
 
+  /**
+   * Wind vector in reference-grid cells/sec pointing along windAngle as seen
+   * on screen. Grid cells are only square on a 16:9 canvas, so the vertical
+   * part is corrected for the canvas aspect.
+   */
+  private windVector(): [number, number] {
+    const dx = Math.cos(this.windAngle);
+    const dy = (Math.sin(this.windAngle) * this.aspect() * REF_H) / REF_W;
+    const n = Math.hypot(dx, dy);
+    return [(this.wind * dx) / n, (this.wind * dy) / n];
+  }
+
+  /**
+   * Which edges (left, right, bottom, top) are open outflows with pressure
+   * pinned to zero: those the wind clearly blows out through, or just the
+   * right edge in still air. Inflow and parallel edges stay closed.
+   */
+  private openEdges(): [number, number, number, number] {
+    if (this.wind <= 0) return [0, 1, 0, 0];
+    const dx = Math.cos(this.windAngle);
+    const dy = Math.sin(this.windAngle);
+    const out = (d: number) => (d > 0.15 ? 1 : 0);
+    return [out(-dx), out(dx), out(-dy), out(dy)];
+  }
+
   /** (Re)create the simulation-grid targets for a quality tier. */
   private createSimTargets(w: number, h: number, iterations: number): void {
     const gl = this.gl;
@@ -506,12 +545,12 @@ export class FluidSolver {
     return target;
   }
 
-  private clearTarget(target: Target): void {
+  /** Fill a target with a constant (clearBufferfv: float values are not clamped). */
+  private clearTarget(target: Target, value: [number, number, number, number] = [0, 0, 0, 1]): void {
     const gl = this.gl;
     gl.bindFramebuffer(gl.FRAMEBUFFER, target.fbo);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, target.tex, 0);
-    gl.clearColor(0, 0, 0, 1);
-    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.clearBufferfv(gl.COLOR, 0, value);
   }
 
   private createDouble(w: number, h: number, internalFormat: number, format: number): DoubleTarget {
