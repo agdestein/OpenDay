@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "check": "tsc",
     "test:floodland": "node tests/run-floodland.mjs",
-    "test:outbreak": "node tests/run-outbreak.mjs"
+    "test:outbreak": "node tests/run-outbreak.mjs",
+    "test:detective": "node tests/run-detective.mjs"
   },
   "devDependencies": {
     "typescript": "^7.0.2",
