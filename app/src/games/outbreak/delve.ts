@@ -2,7 +2,7 @@
 // text in the card on the left, one live illustration per chapter on the
 // game's canvas. Two chapters run real experiments on the live city: the R₀
 // lab measures R₀ by simulating one sick person in a healthy town many times,
-// and the futures chapter runs the city forward eight times from right now.
+// and the futures chapter runs the city eight times.
 import type { DelveChapter } from '../../shell/delve';
 import {
   AGE_SHARE,
@@ -114,7 +114,7 @@ const TEXT: Localized<{
       ],
       [
         'Run the same town again and you get a different epidemic: who meets whom, and who catches it, is partly chance. So one simulation proves little.',
-        'Scientists therefore run a model many times — an ensemble — and look at the spread of outcomes, just like a weather forecast. Right now the computer is running your town 8 times, starting from this moment. The spread of the lines is the uncertainty.',
+        'Scientists therefore run a model many times — an ensemble — and look at the spread of outcomes, just like a weather forecast. Right now the computer is running your town 8 times: from this moment if an epidemic is going on, otherwise from a fresh start with three sick travellers. The spread of the lines is the uncertainty.',
         'The challenge uses exactly this trick: while you read a round’s card, the computer simulates your town 8 times without you. Afterwards you see how many lives your choices saved compared with those futures.',
       ],
       [
@@ -142,7 +142,7 @@ const TEXT: Localized<{
     ],
     meetsSick: 'meets someone sick',
     getsBetter: 'gets better',
-    dies: 'serious, and no cure',
+    dies: 'some serious cases',
     vaccine: 'vaccine',
     liveClickToInfect: '👆 live — click the town to infect someone',
     patientZero: 'patient zero',
@@ -195,7 +195,7 @@ const TEXT: Localized<{
       ],
       [
         'Speel dezelfde stad nog een keer en je krijgt een andere epidemie: wie wie ontmoet, en wie de ziekte krijgt, is deels toeval. Eén simulatie bewijst dus weinig.',
-        'Daarom draaien wetenschappers een model vaak — een ensemble — en kijken ze naar de spreiding van de uitkomsten, net als bij een weersverwachting. Nu draait de computer jouw stad 8 keer, vanaf dit moment. De spreiding van de lijnen is de onzekerheid.',
+        'Daarom draaien wetenschappers een model vaak — een ensemble — en kijken ze naar de spreiding van de uitkomsten, net als bij een weersverwachting. Nu draait de computer jouw stad 8 keer: vanaf dit moment als er een epidemie bezig is, en anders vanaf het begin met drie zieke reizigers. De spreiding van de lijnen is de onzekerheid.',
         'De uitdaging gebruikt precies deze truc: terwijl jij de kaart van een ronde leest, simuleert de computer je stad 8 keer zonder jou. Daarna zie je hoeveel levens jouw keuzes hebben gered vergeleken met die toekomsten.',
       ],
       [
@@ -223,7 +223,7 @@ const TEXT: Localized<{
     ],
     meetsSick: 'ontmoet iemand die ziek is',
     getsBetter: 'wordt beter',
-    dies: 'ernstig, geen genezing',
+    dies: 'sommige ernstige gevallen',
     vaccine: 'vaccin',
     liveClickToInfect: '👆 live — klik op de stad om iemand te besmetten',
     patientZero: 'patiënt nul',
@@ -276,7 +276,7 @@ const TEXT: Localized<{
       ],
       [
         'Kjør den samme byen en gang til, og du får en annen epidemi: hvem som møter hvem, og hvem som blir smittet, er delvis tilfeldig. Én simulering beviser derfor lite.',
-        'Derfor kjører forskere en modell mange ganger — et ensemble — og ser på spredningen i utfallene, akkurat som en værmelding. Akkurat nå kjører datamaskinen byen din 8 ganger, fra dette øyeblikket. Spredningen i linjene er usikkerheten.',
+        'Derfor kjører forskere en modell mange ganger — et ensemble — og ser på spredningen i utfallene, akkurat som en værmelding. Akkurat nå kjører datamaskinen byen din 8 ganger: fra dette øyeblikket hvis en epidemi pågår, ellers fra start med tre syke reisende. Spredningen i linjene er usikkerheten.',
         'Utfordringen bruker nettopp dette trikset: mens du leser kortet for en runde, simulerer datamaskinen byen din 8 ganger uten deg. Etterpå ser du hvor mange liv valgene dine reddet sammenlignet med de fremtidene.',
       ],
       [
@@ -304,7 +304,7 @@ const TEXT: Localized<{
     ],
     meetsSick: 'møter en som er syk',
     getsBetter: 'blir frisk',
-    dies: 'alvorlig, ingen bedring',
+    dies: 'noen alvorlige tilfeller',
     vaccine: 'vaksine',
     liveClickToInfect: '👆 live — klikk på byen for å smitte noen',
     patientZero: 'pasient null',
@@ -404,12 +404,21 @@ export function outbreakDelve(
   };
 
   const startFutures = () => {
-    futuresFrom = sim.day;
+    // Mid-epidemic, run on from now; otherwise the same town from day 0, with
+    // the same disease and three sick travellers arriving.
+    const fromNow = sim.counts.i >= 20;
+    futuresFrom = fromNow ? sim.day : 0;
     futures = new Futures(
       Array.from({ length: FUTURE_RUNS }, (_, k) => {
-        const copy = sim.clone(((Math.random() * 2 ** 32) >>> 0) + k);
-        if (copy.counts.i === 0) copy.seedCases(3);
-        return new Horizon(copy, sim.day + FUTURE_DAYS);
+        const seed = ((Math.random() * 2 ** 32) >>> 0) + k;
+        let copy: OutbreakSim;
+        if (fromNow) copy = sim.clone(seed);
+        else {
+          copy = new OutbreakSim(seed, sim.disease);
+          copy.deaths = sim.deaths;
+          copy.seedCases(3);
+        }
+        return new Horizon(copy, futuresFrom + FUTURE_DAYS);
       }),
     );
   };
@@ -581,7 +590,7 @@ export function outbreakDelve(
     const dim = 'rgba(238, 242, 255, 0.6)';
     text(ctx, T.meetsSick, (sx + ix) / 2, flowY + 36, small, dim);
     text(ctx, T.getsBetter, (ix + rx) / 2, flowY + 36, small, dim);
-    text(ctx, T.dies, ix + 36, flowY + 50, small, dim, 'left');
+    text(ctx, T.dies, ix + 34, flowY + 95, small, dim, 'left');
     text(ctx, T.vaccine, sx + 30, flowY - 36, small, dim, 'left');
   };
 
@@ -707,7 +716,7 @@ export function outbreakDelve(
       }
       return { curve: out, died: Math.round(d) };
     };
-    return { wild: solve(2.4), tamed: solve(1.5), capacity };
+    return { wild: solve(3), tamed: solve(1.5), capacity };
   })();
 
   const drawFlatten = (ctx: CanvasRenderingContext2D, x0: number, x1: number, h: number) => {
@@ -750,19 +759,19 @@ export function outbreakDelve(
     ctx.lineTo(x1, capY);
     ctx.stroke();
     ctx.setLineDash([]);
-    text(ctx, T.hospitalLine, x1 - 8, capY - 8, '15px system-ui, sans-serif', 'rgba(238, 242, 255, 0.75)', 'right');
+    text(ctx, T.hospitalLine, x1 - 8, capY - 8, '17px system-ui, sans-serif', 'rgba(238, 242, 255, 0.75)', 'right');
     const label = (curve: number[], color: string, name: string, died: number) => {
       const p = Math.max(...curve);
       const x = xAt(curve.indexOf(p));
-      text(ctx, name, x, yAt(p) - 34, 'bold 18px system-ui, sans-serif', color);
-      text(ctx, T.died(died), x, yAt(p) - 12, '16px system-ui, sans-serif', color);
+      text(ctx, name, x, yAt(p) - 40, 'bold 20px system-ui, sans-serif', color);
+      text(ctx, T.died(died), x, yAt(p) - 14, 'bold 18px system-ui, sans-serif', color);
     };
     label(wild.curve, COLOR.i, T.doNothing, wild.died);
     label(tamed.curve, COLOR.v, T.fewerContacts, tamed.died);
     text(ctx, T.sickOverTime, (x0 + x1) / 2, plotY1 + 34, '16px system-ui, sans-serif', 'rgba(238, 242, 255, 0.6)');
   };
 
-  /** Chapter 5: the live town run forward eight times from now. */
+  /** Chapter 5: the live town run eight times (from now, or from a fresh start). */
   const drawFutures = (ctx: CanvasRenderingContext2D, x0: number, x1: number, h: number) => {
     if (!futures) startFutures();
     const f = futures!;
@@ -772,15 +781,17 @@ export function outbreakDelve(
     ctx.fillStyle = 'rgba(255, 255, 255, 0.03)';
     ctx.fillRect(box.x, box.y, box.w, box.h);
     drawSickLines(ctx, box, range, f.runs.map((r) => r.sim.history));
-    const nowX = box.x + (box.w * (futuresFrom - range[0])) / (range[1] - range[0]);
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
-    ctx.setLineDash([6, 6]);
-    ctx.beginPath();
-    ctx.moveTo(nowX, box.y);
-    ctx.lineTo(nowX, box.y + box.h);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    text(ctx, T.now, nowX, box.y - 10, 'bold 16px system-ui, sans-serif', 'rgba(238, 242, 255, 0.8)');
+    if (futuresFrom > 0) {
+      const nowX = box.x + (box.w * (futuresFrom - range[0])) / (range[1] - range[0]);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.setLineDash([6, 6]);
+      ctx.beginPath();
+      ctx.moveTo(nowX, box.y);
+      ctx.lineTo(nowX, box.y + box.h);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      text(ctx, T.now, nowX, box.y - 10, 'bold 16px system-ui, sans-serif', 'rgba(238, 242, 255, 0.8)');
+    }
     const y = box.y + box.h + 60;
     if (!f.complete) {
       text(ctx, T.futuresRunning(f.done, FUTURE_RUNS), (x0 + x1) / 2, y, 'bold 20px system-ui, sans-serif', 'rgba(238, 242, 255, 0.8)');

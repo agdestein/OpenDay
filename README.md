@@ -45,7 +45,8 @@ Planned first games (see [docs/plan.md](docs/plan.md) for the full implementatio
 1. **Fluid playground / wind farm challenge** — real-time 2D flow you can stir; place
    turbines, harvest power, beat the daily record.
 2. **Outbreak!** — stop a simulated epidemic in a mini-city (our group has actually
-   worked on epidemic simulation).
+   worked on epidemic simulation). An agent-based SIRD model with ages and a
+   hospital; the challenge scores lives saved against simulated do-nothing futures.
 3. **Save the Netherlands** — build dikes against a storm surge, on a budget.
 4. **Creature Lab** — build a stick creature and watch evolution teach it to walk;
    race your champion against the reigning champ of the day.
@@ -75,6 +76,9 @@ Useful at the stand:
 - Add `?quality=low` on a slow machine to run Swirl Lab's fluid solver on its
   coarse grid from the start (`?quality=high` pins the fine grid). By default
   it starts fine and drops to coarse by itself if the first seconds stutter.
+- Outbreak!'s free play has nobody dying by default; add `?deaths` to use the
+  full model there too (the challenge always has it). See
+  [the remake notes](docs/outbreak-remake.md).
 - Press `F` (or the corner button) for fullscreen; `Esc` returns to the menu.
 - Add `?idle` to reset a game back to the menu after 90 seconds without input
   (`?idle=120` for a different number of seconds). Off by default, so nobody

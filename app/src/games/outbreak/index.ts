@@ -37,6 +37,8 @@ const RATINGS: Record<RoundId, [number, number]> = {
 
 const TEXT: Localized<{
   clickToStart: string;
+  fizzled: string;
+  outbreakOver: string;
   toolInfect: string;
   toolVaccinate: string;
   toolSoap: string;
@@ -86,6 +88,8 @@ const TEXT: Localized<{
 }> = {
   en: {
     clickToStart: 'Click anywhere in town to start an outbreak! 🦠',
+    fizzled: '💨 It died out by chance — that happens with real outbreaks too. Click to try again!',
+    outbreakOver: 'The outbreak is over. Try the tools, or 🧹 reset for a fresh town.',
     toolInfect: 'Infect',
     toolVaccinate: 'Vaccinate',
     toolSoap: 'Soap',
@@ -112,7 +116,7 @@ const TEXT: Localized<{
     serious: 'Serious',
     toolsIntro: 'Your tools:',
     vaccineNow: (n, doses) =>
-      `💉 ${n > 1 ? `${n} vaccine batches` : 'a vaccine batch'} (${doses} people each), ready now`,
+      `💉 ${n > 1 ? `${n} vaccine batches (${doses} people each)` : `a vaccine batch (${doses} people)`}, ready now`,
     vaccineLater: (day, doses) => `💉 a vaccine batch (${doses} people) on day ${day}`,
     closing: (days) =>
       `🏫🛒 ${days} days of closing the school or the market (closing both uses two a day)`,
@@ -151,6 +155,8 @@ const TEXT: Localized<{
   },
   nl: {
     clickToStart: 'Klik ergens in de stad om een uitbraak te starten! 🦠',
+    fizzled: '💨 Toevallig uitgedoofd — dat gebeurt bij echte uitbraken ook. Klik om het nog eens te proberen!',
+    outbreakOver: 'De uitbraak is voorbij. Probeer de hulpmiddelen, of 🧹 begin opnieuw met een frisse stad.',
     toolInfect: 'Besmetten',
     toolVaccinate: 'Vaccineren',
     toolSoap: 'Zeep',
@@ -177,7 +183,7 @@ const TEXT: Localized<{
     serious: 'Ernstig',
     toolsIntro: 'Jouw hulpmiddelen:',
     vaccineNow: (n, doses) =>
-      `💉 ${n > 1 ? `${n} partijen vaccin` : 'een partij vaccin'} (${doses} mensen per partij), nu klaar`,
+      `💉 ${n > 1 ? `${n} partijen vaccin (${doses} mensen per partij)` : `een partij vaccin (${doses} mensen)`}, nu klaar`,
     vaccineLater: (day, doses) => `💉 een partij vaccin (${doses} mensen) op dag ${day}`,
     closing: (days) =>
       `🏫🛒 ${days} dagen om de school of de markt te sluiten (allebei dicht kost twee per dag)`,
@@ -216,6 +222,8 @@ const TEXT: Localized<{
   },
   no: {
     clickToStart: 'Klikk hvor som helst i byen for å starte et utbrudd! 🦠',
+    fizzled: '💨 Det døde ut av seg selv — det skjer med ekte utbrudd også. Klikk for å prøve igjen!',
+    outbreakOver: 'Utbruddet er over. Prøv verktøyene, eller 🧹 nullstill for en ny by.',
     toolInfect: 'Smitt',
     toolVaccinate: 'Vaksiner',
     toolSoap: 'Såpe',
@@ -242,7 +250,7 @@ const TEXT: Localized<{
     serious: 'Alvorlig',
     toolsIntro: 'Verktøyene dine:',
     vaccineNow: (n, doses) =>
-      `💉 ${n > 1 ? `${n} vaksineleveranser` : 'én vaksineleveranse'} (${doses} personer hver), klar nå`,
+      `💉 ${n > 1 ? `${n} vaksineleveranser (${doses} personer hver)` : `én vaksineleveranse (${doses} personer)`}, klar nå`,
     vaccineLater: (day, doses) => `💉 én vaksineleveranse (${doses} personer) på dag ${day}`,
     closing: (days) =>
       `🏫🛒 ${days} dager med stengt skole eller torg (begge stengt bruker to per dag)`,
@@ -300,6 +308,8 @@ class OutbreakInstance implements GameInstance {
   private futures: Futures | null = null;
   private totalSaved = 0;
   private quiet = false;
+  /** A free-play outbreak is under way (for the "it's over" hints). */
+  private toyOutbreak = false;
 
   private toyBar!: HTMLElement;
   private gameBar!: HTMLElement;
@@ -340,8 +350,15 @@ class OutbreakInstance implements GameInstance {
     for (const r of this.ripples) r.t += dt;
     this.ripples = this.ripples.filter((r) => r.t < 1);
 
-    if (this.mode === 'toy') this.sim.step(dt);
-    else if (this.phase === 'running') this.stepRound(dt);
+    if (this.mode === 'toy') {
+      this.sim.step(dt);
+      if (this.toyOutbreak && this.sim.counts.i === 0) {
+        this.toyOutbreak = false;
+        const c = this.sim.counts;
+        const everSick = c.r + c.d;
+        this.hint.textContent = everSick < 10 ? pick(TEXT).fizzled : pick(TEXT).outbreakOver;
+      }
+    } else if (this.phase === 'running') this.stepRound(dt);
     if (this.futures && !this.futures.complete) {
       this.futures.work(FUTURES_BUDGET_MS);
       this.updateFuturesLine();
@@ -658,6 +675,7 @@ class OutbreakInstance implements GameInstance {
       if (agent) {
         this.ripples.push({ x: agent.x, y: agent.y, t: 0, color: COLOR.i });
         this.hint.textContent = '';
+        this.toyOutbreak = true;
       }
     } else if (this.tool === 'vaccine') {
       const hood = this.sim.districtAt(x, y);
@@ -720,6 +738,7 @@ class OutbreakInstance implements GameInstance {
       this.sim.disease = { ...TOY_DISEASE };
       this.sim.reset();
       this.ripples = [];
+      this.toyOutbreak = false;
       this.syncToyVenueButtons();
       this.hint.textContent = pick(TEXT).clickToStart;
     });

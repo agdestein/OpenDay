@@ -105,8 +105,8 @@ export function drawCity(
 ): void {
   const hosp = sim.hospital;
   // Roads from each neighborhood to the school, the market and the hospital.
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.045)';
-  ctx.lineWidth = 16;
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.028)';
+  ctx.lineWidth = 12;
   ctx.lineCap = 'round';
   ctx.beginPath();
   for (const d of sim.districts) {
