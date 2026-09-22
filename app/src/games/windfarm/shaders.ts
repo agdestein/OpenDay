@@ -111,13 +111,23 @@ void main() {
 }
 `;
 
+// The right edge is an open outflow: pressure is pinned to zero just outside
+// it (Dirichlet), so air leaves freely instead of piling up against a wall.
+// The other edges keep the clamp-to-edge (zero-gradient) condition.
+const outflowPressure = `
+float sampleR(sampler2D p, vec2 uv, vec2 texel) {
+  return uv.x + texel.x > 1.0 ? 0.0 : texture(p, uv + vec2(texel.x, 0.0)).x;
+}
+`;
+
 export const pressureSrc = `${header}
 uniform sampler2D uPressure;
 uniform sampler2D uDivergence;
 uniform vec2 uTexel;
+${outflowPressure}
 void main() {
   float L = texture(uPressure, vUv - vec2(uTexel.x, 0.0)).x;
-  float R = texture(uPressure, vUv + vec2(uTexel.x, 0.0)).x;
+  float R = sampleR(uPressure, vUv, uTexel);
   float B = texture(uPressure, vUv - vec2(0.0, uTexel.y)).x;
   float T = texture(uPressure, vUv + vec2(0.0, uTexel.y)).x;
   float divergence = texture(uDivergence, vUv).x;
@@ -129,9 +139,10 @@ export const gradientSubtractSrc = `${header}
 uniform sampler2D uPressure;
 uniform sampler2D uVelocity;
 uniform vec2 uTexel;
+${outflowPressure}
 void main() {
   float L = texture(uPressure, vUv - vec2(uTexel.x, 0.0)).x;
-  float R = texture(uPressure, vUv + vec2(uTexel.x, 0.0)).x;
+  float R = sampleR(uPressure, vUv, uTexel);
   float B = texture(uPressure, vUv - vec2(0.0, uTexel.y)).x;
   float T = texture(uPressure, vUv + vec2(0.0, uTexel.y)).x;
   vec2 velocity = texture(uVelocity, vUv).xy - 0.5 * vec2(R - L, T - B);
@@ -150,6 +161,9 @@ uniform float uDt;
 uniform vec2 uTexel;
 uniform int uTurbineCount;
 uniform vec3 uTurbines[${MAX_TURBINES}];
+// Drag rate at the disk center (1/s); the Gaussian profile integrates to about
+// the same total drag as the old 0.8-radius-wide hard disk at 8/s.
+const float DISK_DRAG = 14.0;
 void main() {
   vec2 velocity = texture(uVelocity, vUv).xy;
   if (uWind > 0.0) {
@@ -169,19 +183,28 @@ void main() {
   if (vUv.x > 1.0 - uTexel.x) velocity.x = max(velocity.x, 0.0);
   if (vUv.y < uTexel.y) velocity.y = min(velocity.y, 0.0);
   if (vUv.y > 1.0 - uTexel.y) velocity.y = max(velocity.y, 0.0);
-  // Turbines are porous drag disks (tall ellipses), not solid obstacles: they
+  // Turbines are porous drag disks (actuator disks), not solid obstacles: they
   // slow the flow passing through, leaving a momentum-deficit wake downstream.
+  // The disk weight is smooth — a thin Gaussian across the flow direction and
+  // soft rotor tips — because a hard-edged disk only a few cells wide drags
+  // each grid row by a different amount, and the wind carries those rows
+  // downstream as stripes.
   for (int i = 0; i < ${MAX_TURBINES}; i++) {
     if (i >= uTurbineCount) break;
-    vec2 t = vUv - uTurbines[i].xy;
-    t.x *= uAspect * 2.5;
-    if (length(t) < uTurbines[i].z) velocity *= max(0.0, 1.0 - 8.0 * uDt);
+    float r = uTurbines[i].z;
+    vec2 t = (vUv - uTurbines[i].xy) / r;
+    t.x *= uAspect;
+    float w = exp(-t.x * t.x * 15.0) * (1.0 - smoothstep(0.75, 1.1, abs(t.y)));
+    velocity *= exp(-DISK_DRAG * w * uDt);
   }
+  // Solid obstacles, with a soft edge about 1.5 cells wide so the stair-stepped
+  // grid outline doesn't seed grid-scale noise.
+  float soft = 1.5 * uTexel.y;
   for (int i = 0; i < ${MAX_OBSTACLES}; i++) {
     if (i >= uCount) break;
     vec2 d = vUv - uObstacles[i].xy;
     d.x *= uAspect;
-    if (length(d) < uObstacles[i].z) velocity = vec2(0.0);
+    velocity *= smoothstep(uObstacles[i].z - soft, uObstacles[i].z, length(d));
   }
   frag = vec4(velocity, 0.0, 1.0);
 }
@@ -208,17 +231,46 @@ uniform int uCount;
 uniform vec3 uObstacles[${MAX_OBSTACLES}];
 uniform float uWakeMode;
 uniform float uWind;
+
+// Cubic B-spline texture lookup from four bilinear taps (Sigg & Hadwiger,
+// GPU Gems 2 ch. 20). The coarse velocity grid is stretched ~8x onto the
+// screen; plain bilinear filtering leaves visible kinks along the grid lines,
+// which the colormap then turns into hard edges.
+vec4 textureBSpline(sampler2D tex, vec2 uv) {
+  vec2 size = vec2(textureSize(tex, 0));
+  vec2 st = uv * size - 0.5;
+  vec2 i = floor(st);
+  vec2 f = st - i;
+  vec2 f2 = f * f;
+  vec2 f3 = f2 * f;
+  vec2 w0 = (1.0 - 3.0 * f + 3.0 * f2 - f3) / 6.0;
+  vec2 w1 = (4.0 - 6.0 * f2 + 3.0 * f3) / 6.0;
+  vec2 w2 = (1.0 + 3.0 * f + 3.0 * f2 - 3.0 * f3) / 6.0;
+  vec2 w3 = f3 / 6.0;
+  vec2 g0 = w0 + w1;
+  vec2 g1 = w2 + w3;
+  vec2 h0 = (i - 0.5 + w1 / g0) / size;
+  vec2 h1 = (i + 1.5 + w3 / g1) / size;
+  return g0.y * (g0.x * texture(tex, h0) + g1.x * texture(tex, vec2(h1.x, h0.y)))
+       + g1.y * (g0.x * texture(tex, vec2(h0.x, h1.y)) + g1.x * texture(tex, h1));
+}
+
 void main() {
   vec3 color;
   if (uWakeMode > 0.5) {
     // Wake view (wind-farm challenge): hue encodes local wind speed relative
     // to the free stream, so the momentum-deficit wake behind each rotor
-    // glows warm against the cool full-speed flow.
-    // Velocity dissipation drags the free stream to ~85% of the inflow speed
-    // by the right edge, so normalize against that, not the raw inflow.
-    float frac = length(texture(uVelocity, vUv).xy) / max(0.85 * uWind, 1.0);
-    vec3 wake = mix(vec3(0.62, 0.08, 0.06), vec3(0.93, 0.52, 0.10), smoothstep(0.15, 0.6, frac));
-    color = mix(wake, vec3(0.05, 0.27, 0.44), smoothstep(0.6, 0.9, frac));
+    // glows warm against the cool full-speed flow. One continuous ramp
+    // (deep red -> orange -> sea blue) rather than narrow bands, so small
+    // speed ripples read as gentle shading, not hard-edged blotches.
+    // Velocity dissipation drags the free stream below the inflow speed, so
+    // normalize against that, not the raw inflow.
+    float frac = length(textureBSpline(uVelocity, vUv).xy) / max(0.88 * uWind, 1.0);
+    float t = clamp((frac - 0.2) / 0.8, 0.0, 1.0);
+    vec3 slow = vec3(0.55, 0.07, 0.07);
+    vec3 mid = vec3(0.94, 0.55, 0.12);
+    vec3 fast = vec3(0.05, 0.27, 0.44);
+    color = mix(mix(slow, mid, smoothstep(0.0, 0.55, t)), fast, smoothstep(0.35, 1.0, t));
     // Keep the dye streaks as brightness only, so the motion of the flow
     // stays visible without recoloring the wake map.
     color += vec3(dot(texture(uDye, vUv).rgb, vec3(0.2126, 0.7152, 0.0722)) * 0.12);

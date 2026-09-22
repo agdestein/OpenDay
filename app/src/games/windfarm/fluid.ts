@@ -47,7 +47,6 @@ const DYE_H = 576;
 const VELOCITY_DISSIPATION = 0.08;
 const DYE_DISSIPATION = 0.45;
 const PRESSURE_RELAXATION = 0.8;
-const CURL_STRENGTH = 25;
 
 interface Target {
   fbo: WebGLFramebuffer;
@@ -111,6 +110,12 @@ export class FluidSolver {
   readonly ok: boolean;
   /** Wind inflow speed in grid cells per second; 0 disables wind. */
   wind = 0;
+  /**
+   * Vorticity-confinement strength. High values keep stirred swirls lively,
+   * but also amplify grid-scale noise into speckle — fine in the dye view,
+   * ugly in the wake view, where it shreds the smooth wakes into confetti.
+   */
+  curlStrength = 25;
 
   private gl!: WebGL2RenderingContext;
   private programs!: Record<
@@ -256,7 +261,7 @@ export class FluidSolver {
 
     p.vorticity.bind();
     gl.uniform2f(p.vorticity.loc('uTexel'), texel[0], texel[1]);
-    gl.uniform1f(p.vorticity.loc('uStrength'), CURL_STRENGTH);
+    gl.uniform1f(p.vorticity.loc('uStrength'), this.curlStrength);
     gl.uniform1f(p.vorticity.loc('uDt'), dt);
     this.bindTexture(p.vorticity.loc('uVelocity'), this.velocity.read.tex, 0);
     this.bindTexture(p.vorticity.loc('uCurl'), this.curl.tex, 1);

@@ -65,7 +65,12 @@ const OBSTACLE_RADIUS = 0.07; // fraction of screen height
 const MAX_PLACED_OBSTACLES = 12;
 const WIND_SPEED = 60; // cells/sec; sim is 256 cells wide
 const TOY_STREAKS = 6;
+/** Vorticity confinement: lively swirls for stirring, clean wakes for turbines. */
+const TOY_CURL = 25;
+const WAKE_CURL = 6;
 const CHALLENGE_STREAKS = 9;
+/** Seconds per dash + gap of the wake-view streaks. */
+const DASH_PERIOD = 0.6;
 
 type Mode = 'stir' | 'blocks';
 
@@ -167,18 +172,20 @@ class FluidInstance implements GameInstance {
     if (!solver) return;
 
     solver.wind = this.windOn || this.challenge ? WIND_SPEED : 0;
+    // Wake view (wind-speed coloring) whenever turbines are on screen.
+    const wakeView = this.challenge !== null || this.wakeDemo !== null;
+    solver.curlStrength = wakeView ? WAKE_CURL : TOY_CURL;
     const steps = this.challenge?.fastForward && !this.downgraded ? 2 : 1;
     for (let i = 0; i < steps; i++) {
       this.time += dt;
       if (solver.wind > 0) {
-        this.injectStreaks(dt, this.challenge ? CHALLENGE_STREAKS : TOY_STREAKS);
+        this.injectStreaks(dt, wakeView ? CHALLENGE_STREAKS : TOY_STREAKS, wakeView);
       }
       solver.step(dt);
       this.challenge?.tick(dt);
       this.wakeDemo?.tick(dt);
     }
-    // Wake view (wind-speed coloring) whenever turbines are on screen.
-    solver.render(this.challenge !== null || this.wakeDemo !== null);
+    solver.render(wakeView);
 
     // One-time quality reduction if this machine can't hold ~50 fps.
     this.frameEma = 0.95 * this.frameEma + 0.05 * dt * 1000;
@@ -290,8 +297,13 @@ class FluidInstance implements GameInstance {
 
   // ---- toy mode ----
 
-  /** Colored ribbons entering with the wind, so the flow field is visible. */
-  private injectStreaks(dt: number, count: number): void {
+  /**
+   * Colored ribbons entering with the wind, so the flow field is visible. In
+   * the wake view they are dashed: dashes ride the wind, so they visibly slow
+   * down and bunch up inside a wake instead of drawing static stripes.
+   */
+  private injectStreaks(dt: number, count: number, dashed: boolean): void {
+    if (dashed && this.time % DASH_PERIOD > DASH_PERIOD * 0.5) return;
     for (let i = 0; i < count; i++) {
       const y = 0.12 + (0.76 * i) / (count - 1);
       const [r, g, b] = hsvToRgb((i / count + this.time * 0.02) % 1, 0.7, 1);
