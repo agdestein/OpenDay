@@ -86,7 +86,9 @@ The real-time fluid solver behind the wind-farm game
 by Pavel Dobryakov (MIT License), itself based on the stable-fluids method of
 [GPU Gems ch. 38](https://developer.nvidia.com/gpugems/gpugems/part-vi-beyond-triangles/chapter-38-fast-fluid-dynamics-simulation-gpu).
 Our version is a TypeScript/WebGL2 rewrite of the solver core, with added wind
-inflow, obstacles, turbine drag disks, velocity probes, and the wake view.
+inflow from any direction (the wind turns during a round), open outflow edges,
+obstacles, yawing turbine drag disks, velocity probes, the wake view with GPU
+tracer particles, and an engineering wake model for the computer player.
 
 Creature Lab (`app/src/games/creature/`) is written from scratch (a small
 Verlet stick physics in the style of Jakobsen's *Advanced Character Physics*
