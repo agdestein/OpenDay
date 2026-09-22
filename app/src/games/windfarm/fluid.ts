@@ -39,8 +39,14 @@ export interface TurbineDisk {
 }
 
 // Simulation grids are a fixed 16:9; the display pass stretches to the canvas.
-const SIM_W = 256;
-const SIM_H = 144;
+// Velocities are measured in cells of a 256x144 reference grid per second,
+// whatever the actual grid: the game's wind speeds, splat forces and power
+// curve then mean the same on every quality tier.
+const REF_W = 256;
+const REF_H = 144;
+/** Quality tiers: [grid width, grid height, pressure iterations]. */
+const TIER_HIGH: [number, number, number] = [384, 216, 24];
+const TIER_LOW: [number, number, number] = [256, 144, 16];
 const DYE_W = 1024;
 const DYE_H = 576;
 
@@ -144,7 +150,9 @@ export class FluidSolver {
   private obstacleCount = 0;
   private turbineData = new Float32Array(MAX_TURBINES * 3);
   private turbineCount = 0;
-  private pressureIterations = 24;
+  private simW = 0;
+  private simH = 0;
+  private pressureIterations = 0;
 
   constructor(private canvas: HTMLCanvasElement) {
     const gl = canvas.getContext('webgl2', {
@@ -184,11 +192,8 @@ export class FluidSolver {
     };
     gl.deleteShader(vertex);
 
-    this.velocity = this.createDouble(SIM_W, SIM_H, gl.RG16F, gl.RG);
-    this.pressure = this.createDouble(SIM_W, SIM_H, gl.R16F, gl.RED);
     this.dye = this.createDouble(DYE_W, DYE_H, gl.RGBA16F, gl.RGBA);
-    this.curl = this.createTarget(SIM_W, SIM_H, gl.R16F, gl.RED);
-    this.divergence = this.createTarget(SIM_W, SIM_H, gl.R16F, gl.RED);
+    this.createSimTargets(...TIER_HIGH);
     // RGBA32F so readPixels(RGBA, FLOAT) is guaranteed; never sampled, so NEAREST.
     this.probeTarget = this.createTarget(MAX_TURBINES, 1, gl.RGBA32F, gl.RGBA, gl.FLOAT, gl.NEAREST);
   }
@@ -250,7 +255,7 @@ export class FluidSolver {
 
   step(dt: number): void {
     const gl = this.gl;
-    const texel: [number, number] = [1 / SIM_W, 1 / SIM_H];
+    const texel: [number, number] = [1 / this.simW, 1 / this.simH];
     const p = this.programs;
 
     // Vorticity confinement keeps small swirls alive on the coarse grid.
@@ -313,7 +318,7 @@ export class FluidSolver {
 
     // Advection.
     p.advection.bind();
-    gl.uniform2f(p.advection.loc('uTexel'), texel[0], texel[1]);
+    gl.uniform2f(p.advection.loc('uVelToUv'), 1 / REF_W, 1 / REF_H);
     gl.uniform1f(p.advection.loc('uDt'), dt);
     gl.uniform1f(p.advection.loc('uDissipation'), VELOCITY_DISSIPATION);
     this.bindTexture(p.advection.loc('uVelocity'), this.velocity.read.tex, 0);
@@ -357,9 +362,24 @@ export class FluidSolver {
     }
   }
 
-  /** Called once if frame times are poor on this machine. */
+  /**
+   * Called once if frame times are poor on this machine: drop to the coarse
+   * grid. The current flow is resampled, not reset, so a running wind-farm
+   * round carries on without a hiccup.
+   */
   reduceQuality(): void {
-    this.pressureIterations = 12;
+    const oldVelocity = this.velocity;
+    const oldPressure = this.pressure;
+    const oldCurl = this.curl;
+    const oldDivergence = this.divergence;
+    this.createSimTargets(...TIER_LOW);
+    this.resample(oldVelocity.read, this.velocity.read);
+    this.resample(oldPressure.read, this.pressure.read);
+    for (const t of [oldVelocity.read, oldVelocity.write, oldPressure.read, oldPressure.write]) {
+      this.deleteTarget(t);
+    }
+    this.deleteTarget(oldCurl);
+    this.deleteTarget(oldDivergence);
   }
 
   destroy(): void {
@@ -374,6 +394,12 @@ export class FluidSolver {
     return this.canvas.clientWidth / Math.max(1, this.canvas.clientHeight);
   }
 
+  /**
+   * Add a Gaussian blob in place, with additive blending restricted (scissor)
+   * to the blob's footprint. A full-texture pass per splat would cost more
+   * than the whole solver step: the wind streaks alone splat ~9 times per
+   * frame into the 1024x576 dye texture.
+   */
   private splat(
     target: DoubleTarget,
     x: number,
@@ -384,15 +410,54 @@ export class FluidSolver {
     radius: number,
   ): void {
     const gl = this.gl;
+    const aspect = this.aspect();
+    const t = target.read;
+    // exp(-d^2 / radius) < 1e-3 beyond this distance (screen-height units).
+    const reach = Math.sqrt(radius * 6.91);
+    const x0 = Math.max(0, Math.floor((x - reach / aspect) * t.w));
+    const x1 = Math.min(t.w, Math.ceil((x + reach / aspect) * t.w));
+    const y0 = Math.max(0, Math.floor((y - reach) * t.h));
+    const y1 = Math.min(t.h, Math.ceil((y + reach) * t.h));
+    if (x1 <= x0 || y1 <= y0) return;
     const p = this.programs.splat;
     p.bind();
-    gl.uniform1f(p.loc('uAspect'), this.aspect());
+    gl.uniform1f(p.loc('uAspect'), aspect);
     gl.uniform2f(p.loc('uPoint'), x, y);
     gl.uniform3f(p.loc('uColor'), r, g, b);
     gl.uniform1f(p.loc('uRadius'), radius);
-    this.bindTexture(p.loc('uTarget'), target.read.tex, 0);
-    this.blit(target.write);
-    this.swap(target);
+    gl.enable(gl.SCISSOR_TEST);
+    gl.scissor(x0, y0, x1 - x0, y1 - y0);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ONE, gl.ONE);
+    this.blit(t);
+    gl.disable(gl.BLEND);
+    gl.disable(gl.SCISSOR_TEST);
+  }
+
+  /** (Re)create the simulation-grid targets for a quality tier. */
+  private createSimTargets(w: number, h: number, iterations: number): void {
+    const gl = this.gl;
+    this.simW = w;
+    this.simH = h;
+    this.pressureIterations = iterations;
+    this.velocity = this.createDouble(w, h, gl.RG16F, gl.RG);
+    this.pressure = this.createDouble(w, h, gl.R16F, gl.RED);
+    this.curl = this.createTarget(w, h, gl.R16F, gl.RED);
+    this.divergence = this.createTarget(w, h, gl.R16F, gl.RED);
+  }
+
+  /** Copy a field into a target of a different size (bilinear). */
+  private resample(from: Target, to: Target): void {
+    const p = this.programs.clear;
+    p.bind();
+    this.gl.uniform1f(p.loc('uValue'), 1);
+    this.bindTexture(p.loc('uTexture'), from.tex, 0);
+    this.blit(to);
+  }
+
+  private deleteTarget(target: Target): void {
+    this.gl.deleteFramebuffer(target.fbo);
+    this.gl.deleteTexture(target.tex);
   }
 
   private blit(target: Target | null): void {

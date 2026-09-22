@@ -21,7 +21,7 @@ const CHAPTERS: Localized<ChapterText[]> = {
     {
       title: 'A wind tunnel made of numbers',
       paragraphs: [
-        'Everything on this screen is a live flow simulation. The screen is chopped into a grid about 256 cells across, and each cell stores two numbers: which way the air moves there, and how fast.',
+        'Everything on this screen is a live flow simulation. The screen is chopped into a grid a few hundred cells across, and each cell stores two numbers: which way the air moves there, and how fast.',
         'Sixty times per second, every cell trades pushes with its neighbors, and the colored dye just rides along — that is why the colors fold and swirl like cream in coffee. Nothing is a recorded video: stir, and the numbers change.',
         '👆 The card only covers part of the screen — keep stirring on the other side while you read!',
       ],
@@ -57,7 +57,7 @@ const CHAPTERS: Localized<ChapterText[]> = {
     {
       title: 'Een windtunnel van getallen',
       paragraphs: [
-        'Alles op dit scherm is een live stromingssimulatie. Het scherm is opgehakt in een raster van zo’n 256 cellen breed, en elke cel onthoudt twee getallen: welke kant de lucht daar op beweegt, en hoe snel.',
+        'Alles op dit scherm is een live stromingssimulatie. Het scherm is opgehakt in een raster van een paar honderd cellen breed, en elke cel onthoudt twee getallen: welke kant de lucht daar op beweegt, en hoe snel.',
         'Zestig keer per seconde geeft elke cel duwtjes door aan zijn buren, en de gekleurde inkt lift gewoon mee — daarom vouwen en wervelen de kleuren als melk in koffie. Niets is een opgenomen filmpje: roer, en de getallen veranderen.',
         '👆 De kaart bedekt maar een deel van het scherm — blijf gerust roeren aan de andere kant terwijl je leest!',
       ],
@@ -93,7 +93,7 @@ const CHAPTERS: Localized<ChapterText[]> = {
     {
       title: 'En vindtunnel av tall',
       paragraphs: [
-        'Alt på denne skjermen er en levende strømningssimulering. Skjermen er delt opp i et rutenett omtrent 256 celler bredt, og hver celle husker to tall: hvilken vei luften beveger seg der, og hvor fort.',
+        'Alt på denne skjermen er en levende strømningssimulering. Skjermen er delt opp i et rutenett noen hundre celler bredt, og hver celle husker to tall: hvilken vei luften beveger seg der, og hvor fort.',
         'Seksti ganger i sekundet utveksler hver celle dytt med naboene sine, og det fargede blekket bare blir med på lasset — derfor folder og virvler fargene seg som fløte i kaffe. Ingenting er en filmsnutt: rør, og tallene endrer seg.',
         '👆 Kortet dekker bare en del av skjermen — bare fortsett å røre på den andre siden mens du leser!',
       ],

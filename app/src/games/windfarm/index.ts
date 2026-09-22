@@ -63,7 +63,7 @@ const SPLAT_FORCE = 6000; // uv-space pointer delta -> velocity (cells/sec)
 const DYE_RADIUS = 0.0025;
 const OBSTACLE_RADIUS = 0.07; // fraction of screen height
 const MAX_PLACED_OBSTACLES = 12;
-const WIND_SPEED = 60; // cells/sec; sim is 256 cells wide
+const WIND_SPEED = 60; // reference-grid cells/sec (256 across the screen)
 const TOY_STREAKS = 6;
 /** Vorticity confinement: lively swirls for stirring, clean wakes for turbines. */
 const TOY_CURL = 25;
@@ -158,12 +158,18 @@ class FluidInstance implements GameInstance {
     canvas.addEventListener('pointerdown', this.onPointerDown);
     canvas.addEventListener('pointermove', this.onPointerMove);
     window.addEventListener('pointerup', this.onPointerUp);
-    // An opening puff so the screen is alive before the first touch.
+    // An opening pinwheel so the screen is alive before the first touch: five
+    // jets around the center, angled so they curl into a swirl. (Jets splatted
+    // on the same spot would cancel out and leave a motionless blob.)
+    const aspect = this.host.canvas.clientWidth / Math.max(1, this.host.canvas.clientHeight);
     for (let i = 0; i < 5; i++) {
       const [r, g, b] = hsvToRgb((this.hue + i * 0.13) % 1, 0.85, 1);
       const angle = (i / 5) * Math.PI * 2;
-      this.solver.splatVelocity(0.5, 0.5, Math.cos(angle) * 250, Math.sin(angle) * 250, 0.006);
-      this.solver.splatDye(0.5, 0.5, r * 0.25, g * 0.25, b * 0.25, 0.006);
+      const x = 0.5 + (Math.cos(angle) * 0.05) / aspect;
+      const y = 0.5 + Math.sin(angle) * 0.05;
+      const heading = angle + 0.6;
+      this.solver.splatVelocity(x, y, Math.cos(heading) * 300, Math.sin(heading) * 300, 0.002);
+      this.solver.splatDye(x, y, r * 0.3, g * 0.3, b * 0.3, 0.002);
     }
   }
 

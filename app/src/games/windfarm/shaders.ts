@@ -31,21 +31,25 @@ in vec2 vUv;
 out vec4 frag;
 `;
 
-/** Velocity is stored in sim-grid cells per second. */
+/**
+ * Velocity is stored in cells of a fixed reference grid per second (see
+ * fluid.ts), so uVelToUv converts it to uv units independent of the actual
+ * grid resolution.
+ */
 export const advectionSrc = `${header}
 uniform sampler2D uVelocity;
 uniform sampler2D uSource;
-uniform vec2 uTexel;
+uniform vec2 uVelToUv;
 uniform float uDt;
 uniform float uDissipation;
 void main() {
-  vec2 coord = vUv - uDt * texture(uVelocity, vUv).xy * uTexel;
+  vec2 coord = vUv - uDt * texture(uVelocity, vUv).xy * uVelToUv;
   frag = texture(uSource, coord) / (1.0 + uDissipation * uDt);
 }
 `;
 
+/** A Gaussian blob, added onto the target with additive blending. */
 export const splatSrc = `${header}
-uniform sampler2D uTarget;
 uniform float uAspect;
 uniform vec2 uPoint;
 uniform vec3 uColor;
@@ -53,8 +57,7 @@ uniform float uRadius;
 void main() {
   vec2 p = vUv - uPoint;
   p.x *= uAspect;
-  vec3 splat = exp(-dot(p, p) / uRadius) * uColor;
-  frag = vec4(texture(uTarget, vUv).xyz + splat, 1.0);
+  frag = vec4(exp(-dot(p, p) / uRadius) * uColor, 0.0);
 }
 `;
 
