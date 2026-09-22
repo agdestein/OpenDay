@@ -118,6 +118,21 @@ your arms, shed vortices.
   only after game 1 is solid.
 - **Effort:** medium on top of game 1 (background subtraction or simple motion mask).
 
+## 9. Weather Detective (weather maps from few thermometers) — **planned**
+
+The real weather map of a real day (KNMI data) is hidden under fog; place
+thermometers and a Gaussian process fills in the map and shows how sure it is.
+Based on our KNMI project on multi-fidelity GP regression with crowdsourced
+weather stations, and on last year's Science Day game about it.
+
+- **Hook:** click to drop a thermometer and colour spreads and the fog lifts; drag it
+  and the whole map follows live.
+- **Depth:** challenge rounds on a budget: accurate official stations are expensive, home
+  stations are cheap but noisy and too warm. Your map against the weather computer's.
+- **Science line:** "Together with KNMI we turn thousands of official and home weather
+  stations into one weather map of all of Europe, and the maths tells us how sure we are."
+- **Effort:** low-medium. Full plan: [weather-detective-plan.md](weather-detective-plan.md).
+
 ---
 
 ## How these cover the field
@@ -130,6 +145,7 @@ your arms, shed vortices.
 | Creature walk | robotics / AI | reinforcement learning |
 | Butterfly effect | weather / forecasting | chaos, uncertainty quantification |
 | Gravity sandbox | astronomy / space | ODEs, numerical integration |
+| Weather Detective | weather / climate data | statistics, Gaussian processes, uncertainty |
 
 Three planned games already span energy, health, and climate with three different
 mathematical methods — the "we can simulate anything" message in miniature. Each later
