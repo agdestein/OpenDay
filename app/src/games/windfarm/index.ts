@@ -74,6 +74,13 @@ const DASH_PERIOD = 0.6;
 
 type Mode = 'stir' | 'blocks';
 
+/**
+ * Stand override for the fluid grid: ?quality=low forces the coarse grid on a
+ * slow machine, ?quality=high keeps the fine grid; otherwise the game drops to
+ * the coarse grid by itself if the first seconds run below ~42 fps.
+ */
+const QUALITY = new URLSearchParams(location.search).get('quality');
+
 function hsvToRgb(h: number, s: number, v: number): [number, number, number] {
   const f = (n: number) => {
     const k = (n + h * 6) % 6;
@@ -92,7 +99,8 @@ class FluidInstance implements GameInstance {
   private time = 0;
   private frameEma = 16;
   private warmup = 0;
-  private downgraded = false;
+  /** On the coarse grid (forced by ?quality=low, or auto-detected as slow). */
+  private lowTier = QUALITY === 'low';
   private pointerDown = false;
   private last = { x: 0, y: 0 };
   private buttons: Partial<Record<Mode | 'wind', HTMLButtonElement>> = {};
@@ -141,7 +149,7 @@ class FluidInstance implements GameInstance {
   constructor(private host: GameHost) {}
 
   start(): void {
-    const solver = new FluidSolver(this.host.canvas);
+    const solver = new FluidSolver(this.host.canvas, this.lowTier);
     if (!solver.ok) {
       const message = document.createElement('p');
       message.className = 'game-message';
@@ -181,7 +189,7 @@ class FluidInstance implements GameInstance {
     // Wake view (wind-speed coloring) whenever turbines are on screen.
     const wakeView = this.challenge !== null || this.wakeDemo !== null;
     solver.curlStrength = wakeView ? WAKE_CURL : TOY_CURL;
-    const steps = this.challenge?.fastForward && !this.downgraded ? 2 : 1;
+    const steps = this.challenge?.fastForward && !this.lowTier ? 2 : 1;
     for (let i = 0; i < steps; i++) {
       this.time += dt;
       if (solver.wind > 0) {
@@ -193,10 +201,11 @@ class FluidInstance implements GameInstance {
     }
     solver.render(wakeView);
 
-    // One-time quality reduction if this machine can't hold ~50 fps.
+    // One-time quality reduction if this machine can't hold ~42 fps (unless
+    // the stand forced a tier with ?quality=).
     this.frameEma = 0.95 * this.frameEma + 0.05 * dt * 1000;
-    if (++this.warmup > 120 && !this.downgraded && this.frameEma > 24) {
-      this.downgraded = true;
+    if (++this.warmup > 120 && !this.lowTier && !QUALITY && this.frameEma > 24) {
+      this.lowTier = true;
       solver.reduceQuality();
     }
   }

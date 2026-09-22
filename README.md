@@ -72,6 +72,9 @@ Useful at the stand:
   Translations live next to the code that uses them as typed `Localized<...>`
   dictionaries (see `app/src/lib/i18n.ts`) — a missing translation is a compile
   error, so the three languages cannot silently drift apart.
+- Add `?quality=low` on a slow machine to run Swirl Lab's fluid solver on its
+  coarse grid from the start (`?quality=high` pins the fine grid). By default
+  it starts fine and drops to coarse by itself if the first seconds stutter.
 - Press `F` (or the corner button) for fullscreen; `Esc` returns to the menu.
 - A game with no input for 90 seconds resets to the menu automatically.
 

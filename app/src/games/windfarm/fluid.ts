@@ -154,7 +154,11 @@ export class FluidSolver {
   private simH = 0;
   private pressureIterations = 0;
 
-  constructor(private canvas: HTMLCanvasElement) {
+  /** lowQuality starts on the coarse tier (for machines known to be slow). */
+  constructor(
+    private canvas: HTMLCanvasElement,
+    lowQuality = false,
+  ) {
     const gl = canvas.getContext('webgl2', {
       alpha: false,
       depth: false,
@@ -193,7 +197,7 @@ export class FluidSolver {
     gl.deleteShader(vertex);
 
     this.dye = this.createDouble(DYE_W, DYE_H, gl.RGBA16F, gl.RGBA);
-    this.createSimTargets(...TIER_HIGH);
+    this.createSimTargets(...(lowQuality ? TIER_LOW : TIER_HIGH));
     // RGBA32F so readPixels(RGBA, FLOAT) is guaranteed; never sampled, so NEAREST.
     this.probeTarget = this.createTarget(MAX_TURBINES, 1, gl.RGBA32F, gl.RGBA, gl.FLOAT, gl.NEAREST);
   }
