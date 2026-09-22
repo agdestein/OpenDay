@@ -6,8 +6,9 @@ import { fmtNumber, pick, type Localized } from '../../lib/i18n';
 import { Dreamer, GP, type Hyper } from './gp';
 import { listened, makeStation, mapError, mapGuess, randomLand, type Station } from './cases';
 import { EUROPE, EUROPE_HOME, EUROPE_OFFICIAL } from './data';
-import { HEIGHT_KM, HYPER, KNMI_STATIONS, WIDTH_KM, landCanvas, lonLatToKm, onLand, rng, world, type Grid } from './world';
+import { FINE_NX, FINE_NY, HEIGHT_KM, HYPER, KNMI_STATIONS, WIDTH_KM, landCanvas, lonLatToKm, onLand, rng, world, type Grid } from './world';
 import { drawHouse, drawTag, drawThermometer, paintField, tempColor, type Scale } from './render';
+import { MapGL } from './mapgl';
 
 interface ChapterText {
   title: string;
@@ -297,6 +298,8 @@ export class DetectiveDelve {
   private dreamField = new Float32Array(world().coarse.n);
   private coarseImg: { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D; img: ImageData };
 
+  private gl: MapGL | null = null;
+
   // europe
   private stations: { official: Float32Array; home: Float32Array } | null = null;
   private europeN = 1000;
@@ -312,6 +315,7 @@ export class DetectiveDelve {
     };
     this.img = mk(half.nx, half.ny);
     this.coarseImg = mk(coarse.nx, coarse.ny);
+    this.gl = MapGL.create(world().fineLand, FINE_NX, FINE_NY, WIDTH_KM, HEIGHT_KM);
     for (const x of [30, 110, 170]) this.addWalk(x);
   }
 
@@ -432,6 +436,8 @@ export class DetectiveDelve {
     this.canvas?.removeEventListener('pointermove', this.onMove);
     window.removeEventListener('pointerup', this.onUp);
     this.canvas = null;
+    this.gl?.dispose();
+    this.gl = null;
   }
 
   // --- walk ---
@@ -563,11 +569,24 @@ export class DetectiveDelve {
     const mw = WIDTH_KM * s, mh = HEIGHT_KM * s;
     const ox = x + (w - mw) / 2, oy = y + (h - mh) / 2;
     const dpr = ctx.getTransform().a;
+    const { half, coarse } = world();
+    if (this.gl) {
+      this.gl.resize(Math.ceil(mw * dpr), Math.ceil(mh * dpr));
+      if (dream && this.dreamer) this.dreamer.sample(this.time, this.dreamField);
+      const grid = dream && this.dreamer ? coarse : half;
+      const data = dream && this.dreamer ? this.dreamField : this.mapField;
+      this.gl.render({ field: { data, nx: grid.nx, ny: grid.ny, dx: grid.dx, dy: grid.dy }, mode: 'temp', scale: this.mapScale, isotherms: true, time: this.time });
+      ctx.save();
+      ctx.shadowColor = 'rgba(140, 200, 255, 0.5)';
+      ctx.shadowBlur = 16;
+      ctx.drawImage(this.gl.canvas, ox, oy, mw, mh);
+      ctx.restore();
+      return { s, ox, oy };
+    }
     this.off.width = Math.ceil(mw * dpr);
     this.off.height = Math.ceil(mh * dpr);
     const o = this.offCtx;
     o.imageSmoothingEnabled = true;
-    const { half, coarse } = world();
     if (dream && this.dreamer) {
       this.dreamer.sample(this.time, this.dreamField);
       paintField(this.coarseImg.img, this.dreamField, this.mapScale, coarse.land);

@@ -22,6 +22,12 @@ for (let i = 0; i < 256; i++) {
   for (let c = 0; c < 3; c++) LUT[i * 3 + c] = STOPS[k][c] + (STOPS[k + 1][c] - STOPS[k][c]) * f;
 }
 
+/** The same colours as an RGBA byte table, for the GPU renderer. */
+export const LUT_RGBA = new Uint8Array(256 * 4);
+for (let i = 0; i < 256; i++) {
+  LUT_RGBA.set([LUT[i * 3], LUT[i * 3 + 1], LUT[i * 3 + 2], 255], i * 4);
+}
+
 export interface Scale {
   lo: number;
   hi: number;

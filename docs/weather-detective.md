@@ -74,7 +74,15 @@ are fixed during play.
 - **Grids.** Everything is in km. KNMI's 386×280 grid (≈ 0.7 × 1.1 km) gives
   the land mask and a crisp coastline. The half grid (193×140) holds the
   truth, the best guess and the colours. The quarter grid (97×70) holds the
-  spread (fog) and the dreams, which are soft by nature and blurred when drawn.
+  spread (fog) and the dreams.
+- **Drawing** (`mapgl.ts`). A WebGL2 fragment shader samples the grids per
+  screen pixel with a cubic B-spline filter, so there are no visible cells.
+  It draws 1 °C isotherms as thin anti-aliased lines (from `fwidth`, fading
+  under fog), a smooth coastline from the bicubically filtered land mask,
+  and fog as drifting fBm clouds whose thickness is the spread. Off-land
+  cells are filled from their neighbours first, so the coast doesn't bleed
+  in 0 °C. Without WebGL2 the older 2D-canvas path (bilinear, per-cell
+  isotherms) takes over.
 - **Speed.** Per-station columns of the Matérn part are cached per grid, so
   moving one thermometer recomputes one column. Measured with 150 stations
   (`npm run test:detective`): refit ≈ 1.5 ms, best guess ≈ 3–5 ms, spread

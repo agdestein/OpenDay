@@ -11,12 +11,13 @@ import {
   listened, makeStation, mapError, mapGuess, mapPoints, newGP, randomLand, type CaseDef, type Kind, type Station,
 } from './cases';
 import {
-  CITIES, DAY_IDS, HEIGHT_KM, HYPER, KNMI_STATIONS, WIDTH_KM, landCanvas, lonLatToKm, onLand, rng, sampleHalf, world,
+  CITIES, DAY_IDS, FINE_NX, FINE_NY, HEIGHT_KM, HYPER, KNMI_STATIONS, WIDTH_KM, landCanvas, lonLatToKm, onLand, rng, sampleHalf, world,
   type DayId,
 } from './world';
 import { drawHouse, drawLegend, drawTag, drawThermometer, paintError, paintField, paintFog, tempColor, type Scale } from './render';
 import { text } from './text';
 import { DetectiveDelve } from './delve';
+import { MapGL, fillNaN, type FieldLayer } from './mapgl';
 import './style.css';
 
 type View = 'dream' | 'guess';
@@ -76,6 +77,9 @@ export class DetectiveGame implements GameInstance {
   private mapCanvas = document.createElement('canvas');
   private mapCtx = this.mapCanvas.getContext('2d')!;
   private glow = document.createElement('canvas');
+  /** Smooth GPU map (null: 2D fallback). */
+  private gl: MapGL | null;
+  private fogRel: Float32Array;
   private layout = { ox: 0, oy: 0, s: 1, mw: 1, mh: 1, key: '' };
 
   // --- input ---
@@ -117,6 +121,8 @@ export class DetectiveGame implements GameInstance {
     this.coarse = layer(coarse.nx, coarse.ny);
     this.fog = layer(coarse.nx, coarse.ny);
     this.land = landCanvas();
+    this.gl = MapGL.create(this.w.fineLand, FINE_NX, FINE_NY, WIDTH_KM, HEIGHT_KM);
+    this.fogRel = new Float32Array(coarse.n).fill(1);
     this.truth = this.w.days[this.day].t;
     this.scale = this.dayScale(this.day);
     this.gp = new GP(HYPER[this.day], [half, coarse]);
@@ -149,6 +155,8 @@ export class DetectiveGame implements GameInstance {
     window.removeEventListener('pointerup', this.onUp);
     this.scoreHandle?.dispose();
     this.delve?.dispose();
+    this.delveDemo?.detach();
+    this.gl?.dispose();
   }
 
   frame(dt: number): void {
@@ -217,6 +225,10 @@ export class DetectiveGame implements GameInstance {
       this.gp.sdGrid(1, this.sd, this.w.coarse.land);
       this.sdDirty = false;
       this.lastSd = now;
+      const { coarse } = this.w;
+      const rel = new Float32Array(coarse.n);
+      for (let k = 0; k < coarse.n; k++) rel[k] = coarse.land[k] ? this.sd[k] / this.priorSd[k] : NaN;
+      this.fogRel = fillNaN(rel, coarse.nx, coarse.ny);
     }
   }
 
@@ -561,7 +573,43 @@ export class DetectiveGame implements GameInstance {
     this.mapCtx.drawImage(l.canvas, 0, 0, grid.nx * grid.dx * s * dpr, grid.ny * grid.dy * s * dpr);
   }
 
+  private layerOf(data: Float32Array, grid: { nx: number; ny: number; dx: number; dy: number }): FieldLayer {
+    return { data, nx: grid.nx, ny: grid.ny, dx: grid.dx, dy: grid.dy };
+  }
+
+  /** The smooth GPU path: same choices as drawMap, drawn per pixel. */
+  private drawMapGL(ctx: CanvasRenderingContext2D, gl: MapGL): void {
+    const { half, coarse } = this.w;
+    const { ox, oy, mw, mh } = this.layout;
+    const dpr = this.host.dpr;
+    ctx.drawImage(this.glow, ox - 30, oy - 30, mw + 60, mh + 60);
+    gl.resize(Math.ceil(mw * dpr), Math.ceil(mh * dpr));
+    const revealing = this.mode === 'case' && this.phase === 'reveal';
+    const showTruth = this.peek || (revealing && this.revealView === 'truth');
+    const base = { scale: this.scale, time: this.time, isotherms: true, mode: 'temp' as const };
+    let frame: Parameters<MapGL['render']>[0];
+    if (revealing && this.revealView !== 'truth') {
+      const field = this.revealView === 'computer' ? this.cpuMean : this.revealView === 'guess' ? this.mean : null;
+      frame = field
+        ? { ...base, field: this.layerOf(field, half) }
+        : { ...base, mode: 'error', errorFull: 2, isotherms: false, field: this.layerOf(this.errField ?? new Float32Array(half.n), half) };
+    } else if (this.view === 'dream' && !showTruth) {
+      this.dreamer.sample(this.time, this.dream);
+      frame = { ...base, field: this.layerOf(this.dream, coarse) };
+    } else {
+      const fog = !showTruth || revealing ? this.layerOf(this.fogRel, coarse) : null;
+      frame = { ...base, field: this.layerOf(this.mean, half), fog };
+    }
+    if (showTruth) frame.wipe = { field: this.layerOf(this.truth, half), frac: revealing ? Math.min(1, this.revealT / 1.3) : 1 };
+    gl.render(frame);
+    ctx.drawImage(gl.canvas, ox, oy, mw, mh);
+  }
+
   private drawMap(ctx: CanvasRenderingContext2D): void {
+    if (this.gl) {
+      this.drawMapGL(ctx, this.gl);
+      return;
+    }
     const { half, coarse } = this.w;
     const { ox, oy, mw, mh } = this.layout;
     const m = this.mapCtx;
