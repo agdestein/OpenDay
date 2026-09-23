@@ -1,0 +1,61 @@
+<!doctype html><meta charset="utf-8">
+<style>
+*{box-sizing:border-box;margin:0}
+html,body{width:100vw;height:100vh;overflow:hidden;background:#0b1020;font-family:'Noto Sans',sans-serif;color:#e8ecf8}
+body{background:radial-gradient(ellipse at 50% 20%,#1b2550 0%,#0b1020 65%)}
+.u{font-size:calc(min(100vw,100vh*1.414) / 100)} /* 1u ~ 1% of short-ish side */
+.title{font-weight:900;letter-spacing:-.01em;line-height:1;background:linear-gradient(90deg,#7dd3fc,#c084fc,#fb7185);-webkit-background-clip:text;color:transparent;filter:drop-shadow(0 .06em .12em rgba(0,0,0,.55))}
+.sub{font-weight:600;color:#f1f4ff;text-shadow:0 .08em .3em rgba(0,0,0,.8)}
+.credit{font-weight:600;color:#aab3d6;letter-spacing:.04em;text-shadow:0 .08em .3em rgba(0,0,0,.8)}
+/* mosaic */
+.mosaic{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center}
+.grid{display:grid;flex:1;width:100%}
+.tile{position:relative;border-radius:1.6em;overflow:hidden;box-shadow:0 .6em 2em rgba(0,0,0,.6),0 0 0 .15em rgba(255,255,255,.12)}
+.tile img{width:100%;height:100%;object-fit:cover;display:block}
+.chip{position:absolute;left:.9em;bottom:.9em;background:rgba(8,12,28,.78);backdrop-filter:blur(6px);border:.08em solid rgba(255,255,255,.18);border-radius:99em;padding:.25em .8em .3em .6em;font-weight:800;color:#fff;font-size:2.1em;white-space:nowrap}
+/* hero */
+.hero{position:absolute;inset:0}
+.hero img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.shade{position:absolute;inset:0}
+.hero .text{position:absolute;left:0;right:0;display:flex;flex-direction:column;gap:.35em}
+</style>
+<div id="root" class="u"></div>
+<script>
+const q = new URLSearchParams(location.search);
+const design = q.get('d'), portrait = q.get('s') === 'P', text = q.get('t') !== '0';
+const root = document.getElementById('root');
+const T = { title: 'De simulatie-arcade', sub: 'Kun jij de wereld nabootsen?', credit: 'SCIENTIFIC COMPUTING · CWI', tag: 'Wind, water, virussen, weer — alles live doorgerekend. Kom zelf spelen!' };
+const head = (sizeT, sizeS, align = 'center') => text ? `
+  <div style="text-align:${align}">
+    <div class="title" style="font-size:${sizeT}em">${T.title}</div>
+    <div class="sub" style="font-size:${sizeS}em;margin-top:.3em">${T.sub}</div>
+  </div>` : '';
+if (design === 'mosaic') {
+  const tiles = [['farm','⚡ Windmolenpark'],['flood','🌊 Red Nederland'],['outbreak','🦠 Uitbraak!'],['detective','🌡️ Weerdetective'],['street','🌀 Wervel-lab'],['creature','🧬 Beestenlab']];
+  const cols = portrait ? 2 : 3, gap = portrait ? 2.2 : 1.6, pad = portrait ? 4 : 2.6;
+  root.innerHTML = `<div class="mosaic" style="padding:${pad}em;gap:${portrait ? 3.4 : 2}em">
+    ${head(portrait ? 9.5 : 6.2, portrait ? 4.2 : 2.9)}
+    <div class="grid" style="grid-template-columns:repeat(${cols},1fr);gap:${gap}em">
+      ${tiles.map(([f, l]) => `<div class="tile"><img src="tiles/${f}.jpg">${text ? `<div class="chip">${l}</div>` : ''}</div>`).join('')}
+    </div>
+    ${text ? `<div class="credit" style="font-size:${portrait ? 2.6 : 1.9}em">${T.credit}</div>` : ''}
+  </div>`;
+} else {
+  // hero: d = farm | flood | street
+  const src = { farm: `shots/f_${portrait ? 'P2' : 'L2'}.png`, flood: `shots/h_flood_${portrait ? 'P' : 'L'}2.png`, street: `shots/h_street_${portrait ? 'P' : 'L'}.png` }[design];
+  const pos = { farm: portrait ? '50% 0%' : '50% 50%', flood: portrait ? '50% 50%' : '50% 60%', street: '0% 50%' }[design];
+  const scale = { farm: portrait ? 1.12 : 1.0, flood: portrait ? 1.1 : 1.25, street: 1.0 }[design];
+  const shift = design === 'flood' && portrait ? 'translateY(6%) ' : '';
+  const top = design !== 'farm';
+  root.innerHTML = `<div class="hero">
+    <img src="${src}" style="object-position:${pos};transform:${shift}scale(${scale});transform-origin:${pos}">
+    ${text ? `<div class="shade" style="background:linear-gradient(${top ? '180deg' : '0deg'},rgba(6,10,24,.92) 0%,rgba(6,10,24,.55) ${portrait ? 24 : 30}%,rgba(6,10,24,0) ${portrait ? 40 : 50}%,rgba(6,10,24,0) ${portrait ? 82 : 75}%,rgba(6,10,24,.8) 100%)"></div>
+    <div class="text" style="${top ? 'top' : 'bottom'}:${portrait ? 6 : 5}%;padding:0 5%">
+      ${head(portrait ? 10 : 7, portrait ? 4.4 : 3.2)}
+    </div>
+    <div class="sub tag" style="position:absolute;${top ? 'bottom' : 'top'}:${portrait ? 6 : 8}%;left:5%;right:5%;text-align:center;font-weight:600;font-size:${portrait ? 2.4 : 2.2}em;color:#dfe5fb;white-space:nowrap">${T.tag}</div>
+    <div class="credit" style="position:absolute;${top ? 'bottom' : 'top'}:${portrait ? 2.5 : 3.5}%;right:4%;font-size:${portrait ? 2.4 : 1.8}em">${T.credit}</div>` : ''}
+  </div>`;
+}
+document.fonts.ready.then(() => Promise.all([...document.images].map(i => i.decode()))).then(() => document.title = 'ready');
+</script>
