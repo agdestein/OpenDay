@@ -6,7 +6,7 @@ An assessment of Bouncy Balls as it was on 23 September 2026 against
 [Save the Netherlands proposal](floodland-proposal.md): **A** makes the game meet the
 goals, **B** adds depth, **C** can wait.
 
-**Phases A, B and most of C are built** (the game is now Ball Pit; its id stays `bounce`, so
+**Phases A, B and C are built** (C without the evacuation round, which was skipped) (the game is now Ball Pit; its id stays `bounce`, so
 `?games=` and today's scores keep working). Where the build differs from this plan:
 
 - **Round 2 is not the pillar silo.** The half-day spike on the rebuilt physics found
@@ -32,7 +32,8 @@ goals, **B** adds depth, **C** can wait.
   24 s at walking speed, 10 s at four times that), where the real "faster is
   slower" and pillar effects need a dedicated crowd model with body compression and
   sliding friction. A round built on either would teach something this simulation
-  does not show.
+  does not show. Decided on 23 September 2026: skipped (no evacuation round or
+  fire-drill toy).
 - **No Brazil nut.** The golden ball does not rise when the pit is shaken, with the
   hot plate or with whole-pit taps (after 30 s of shaking it still sits in the lower
   half). The effect needs spinning, rolling balls; this model has no spin. The big
@@ -285,10 +286,11 @@ switches into the delve only; round 1 (Plinko) with `scoreFlow`.
 Brazil-nut fallback); round 3; zoom-out slider with pair counter; delve chapters 1–6
 in en/nl/no.
 
-**C: after the event.** Chaos twins inside play (split screen in toy mode); an
+**C: after the event.** Chaos twins inside play (split screen in toy mode); ~~an
 evacuation variant of round 2, where the balls are people with eyes running for a door
-(the same pillar trick, the most memorable version for kids); link buttons from
-delve chapter 6 straight into Swirl Lab.
+(the same pillar trick, the most memorable version for kids)~~ *(skipped: the model
+does not show the pillar effect, see above)*; link buttons from delve chapter 6
+straight into Swirl Lab.
 
 **If A doesn't fit before 3 October:** hide the game on the stand machines with
 `?games=`. As it is, it is the weakest tile and dilutes the message. A half-day "A-lite"
