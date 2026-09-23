@@ -1,5 +1,6 @@
 import type { ArcadeGame, Screen } from './types';
 import { delveToggle } from './delve';
+import { soundButton } from './hud';
 import { renderAbout } from './about';
 import { fullscreenSupported, toggleFullscreen } from '../lib/fullscreen';
 import { cappedDpr, randRange } from '../lib/util';
@@ -76,6 +77,8 @@ export function renderMenu(
   footer.className = 'menu-footer';
   footer.textContent = T.footer;
   element.appendChild(footer);
+
+  element.appendChild(soundButton(fullscreenSupported ? 'menu-sound' : 'menu-sound alone'));
 
   if (fullscreenSupported) {
     const fullscreen = document.createElement('button');

@@ -205,3 +205,42 @@ import { chooseWeakSections, weakDike, stormRun, finish, random, SECTIONS, WEAK_
   assert.deepEqual(uniformDike(3)(0).profile, uniformDike(3)(39).profile);
   console.log(`PASS: round 3. Fragility ${f.flooded.join(' ')}; scores at 1.5 / 2.75 / 4 m: ${scores.join(' / ')}.`);
 }
+
+// Round 4: the gate, the forecast.
+import { harbourScene, setGate, barrierSeaLevel, barrierThreats, ensemble, forecastLevel, forecastSpread, threatStrength,
+  BARRIER_LENGTH, GATE, HARBOUR, ENSEMBLE } from '../src/games/floodland/rounds.ts';
+{
+  const threats = [{ peak: .5, time: 16 }, { peak: 1.6, time: 34 }, { peak: 2.6, time: 52 }];
+  const run = (shut: (t: number) => boolean) => {
+    const s = harbourScene(); let mask = 0, g = 0;
+    for (let f = 1; f <= BARRIER_LENGTH * 60; f++) {
+      const t = f / 60;
+      g = Math.max(0, Math.min(1, g + Math.sign((shut(t) ? 1 : 0) - g) / (GATE.seconds * 60)));
+      setGate(s, g); s.seaLevel = barrierSeaLevel(t, threats); s.advance(TIME_SCALE / 60);
+      mask |= floodedHomes(s);
+      assert.ok(s.water.every(h => Number.isFinite(h) && h >= 0));
+    }
+    return countBits(mask);
+  };
+  const calm = harbourScene();
+  assert.ok(Math.abs(calm.water[10 * W + 30] - 2.5) < 1e-9, 'The harbour is open water at sea level');
+  const open = run(() => false), both = run(t => (t > 25 && t < 40) || (t > 43 && t < 58));
+  const bigOnly = run(t => t > 43 && t < 58), late = run(t => (t > 25 && t < 40) || (t > 50 && t < 58));
+  assert.equal(open, 8, 'An open gate floods the village');
+  assert.equal(both, 0, 'Closing for both real threats keeps it dry');
+  assert.ok(bigOnly > 0 && bigOnly < open, 'Skipping the medium storm costs a little');
+  assert.ok(late > 0, 'Closing too late costs too');
+  assert.equal(run(() => true), 0);
+  const th = barrierThreats(random(3));
+  assert.deepEqual(th.map(x => x.peak).sort(), [.5, 1.6, 2.6]);
+  assert.equal(threatStrength(0), 1); assert.equal(threatStrength(10), 0);
+  assert.ok(forecastSpread(18) > 3 * forecastSpread(2), 'Forecasts narrow as the storm nears');
+  const members = ensemble(random(5), 1), one = [{ peak: 1.6, time: 30 }];
+  const spreadAt = (now: number) => { const v = members.map(m => forecastLevel(30, now, one, m)); return Math.max(...v) - Math.min(...v); };
+  assert.equal(members.length, ENSEMBLE);
+  assert.ok(spreadAt(10) > 2 * spreadAt(27), 'The ensemble closes in on the storm');
+  const mean = members.reduce((a, m) => a + forecastLevel(30, 30, one, m), 0) / ENSEMBLE;
+  assert.ok(Math.abs(mean - 1.6) < .1, 'At the peak the forecasts agree with the truth');
+  assert.ok(HARBOUR.quay < 1.6);
+  console.log(`PASS: round 4. Flooded: gate open ${open}, closed for both ${both}, big only ${bigOnly}, late ${late}.`);
+}

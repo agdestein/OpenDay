@@ -4,8 +4,8 @@
 import type { DelveChapter } from '../../shell/delve';
 import { FloodSim, GRID_W as W } from './water';
 import { SILL, TIME_SCALE, type Point } from './scene';
-import { HEIGHT, exceedance, fragilityRun, type Fragility } from './rounds';
-import { drawStormOdds } from './charts';
+import { HEIGHT, HARBOUR, ensemble, exceedance, forecastLevel, fragilityRun, random, threatStrength, type Fragility } from './rounds';
+import { drawForecast, drawStormOdds } from './charts';
 import { text } from './text';
 
 export interface DelveHost {
@@ -25,7 +25,9 @@ export interface Rect { x: number; y: number; w: number; h: number }
 let shared: Fragility | null = null;
 export function shareFragility(f: Fragility): void { shared = f; }
 
-const DIORAMA = [true, false, true, false, false, true];
+const DIORAMA = [true, false, true, false, false, false, true];
+/** The forecast chapter's storm: a peak at 20 s on a 24 s loop. */
+const DEMO = { peak: 1.9, time: 20, loop: 24 };
 const TANK = 30;
 
 /** "Once every N years", rounded the way people say it. */
@@ -44,6 +46,7 @@ export class FloodDelve {
   private crest = 2.5;
   private computing: Generator<{ run: number }, Fragility> | null = null;
   private run = 0;
+  private members = ensemble(random(7), 1);
   constructor(private host: DelveHost) {
     this.tank.ocean = false;
     for (let x = 0; x < TANK; x++) this.tank.terrain[x] = x >= 14 && x <= 16 ? .3 : 0;
@@ -128,6 +131,7 @@ export class FloodDelve {
       c.fillText(t.stepSize(steps ? (TIME_SCALE / steps).toFixed(2) : '–'), box.x + box.w / 2, box.y + 56);
     }
     if (this.chapter === 3) this.drawSection(c, r);
+    if (this.chapter === 5) this.drawForecastDemo(c, r);
     if (this.chapter === 4) {
       const pad = { l: 70, r: 30, t: 70, b: 60 };
       if (shared) {
@@ -141,6 +145,19 @@ export class FloodDelve {
       }
     }
     c.restore();
+  }
+
+  /** A storm coming on a loop: the 20 forecasts close in on it as it nears. */
+  private drawForecastDemo(c: CanvasRenderingContext2D, r: Rect): void {
+    const t = text(), now = this.time % DEMO.loop, threat = [{ peak: DEMO.peak, time: DEMO.time }];
+    const times: number[] = [], past: { t: number; level: number }[] = [];
+    for (let k = 0; k <= 40; k++) times.push(now + k * .5);
+    for (let tt = Math.max(0, now - 8); tt <= now; tt += .25) past.push({ t: tt, level: DEMO.peak * threatStrength(tt - DEMO.time) });
+    const members = this.members.map(m => times.map(tt => forecastLevel(tt, now, threat, m)));
+    drawForecast(c, r.x + 60, r.y + 70, r.w - 90, r.h - 130, now, past, times, members, HARBOUR.quay, { quay: t.forecastQuay, now: t.forecastNow });
+    const over = members.filter(m => m.some(v => v > HARBOUR.quay)).length;
+    c.fillStyle = over ? '#ff9d8a' : '#eaf3ee'; c.font = '800 20px system-ui'; c.textAlign = 'center';
+    c.fillText(t.forecastSays(over, members.length), r.x + r.w / 2, r.y + 40);
   }
 
   /** A row of water columns seen from the side, with numbers and the flow between them. */

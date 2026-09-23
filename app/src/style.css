@@ -1007,6 +1007,16 @@ input[type='range'] {
   right: 1rem;
 }
 
+/* Mute toggle, on the menu only (games have no free corner), beside fullscreen. */
+.menu-sound {
+  bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  right: 4.6rem;
+}
+
+.menu-sound.alone {
+  right: 1rem;
+}
+
 /* Flag buttons on the menu, bottom-left (mirrors the fullscreen button). */
 .lang-switcher {
   position: absolute;

@@ -173,3 +173,84 @@ export function century(fragility: Fragility, rng: () => number): { peaks: numbe
 export function heightScore(fragility: Fragility, crest = fragility.crest): number {
   return Math.max(0, Math.round(HEIGHT_BUDGET - dikeCost(crest) - fragility.expectedDamage(crest)));
 }
+
+// ---- Round 4: close the gate ----
+
+/** A harbour channel through the dike, a basin behind low quays, and a gate. */
+export const HARBOUR = { y0: 7, y1: 12, x1: 46, quay: .8, bed: -2.5 };
+export const GATE = { x0: 21, x1: 23, shut: 3.4, seconds: 3 };
+export const BARRIER_LENGTH = 62;
+export const ENSEMBLE = 20;
+export const SHIP_POINTS = 10;
+export interface Threat { peak: number; time: number }
+/** Three storm threats: one harmless, one that tops the quays, one big one. */
+export function barrierThreats(rng: () => number): Threat[] {
+  const peaks = [.5, 1.6, 2.6];
+  for (let k = peaks.length - 1; k > 0; k--) { const j = Math.floor(rng() * (k + 1)); [peaks[k], peaks[j]] = [peaks[j], peaks[k]]; }
+  return peaks.map((peak, k) => ({ peak, time: 16 + 18 * k }));
+}
+/** A short storm around its peak time: 5 s up, 5 s high, 5 s down. */
+export function threatStrength(fromPeak: number): number {
+  const u = Math.abs(fromPeak);
+  if (u <= 2.5) return 1;
+  if (u >= 7.5) return 0;
+  return Math.sin(Math.PI / 2 * (7.5 - u) / 5) ** 2;
+}
+export function barrierSeaLevel(t: number, threats: readonly Threat[]): number {
+  let surge = 0, strength = 0;
+  for (const th of threats) { const s = threatStrength(t - th.time); surge += th.peak * s; strength = Math.max(strength, s); }
+  return surge + (CALM_SEA + .3 * strength) * Math.sin(2 * Math.PI * t / 2.6);
+}
+/** Each forecast member is off by its own amount, which shrinks as the storm nears. */
+export interface Member { z: number[]; d: number[] }
+export function ensemble(rng: () => number, threats: number): Member[] {
+  const normal = () => Math.sqrt(-2 * Math.log(Math.max(1e-12, rng()))) * Math.cos(2 * Math.PI * rng());
+  return Array.from({ length: ENSEMBLE }, () => ({
+    z: Array.from({ length: threats }, normal), d: Array.from({ length: threats }, normal),
+  }));
+}
+/** Forecast uncertainty (m) of a storm's peak, `lead` displayed seconds ahead. */
+export function forecastSpread(lead: number): number { return .1 + .07 * Math.max(0, lead); }
+/** One member's forecast, made at `now`, of the surge at a later time `t`. */
+export function forecastLevel(t: number, now: number, threats: readonly Threat[], m: Member): number {
+  let level = 0;
+  threats.forEach((th, k) => {
+    const lead = Math.max(0, th.time - now);
+    const peak = Math.max(0, th.peak + forecastSpread(lead) * m.z[k]);
+    level += peak * threatStrength(t - (th.time + .15 * lead * m.d[k]));
+  });
+  return level;
+}
+
+export function harbourScene(): FloodSim {
+  const channel = { profile: [HARBOUR.bed, HARBOUR.bed, HARBOUR.bed, HARBOUR.bed, HARBOUR.bed], critical: 99, rate: 0 };
+  const strong = { profile: dikeProfile(3.2), critical: 2.5, rate: 2e-3 };
+  const sim = makeScene(y => y >= HARBOUR.y0 && y <= HARBOUR.y1 ? channel : strong);
+  const { floor, hardTop } = sim.erosion!;
+  const set = (x: number, y: number, z: number) => { const i = y * W + x; sim.terrain[i] = floor[i] = hardTop[i] = z; };
+  for (let x = 16; x <= HARBOUR.x1 + 2; x++) for (let y = HARBOUR.y0 - 2; y <= HARBOUR.y1 + 2; y++) {
+    if (x >= DIKE_X[0] && x <= DIKE_X[1]) continue;
+    const inChannel = y >= HARBOUR.y0 && y <= HARBOUR.y1 && x <= HARBOUR.x1;
+    if (inChannel) set(x, y, HARBOUR.bed);
+    else if (x > DIKE_X[1]) set(x, y, HARBOUR.quay);
+  }
+  fillHarbour(sim);
+  return sim;
+}
+/** The harbour is open water at sea level (resetWater only knows sea and polder). */
+export function fillHarbour(sim: FloodSim): void {
+  for (let x = DIKE_X[0]; x <= HARBOUR.x1; x++) for (let y = HARBOUR.y0; y <= HARBOUR.y1; y++) {
+    const i = y * W + x;
+    sim.water[i] = Math.max(0, -sim.terrain[i]);
+  }
+}
+/** Raise or lower the gate: 0 open, 1 shut. Water on the gate is pushed off the top. */
+export function setGate(sim: FloodSim, shut: number): void {
+  const z = HARBOUR.bed + (GATE.shut - HARBOUR.bed) * shut;
+  for (let x = GATE.x0; x <= GATE.x1; x++) for (let y = HARBOUR.y0; y <= HARBOUR.y1; y++) {
+    const i = y * W + x, surface = sim.terrain[i] + sim.water[i];
+    sim.terrain[i] = sim.erosion!.floor[i] = sim.erosion!.hardTop[i] = z;
+    sim.water[i] = Math.max(0, surface - z);
+    if (!sim.water[i]) sim.mx[i] = sim.my[i] = 0;
+  }
+}

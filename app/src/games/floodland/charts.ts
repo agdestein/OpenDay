@@ -104,3 +104,28 @@ export function drawStormOdds(c: CanvasRenderingContext2D, x0: number, y0: numbe
   c.beginPath(); c.moveTo(xOf(crest), y0); c.lineTo(xOf(crest), y0 + h); c.stroke(); c.setLineDash([]);
   c.fillStyle = SAND; c.textAlign = 'left'; c.fillText(labels.dike, xOf(crest) + 5, y0 + 28);
 }
+
+/** A storm forecast: the sea so far (white), each forecast member ahead (thin
+ * lines, red where it rises over the quay), and the quay height. Times are in
+ * displayed seconds; `members[m][k]` is member m's level at `times[k]`. */
+export function drawForecast(c: CanvasRenderingContext2D, x0: number, y0: number, w: number, h: number,
+  now: number, past: { t: number; level: number }[], times: number[], members: number[][], quay: number,
+  labels: { quay: string; now: string }): void {
+  const t0 = now - 8, t1 = times[times.length - 1], top = 3.5;
+  const xOf = (t: number) => x0 + (t - t0) / (t1 - t0) * w, yOf = (z: number) => y0 + h - Math.max(0, Math.min(top, z)) / top * h;
+  c.fillStyle = '#0d2530'; c.fillRect(x0, y0, w, h);
+  c.fillStyle = MUTED; c.font = '600 10px system-ui'; c.textAlign = 'right';
+  for (let m = 0; m <= 3; m++) { c.fillText(`${m} m`, x0 - 4, yOf(m) + 3); c.strokeStyle = '#ffffff12'; c.beginPath(); c.moveTo(x0, yOf(m)); c.lineTo(x0 + w, yOf(m)); c.stroke(); }
+  for (const m of members) {
+    const over = m.some(v => v > quay);
+    c.strokeStyle = over ? 'rgba(255,143,122,.55)' : 'rgba(94,194,212,.55)'; c.lineWidth = 1.5; c.beginPath();
+    m.forEach((v, k) => k ? c.lineTo(xOf(times[k]), yOf(v)) : c.moveTo(xOf(times[k]), yOf(v))); c.stroke();
+  }
+  c.strokeStyle = INK; c.lineWidth = 3; c.beginPath();
+  past.filter(p => p.t >= t0).forEach((p, k) => k ? c.lineTo(xOf(p.t), yOf(p.level)) : c.moveTo(xOf(p.t), yOf(p.level))); c.stroke();
+  c.strokeStyle = DANGER; c.lineWidth = 2; c.setLineDash([6, 4]);
+  c.beginPath(); c.moveTo(x0, yOf(quay)); c.lineTo(x0 + w, yOf(quay)); c.stroke(); c.setLineDash([]);
+  c.fillStyle = DANGER; c.textAlign = 'right'; c.font = '700 11px system-ui'; c.fillText(labels.quay, x0 + w - 4, yOf(quay) - 5);
+  c.strokeStyle = SAND; c.lineWidth = 1.5; c.beginPath(); c.moveTo(xOf(now), y0); c.lineTo(xOf(now), y0 + h); c.stroke();
+  c.fillStyle = SAND; c.textAlign = 'center'; c.fillText(labels.now, xOf(now), y0 + h + 13);
+}

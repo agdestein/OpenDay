@@ -3,6 +3,7 @@ import { renderMenu } from './menu';
 import { backButton, titleCard } from './hud';
 import { toggleFullscreen } from '../lib/fullscreen';
 import { cappedDpr } from '../lib/util';
+import { sound } from '../lib/sound';
 
 /**
  * Kiosk reset: no input for this long inside a game -> back to the menu. Off
@@ -32,6 +33,10 @@ export class Shell {
     private games: ArcadeGame[],
   ) {
     window.addEventListener('keydown', this.onKey);
+    // Every game's buttons give the same soft click.
+    root.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).closest?.('.tool-button, .arcade-button, .tile')) sound.play('click');
+    });
   }
 
   showMenu(): void {

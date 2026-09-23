@@ -3,6 +3,7 @@
 // player's row highlighted -> caller-provided action buttons.
 import { addScore, type ScoreEntry } from './scores';
 import { fmtNumber, pick, type Localized } from '../lib/i18n';
+import { sound } from '../lib/sound';
 
 const TEXT: Localized<{ todaysBest: string; initialsPrompt: string }> = {
   en: {
@@ -48,6 +49,7 @@ export function scoreFlow(opts: {
 }): ScoreFlowHandle {
   const element = document.createElement('div');
   element.className = 'score-flow';
+  sound.play('fanfare');
 
   const heading = document.createElement('h2');
   heading.textContent = opts.heading;
@@ -65,6 +67,7 @@ export function scoreFlow(opts: {
 
   const showBoard = (initials: string) => {
     removeKeys();
+    sound.play('cheer');
     const bestOnly = opts.presetInitials !== undefined;
     const list = addScore(opts.gameId, initials, opts.score, bestOnly);
     // A best-only player that didn't beat its record: highlight its standing entry.
@@ -131,6 +134,7 @@ export function scoreFlow(opts: {
   };
   const push = (ch: string) => {
     if (letters.length < 3) letters += ch;
+    sound.play('click');
     refresh();
   };
   const pop = () => {

@@ -9,11 +9,14 @@ import {
   seaLevelAt, spillLevel, type DikeRow, type Point,
 } from './scene';
 import {
+  BARRIER_LENGTH, GATE, HARBOUR, SHIP_POINTS, barrierSeaLevel, barrierThreats, ensemble, fillHarbour,
+  forecastLevel, harbourScene, setGate, type Member, type Threat,
   DAMAGE_PER_HOME, FRAGILITY_OFFSETS, HEIGHT, SECTIONS, TEST_STORMS, WEAK_BUDGET, WEAK_STORM, WEAK_TESTS, chooseWeakSections, century,
   dikeCost, fragilityRun, heightScore, random, stormRun, uniformDike, weakDike, type Fragility, type StormReport,
 } from './rounds';
 import { LiveRecording } from './recording';
-import { drawCentury, drawCostCurve, drawMiniMap } from './charts';
+import { drawCentury, drawCostCurve, drawForecast, drawMiniMap } from './charts';
+import { sound } from '../../lib/sound';
 import { FloodDelve, returnYears, shareFragility, type Rect } from './delve';
 import { text } from './text';
 import './style.css';
@@ -24,6 +27,9 @@ type Mode = 'toy' | 'card' | 'plan' | 'storm' | 'century' | 'replay';
 interface Puff { x: number; y: number; vx: number; vy: number; life: number }
 /** A foam ring from a splash, spreading at the shallow-water wave speed. */
 interface Ring { x: number; y: number; age: number }
+/** A ship in the harbour channel (x in cells), sailing in (+1) or out (−1). */
+interface Ship { x: number; dir: 1 | -1 }
+const SHIP = { every: 2.2, speed: 5, gap: 3.2, stopIn: GATE.x0 - 2.5, stopOut: GATE.x1 + 2.5 };
 /** Solver time per frame for background runs (test storms, the century's storms). */
 const COMPUTE_MS = 6;
 const LENS_RADIUS = 130, LENS_ZOOM = 3.4;
@@ -64,6 +70,16 @@ class FloodInstance implements GameInstance {
   private fragility: Fragility | null = null;
   private years: { peaks: number[]; flooded: number[] } | null = null;
   private centuryTime = 0;
+  // Round 4: close the gate.
+  private threats: Threat[] = [];
+  private members: Member[] = [];
+  private gateWant = 0;
+  private gateShut = 0;
+  private ships: Ship[] = [];
+  private shipsThrough = 0;
+  private shipClock = 0;
+  private shipSide: 1 | -1 = 1;
+  private past: { t: number; level: number }[] = [];
   // Pointer, lens and feedback.
   private holding = false;
   private splashTimer = 0;
@@ -83,7 +99,7 @@ class FloodInstance implements GameInstance {
   // Layout and DOM.
   private ctx!: CanvasRenderingContext2D;
   private transform = { scale: 1, ox: 0, oy: 0 };
-  private bars: Record<'toy' | 'storm1' | 'plan2' | 'storm2' | 'plan3' | 'replay', HTMLElement> = {} as never;
+  private bars: Record<'toy' | 'storm1' | 'plan2' | 'storm2' | 'plan3' | 'storm4' | 'replay', HTMLElement> = {} as never;
   private buttons: Record<string, HTMLButtonElement> = {};
   private hud!: HTMLElement;
   private hint!: HTMLElement;
@@ -92,6 +108,9 @@ class FloodInstance implements GameInstance {
   private testPanel!: HTMLElement;
   private testCanvas!: HTMLCanvasElement;
   private testList!: HTMLElement;
+  private forecastPanel!: HTMLElement;
+  private forecastCanvas!: HTMLCanvasElement;
+  private forecastLine!: HTMLElement;
   private card: HTMLElement | null = null;
   private centuryCanvas: HTMLCanvasElement | null = null;
   private centuryLine: HTMLElement | null = null;
@@ -177,7 +196,7 @@ class FloodInstance implements GameInstance {
       return b;
     };
     const bar = () => { const b = document.createElement('div'); b.className = 'game-toolbar delta-toolbar'; return b; };
-    for (const key of Object.keys({ toy: 0, storm1: 0, plan2: 0, storm2: 0, plan3: 0, replay: 0 }) as (keyof typeof this.bars)[]) this.bars[key] = bar();
+    for (const key of Object.keys({ toy: 0, storm1: 0, plan2: 0, storm2: 0, plan3: 0, storm4: 0, replay: 0 }) as (keyof typeof this.bars)[]) this.bars[key] = bar();
     const xray = (b: HTMLElement, key: string) => add(b, key, '🔍', t.xray, () => { this.xray = !this.xray; });
     add(this.bars.toy, 'storm', '🌊', t.storm, () => { this.stormStart = this.time; });
     xray(this.bars.toy, 'xrayToy');
@@ -195,6 +214,9 @@ class FloodInstance implements GameInstance {
     add(this.bars.plan3, 'higher', '🔼', t.higher, () => this.setCrest(this.crest + HEIGHT.step));
     add(this.bars.plan3, 'live', '⏩', t.liveCentury, () => this.startCentury());
     add(this.bars.plan3, 'stop4', '⏹', t.stop, () => this.enterToy());
+    add(this.bars.storm4, 'gate', '🚧', t.closeGate, () => { this.gateWant = this.gateWant ? 0 : 1; sound.play('gate'); });
+    xray(this.bars.storm4, 'xray4');
+    add(this.bars.storm4, 'stop5', '⏹', t.stop, () => this.enterToy());
     this.timeline = document.createElement('input');
     this.timeline.type = 'range'; this.timeline.min = '0'; this.timeline.step = '0.01';
     this.timeline.className = 'delta-scrubber';
@@ -209,7 +231,7 @@ class FloodInstance implements GameInstance {
       if (this.replayTime >= this.recording.duration) this.seek(0);
       this.replayPlaying = !this.replayPlaying;
     });
-    add(this.bars.replay, 'replayNext', '▶️', t.next, () => this.enterRound(this.round + 1));
+    add(this.bars.replay, 'replayNext', '▶️', t.next, () => (this.round === 3 ? this.finishChallenge() : this.enterRound(this.round + 1)));
     add(this.bars.replay, 'replayStop', '⏹', t.stop, () => this.enterToy());
     this.hud = document.createElement('div'); this.hud.className = 'challenge-hud delta-hud';
     this.hint = document.createElement('p'); this.hint.className = 'challenge-hint delta-hint';
@@ -218,15 +240,20 @@ class FloodInstance implements GameInstance {
     this.testCanvas = document.createElement('canvas');
     this.testList = document.createElement('ol');
     this.testPanel.append(this.testCanvas, this.testList);
+    this.forecastPanel = document.createElement('div'); this.forecastPanel.className = 'delta-tests delta-forecast';
+    const forecastTitle = document.createElement('h3'); forecastTitle.textContent = t.forecastTitle;
+    this.forecastCanvas = document.createElement('canvas');
+    this.forecastLine = document.createElement('p');
+    this.forecastPanel.append(forecastTitle, this.forecastCanvas, this.forecastLine);
     this.toggle = delveToggle(() => (this.delve ? this.closeDelve() : this.openDelve()));
-    this.host.overlay.append(...Object.values(this.bars), this.hud, this.hint, this.message, this.testPanel, this.toggle.element);
+    this.host.overlay.append(...Object.values(this.bars), this.hud, this.hint, this.message, this.testPanel, this.forecastPanel, this.toggle.element);
   }
 
   private currentBar(): keyof typeof this.bars | null {
     if (this.delve) return null;
     if (this.mode === 'toy') return 'toy';
     if (this.mode === 'replay') return 'replay';
-    if (this.mode === 'storm') return this.round === 0 ? 'storm1' : 'storm2';
+    if (this.mode === 'storm') return this.round === 0 ? 'storm1' : this.round === 3 ? 'storm4' : 'storm2';
     if (this.mode === 'plan') return this.round === 1 ? 'plan2' : 'plan3';
     return null;
   }
@@ -237,7 +264,11 @@ class FloodInstance implements GameInstance {
     for (const [key, el] of Object.entries(this.bars)) el.hidden = key !== bar;
     this.toggle.element.classList.toggle('hidden', this.mode !== 'toy');
     this.buttons.storm.disabled = this.stormStart !== null;
-    for (const key of ['xrayToy', 'xray1', 'xray2', 'xray3']) this.buttons[key].classList.toggle('active', this.xray);
+    for (const key of ['xrayToy', 'xray1', 'xray2', 'xray3', 'xray4']) this.buttons[key].classList.toggle('active', this.xray);
+    this.buttons.gate.querySelector('.tool-emoji')!.textContent = this.gateWant ? '🚢' : '🚧';
+    this.buttons.gate.querySelector('.tool-label')!.textContent = this.gateWant ? t.openGate : t.closeGate;
+    this.buttons.gate.classList.toggle('active', this.gateWant > 0);
+    this.buttons.replayNext.querySelector('.tool-label')!.textContent = this.round === 3 ? t.total : t.next;
     const testsLeft = WEAK_TESTS - this.tests.length - (this.testRun ? 1 : 0);
     this.buttons.test.querySelector('.tool-label')!.textContent = t.testStorm(Math.max(0, testsLeft));
     this.buttons.test.disabled = testsLeft <= 0 || this.testRun !== null;
@@ -260,12 +291,14 @@ class FloodInstance implements GameInstance {
       hint = this.time < s ? t.warning(Math.ceil(s - this.time))
         : this.time > s + STORM_LENGTH ? (this.spill < CALM_SEA && this.round === 0 ? t.holeHint : t.calmHint)
         : this.round === 0 ? t.roundHint : t.lockedHint;
+      if (this.round === 3) hint = t.gateHint;
     }
     if (this.mode === 'plan') hint = this.round === 1 ? t.planWeakHint : t.planHeightHint;
     if (this.mode === 'replay') hint = t.scrub;
     this.hint.textContent = hint;
     this.hint.hidden = !hint;
     this.message.classList.toggle('show', this.banner > 0);
+    this.forecastPanel.classList.toggle('hidden', !(this.round === 3 && this.mode === 'storm'));
     this.testPanel.classList.toggle('hidden', !(this.round === 1 && (this.mode === 'plan' || this.mode === 'storm') && (this.testRun || this.tests.length)));
   }
   private updateHud(): void {
@@ -283,7 +316,8 @@ class FloodInstance implements GameInstance {
     if (!inRound) return;
     const dry = HOMES.length - countBits(this.flooded);
     const clock = this.mode === 'replay' ? this.replayTime : this.time;
-    const items = [this.hudItem('🏠', `${dry}/${HOMES.length}`, t.homes, this.flooded ? 'bad' : ''), this.hudSand()];
+    const items = [this.hudItem('🏠', `${dry}/${HOMES.length}`, t.homes, this.flooded ? 'bad' : ''),
+      this.round === 3 ? this.hudItem('🚢', `${this.shipsThrough}`, t.ships, '') : this.hudSand()];
     if (this.mode !== 'plan') items.push(this.hudItem('⏱', `${Math.max(0, Math.ceil(this.roundEnd - clock))}`, t.time, ''));
     this.hud.replaceChildren(...items);
   }
@@ -327,9 +361,9 @@ class FloodInstance implements GameInstance {
     this.centuryCanvas = null; this.centuryLine = null;
     this.flow?.dispose(); this.flow = null;
   }
-  private freshScene(dike: (y: number) => DikeRow): void {
+  private freshScene(dike: (y: number) => DikeRow, sim = makeScene(dike)): void {
     this.dike = dike;
-    this.sim = makeScene(dike); this.base = this.sim.terrain.slice();
+    this.sim = sim; this.base = this.sim.terrain.slice();
     this.spill = spillLevel(this.sim.terrain);
     this.time = 0; this.stormStart = null; this.roundEnd = Infinity; this.flooded = 0;
     this.holding = false; this.plan.clear(); this.puffs = []; this.rings = []; this.banner = 0; this.breachRows.clear();
@@ -356,6 +390,11 @@ class FloodInstance implements GameInstance {
     if (k === 0) { this.freshScene(holdTheLine); this.budget = this.budgetMax = BUDGET; }
     if (k === 1) { this.freshScene(weakDike(chooseWeakSections(this.rng))); this.budget = this.budgetMax = WEAK_BUDGET; }
     if (k === 2) { this.crest = HEIGHT.start; this.freshScene(uniformDike(this.crest)); this.budget = 0; }
+    if (k === 3) {
+      this.freshScene(holdTheLine, harbourScene()); this.budget = 0;
+      this.threats = barrierThreats(this.rng); this.members = ensemble(this.rng, this.threats.length);
+      this.gateWant = this.gateShut = 0; this.ships = []; this.shipsThrough = 0; this.shipClock = SHIP.every; this.past = [];
+    }
     this.mode = 'card';
     const t = text(), info = t.rounds[k];
     const go = this.showCard(t.roundLabel(k), `🌊 ${info.title}`, [info.text], info.science, [{ label: t.go, onClick: () => this.beginRound() }]);
@@ -364,7 +403,8 @@ class FloodInstance implements GameInstance {
   }
   private beginRound(): void {
     this.clearCards();
-    if (this.round === 0) this.startStorm();
+    // Rounds 1 and 4 are played during the storm; 2 and 3 are planned first.
+    if (this.round === 0 || this.round === 3) this.startStorm();
     else { this.mode = 'plan'; this.time = 0; }
     this.updateUi();
   }
@@ -373,9 +413,9 @@ class FloodInstance implements GameInstance {
     this.holding = false; this.plan.clear();
     this.mode = 'storm';
     this.time = 0;
-    this.stormStart = this.round === 0 ? ROUND.warning : 1;
+    this.stormStart = this.round === 0 ? ROUND.warning : this.round === 1 ? 1 : null;
     this.stormPeak = this.round === 0 ? STORM.peak : WEAK_STORM;
-    this.roundEnd = this.stormStart + STORM_LENGTH + ROUND.calm;
+    this.roundEnd = this.stormStart === null ? BARRIER_LENGTH : this.stormStart + STORM_LENGTH + ROUND.calm;
     this.flooded = 0;
     this.recording = new LiveRecording(W * H, this.roundEnd + 1);
     this.recording.capture(0, this.sim, 0);
@@ -387,11 +427,13 @@ class FloodInstance implements GameInstance {
     homeSpillLevels(this.sim.terrain).forEach((level, k) => { if (level < CALM_SEA) this.flooded |= 1 << k; });
     const t = text();
     const dry = HOMES.length - countBits(this.flooded), sand = Math.floor(this.budget);
-    const score = dry * 100 + sand;
+    const gate = this.round === 3;
+    const score = gate ? dry * 100 + this.shipsThrough * SHIP_POINTS : dry * 100 + sand;
     this.scores[this.round] = score;
     this.mode = 'card';
-    this.showCard(t.roundLabel(this.round), t.roundHeading(dry, HOMES.length), [t.breakdown(dry, sand)], '', [
-      { label: `▶️ ${t.next}`, onClick: () => this.enterRound(this.round + 1) },
+    if (dry === HOMES.length) sound.play('cheer');
+    this.showCard(t.roundLabel(this.round), t.roundHeading(dry, HOMES.length), [gate ? t.shipBreakdown(dry, this.shipsThrough) : t.breakdown(dry, sand)], '', [
+      gate ? { label: `🏆 ${t.total}`, onClick: () => this.finishChallenge() } : { label: `▶️ ${t.next}`, onClick: () => this.enterRound(this.round + 1) },
       { label: `⏪ ${t.watchAgain}`, onClick: () => this.enterReplay() },
     ], t.points(score));
     this.updateUi();
@@ -478,6 +520,23 @@ class FloodInstance implements GameInstance {
     if (this.testRun) { c.fillStyle = '#e5c579'; c.fillRect(0, h - 5, w * this.testProgress, 5); }
   }
 
+  // ---- round 4: the forecast ----
+
+  private drawForecastPanel(): void {
+    if (this.forecastPanel.classList.contains('hidden')) return;
+    const t = text(), dpr = this.host.dpr, w = 256, h = 150, cv = this.forecastCanvas;
+    if (cv.width !== w * dpr) { cv.width = w * dpr; cv.height = h * dpr; cv.style.width = `${w}px`; cv.style.height = `${h}px`; }
+    const c = cv.getContext('2d')!;
+    c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, h);
+    const now = this.time, times: number[] = [];
+    for (let k = 0; k <= 40; k++) times.push(now + k * .5);
+    const members = this.members.map(m => times.map(tt => forecastLevel(tt, now, this.threats, m)));
+    drawForecast(c, 30, 6, w - 36, h - 26, now, this.past, times, members, HARBOUR.quay, { quay: t.forecastQuay, now: t.forecastNow });
+    const over = members.filter(m => m.some(v => v > HARBOUR.quay)).length;
+    this.forecastLine.textContent = t.forecastSays(over, members.length);
+    this.forecastLine.className = over ? 'bad' : '';
+  }
+
   // ---- round 3: how high? ----
 
   private setCrest(crest: number): void {
@@ -513,6 +572,7 @@ class FloodInstance implements GameInstance {
           this.card!.querySelector('h2')!.textContent = text().centuryTitle;
           break;
         }
+        if (!this.fragSims[r.value.run] && r.value.run > 0) sound.play('ding');
         this.fragSims[r.value.run] = r.value.sim;
       }
       return;
@@ -520,6 +580,8 @@ class FloodInstance implements GameInstance {
     if (!this.years || !this.fragility) return;
     const before = this.centuryTime;
     this.centuryTime += dt;
+    const shownBefore = Math.min(100, Math.floor(before * 20)), shown = Math.min(100, Math.floor(this.centuryTime * 20));
+    for (let k = shownBefore; k < shown; k++) if (this.years.flooded[k] > 0) sound.play('flood');
     if (before < 6 && this.centuryTime >= 6) this.finishCentury();
   }
   private finishCentury(): void {
@@ -532,8 +594,8 @@ class FloodInstance implements GameInstance {
     const p = document.createElement('p'); p.className = 'delta-breakdown'; p.textContent = t.heightBreakdown(dikeCost(this.crest), damage);
     const avg = document.createElement('p'); avg.className = 'delta-science'; avg.textContent = t.average(damage);
     const row = document.createElement('div'); row.className = 'score-flow-actions';
-    const next = document.createElement('button'); next.className = 'arcade-button'; next.textContent = `🏆 ${t.total}`;
-    next.addEventListener('click', () => this.finishChallenge());
+    const next = document.createElement('button'); next.className = 'arcade-button'; next.textContent = `▶️ ${t.next}`;
+    next.addEventListener('click', () => this.enterRound(3));
     row.append(next);
     card.querySelector('h2')!.after(s, p);
     card.append(avg, row);
@@ -628,6 +690,7 @@ class FloodInstance implements GameInstance {
     this.draw();
     this.drawTestMap();
     this.drawCenturyCard();
+    this.drawForecastPanel();
   }
 
   private canBuild(): boolean {
@@ -639,17 +702,28 @@ class FloodInstance implements GameInstance {
     this.time += dt;
     if (this.holding && this.pointer && this.canBuild()) this.interact(dt, this.pointer);
     if (this.mode === 'toy' && this.stormStart !== null && this.time - this.stormStart > STORM_LENGTH) this.stormStart = null;
-    this.sim.seaLevel = seaLevelAt(this.time, this.mode === 'toy' || this.mode === 'storm' ? this.stormStart : null, this.stormPeak);
+    const barrier = this.round === 3 && this.mode === 'storm';
+    this.sim.seaLevel = barrier ? barrierSeaLevel(this.time, this.threats)
+      : seaLevelAt(this.time, this.mode === 'toy' || this.mode === 'storm' ? this.stormStart : null, this.stormPeak);
+    if (this.round === 3) this.moveGate(dt);
+    if (barrier) {
+      this.sail(dt);
+      this.past.push({ t: this.time, level: this.sim.seaLevel });
+      if (this.past.length > 900) this.past.shift();
+    }
+    if (this.mode === 'storm' && this.stormStart !== null && this.time < this.stormStart && Math.ceil(this.stormStart - this.time) !== Math.ceil(this.stormStart - this.time + dt)) sound.play('tick');
     try {
       this.sim.advance(dt * TIME_SCALE);
     } catch (error) {
       // Kiosk safety: never freeze on a numerical failure; keep the landscape.
       console.error(error);
       resetWater(this.sim);
+      if (this.round === 3) fillHarbour(this.sim);
     }
     this.stepClock += dt;
     if (this.stepClock >= 1) { this.stepsPerSecond = Math.round((this.sim.steps - this.stepMark) / this.stepClock); this.stepMark = this.sim.steps; this.stepClock = 0; }
     const now = floodedHomes(this.sim);
+    if (now & ~this.flooded) sound.play('flood');
     this.flooded = this.mode === 'storm' ? this.flooded | now : now;
     this.watchForBreaches();
     this.spillAge += dt;
@@ -660,12 +734,45 @@ class FloodInstance implements GameInstance {
     }
   }
 
+  /** The gate swings shut or open in GATE.seconds. */
+  private moveGate(dt: number): void {
+    const next = Math.max(0, Math.min(1, this.gateShut + Math.sign(this.gateWant - this.gateShut) * dt / GATE.seconds));
+    if (next !== this.gateShut) { this.gateShut = next; setGate(this.sim, next); }
+  }
+  /** Ships come in from the sea and go out from the basin; a shut gate stops them. */
+  private sail(dt: number): void {
+    this.shipClock += dt;
+    if (this.shipClock >= SHIP.every) {
+      this.shipClock = 0;
+      const start = this.shipSide > 0 ? 1 : HARBOUR.x1 - 1;
+      if (!this.ships.some(s => s.dir === this.shipSide && Math.abs(s.x - start) < SHIP.gap)) this.ships.push({ x: start, dir: this.shipSide });
+      this.shipSide = this.shipSide > 0 ? -1 : 1;
+    }
+    const gateX = (GATE.x0 + GATE.x1 + 1) / 2, blocked = this.gateShut > 0 || this.gateWant > 0;
+    for (const dir of [1, -1] as const) {
+      const fleet = this.ships.filter(s => s.dir === dir).sort((a, b) => (b.x - a.x) * dir);
+      let limit = Infinity * dir;
+      for (const ship of fleet) {
+        let target = ship.x + dir * SHIP.speed * dt;
+        if (blocked && (dir > 0 ? ship.x <= SHIP.stopIn : ship.x >= SHIP.stopOut)) target = dir > 0 ? Math.min(target, SHIP.stopIn) : Math.max(target, SHIP.stopOut);
+        target = dir > 0 ? Math.min(target, limit - SHIP.gap) : Math.max(target, limit + SHIP.gap);
+        if (dir > 0 ? target > ship.x : target < ship.x) {
+          if ((ship.x - gateX) * (target - gateX) <= 0 && ship.x !== gateX) { this.shipsThrough++; if (this.shipsThrough % 4 === 1) sound.play('horn'); }
+          ship.x = target;
+        }
+        limit = ship.x;
+      }
+    }
+    this.ships = this.ships.filter(s => s.x > 0 && s.x < HARBOUR.x1);
+  }
+
   private interact(dt: number, p: Point): void {
     const i = Math.floor(p.y) * W + Math.floor(p.x);
     if (this.mode === 'toy' && p.x < DIKE_X[0] && this.sim.water[i] > .3) {
       this.splashTimer -= dt;
       if (this.splashTimer <= 0) {
         this.sim.splash(p.x, p.y, 1.4, 2);
+        sound.play('splash');
         this.rings.push({ x: p.x, y: p.y, age: 0 });
         this.splashTimer = .25;
       }
@@ -674,6 +781,7 @@ class FloodInstance implements GameInstance {
     const used = placeSand(this.sim, [p], SAND_RATE * dt, this.budget);
     if (this.mode !== 'toy') this.budget = Math.max(0, this.budget - used);
     if (used > 0) {
+      sound.play('thud');
       const s = this.project(p.x, p.y, this.sim.terrain[i]);
       for (let k = 0; k < 2; k++) {
         this.puffs.push({ x: s.x + (Math.random() - .5) * 14, y: s.y, vx: (Math.random() - .5) * 50, vy: -30 - Math.random() * 40, life: 1 });
@@ -690,6 +798,7 @@ class FloodInstance implements GameInstance {
         if (this.sim.wear[i] > 0 && this.sim.terrain[i] < this.base[i] - .4) {
           for (let dy = -3; dy <= 3; dy++) this.breachRows.add(y + dy);
           this.banner = 2.2;
+          sound.play('alarm');
           break;
         }
       }
@@ -816,6 +925,9 @@ class FloodInstance implements GameInstance {
       let land = z < -1 ? '#b8b18a' : z > 1 ? '#91aa67' : ['#78935d', '#889f65', '#718c58'][field];
       if (scar) land = '#8a6a45';
       if (sand) land = '#d9b86e';
+      const harbourPart = this.round === 3 ? this.harbourPart(x, y) : '';
+      if (harbourPart === 'quay') land = '#a39f8c';
+      if (harbourPart === 'gate') land = '#c7cdd4';
       const front = y < H - 1 ? terrain[i + W] : z;
       const right = x < W - 1 ? terrain[i + 1] : z;
       if (z > front) this.poly([this.project(x, y + 1, z), this.project(x + 1, y + 1, z), this.project(x + 1, y + 1, front), this.project(x, y + 1, front)], sand ? '#a48b50' : scar ? '#6d5236' : '#667d49');
@@ -855,6 +967,8 @@ class FloodInstance implements GameInstance {
       c.fillStyle = '#416952'; c.beginPath(); c.ellipse(p.x, p.y - 13, 5, 8, 0, 0, Math.PI * 2); c.fill();
     }
     this.drawTestMarks();
+    this.drawPlaceNames();
+    if (this.round === 3 && this.mode !== 'replay') for (const ship of this.ships) this.drawShip(ship);
     const calm = this.mode === 'storm' && this.stormStart !== null && this.time > this.stormStart + STORM_LENGTH;
     HOMES.forEach(([x, y], k) => { const wet = (this.flooded & (1 << k)) !== 0; this.house(x, y, wet, k === 6, calm && !wet); });
     this.drawPump();
@@ -895,6 +1009,41 @@ class FloodInstance implements GameInstance {
       }
       c.stroke();
     }
+  }
+
+  private harbourPart(x: number, y: number): '' | 'quay' | 'gate' {
+    if (x >= GATE.x0 && x <= GATE.x1 && y >= HARBOUR.y0 && y <= HARBOUR.y1) return 'gate';
+    if (x > DIKE_X[1] && x <= HARBOUR.x1 + 2 && y >= HARBOUR.y0 - 2 && y <= HARBOUR.y1 + 2 && this.sim.terrain[y * W + x] >= HARBOUR.quay - .01) return 'quay';
+    return '';
+  }
+  /** Names painted on the ground, as on a map. */
+  private drawPlaceNames(): void {
+    const t = text().places, c = this.ctx;
+    const label = (name: string, x: number, y: number, size: number, alpha: number) => {
+      const i = Math.min(H - 1, Math.floor(y)) * W + Math.min(W - 1, Math.floor(x));
+      const o = this.project(x, y, Math.max(this.sim.terrain[i] + this.sim.water[i], this.sim.terrain[i]) + .02);
+      c.save(); c.translate(o.x, o.y);
+      const k = size / 20;
+      c.transform(12 * k, 3.4 * k, -8 * k, 7 * k, 0, 0);
+      c.font = '800 20px system-ui'; c.textBaseline = 'middle'; c.textAlign = 'left';
+      c.fillStyle = `rgba(255,255,255,${alpha})`; c.fillText(name.toUpperCase(), 0, 0);
+      c.restore();
+    };
+    label(t.sea, 2, 36, 1.6, .28);
+    label(t.land, 29, 36.5, 2, .2);
+    if (this.round === 3) label(t.harbour, 30, (HARBOUR.y0 + HARBOUR.y1 + 1) / 2, 1.3, .3);
+  }
+  private drawShip(ship: Ship): void {
+    const lane = ship.dir > 0 ? HARBOUR.y0 + 1.7 : HARBOUR.y1 - .7;
+    const i = Math.floor(lane) * W + Math.max(0, Math.min(W - 1, Math.floor(ship.x)));
+    const z = Math.max(this.sim.terrain[i] + this.sim.water[i], 0) + .05;
+    const d = ship.dir, P = (dx: number, dy: number, dz = 0) => this.project(ship.x + dx * d, lane + dy, z + dz);
+    this.poly([P(-1.2, -.4), P(.9, -.4), P(1.4, 0), P(.9, .4), P(-1.2, .4)], '#b8483a', '#6e2a22');
+    this.poly([P(-1.2, .4), P(.9, .4), P(.9, .4, .5), P(-1.2, .4, .5)], '#8d3329');
+    this.poly([P(-1.2, -.4, .5), P(.9, -.4, .5), P(1.4, 0, .5), P(.9, .4, .5), P(-1.2, .4, .5)], '#e9e1cf', '#a89f8a');
+    this.poly([P(-1, -.25, .5), P(-.3, -.25, .5), P(-.3, -.25, 1.2), P(-1, -.25, 1.2)], '#f4f1ea');
+    this.poly([P(-1, -.25, 1.2), P(-.3, -.25, 1.2), P(-.3, .25, 1.2), P(-1, .25, 1.2)], '#dcd6c8');
+    this.poly([P(-.3, -.25, .5), P(-.3, .25, .5), P(-.3, .25, 1.2), P(-.3, -.25, 1.2)], '#c9c2b1');
   }
 
   /** Round 2: where test storms broke the dike (red) or only came over it (blue). */

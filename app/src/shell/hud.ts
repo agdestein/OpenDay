@@ -1,10 +1,11 @@
 import type { ArcadeGame } from './types';
 import { pick, type Localized } from '../lib/i18n';
+import { sound } from '../lib/sound';
 
-const TEXT: Localized<{ clickToPlay: string; backToMenu: string }> = {
-  en: { clickToPlay: 'Click to play!', backToMenu: 'Back to menu (Esc)' },
-  nl: { clickToPlay: 'Klik om te spelen!', backToMenu: 'Terug naar het menu (Esc)' },
-  no: { clickToPlay: 'Klikk for å spille!', backToMenu: 'Tilbake til menyen (Esc)' },
+const TEXT: Localized<{ clickToPlay: string; backToMenu: string; soundOn: string; soundOff: string }> = {
+  en: { clickToPlay: 'Click to play!', backToMenu: 'Back to menu (Esc)', soundOn: 'Sound on', soundOff: 'Sound off' },
+  nl: { clickToPlay: 'Klik om te spelen!', backToMenu: 'Terug naar het menu (Esc)', soundOn: 'Geluid aan', soundOff: 'Geluid uit' },
+  no: { clickToPlay: 'Klikk for å spille!', backToMenu: 'Tilbake til menyen (Esc)', soundOn: 'Lyd på', soundOff: 'Lyd av' },
 };
 
 /** Full-screen overlay shown when a game opens; one tap dismisses it and starts play. */
@@ -44,5 +45,22 @@ export function backButton(onExit: () => void): HTMLElement {
   button.textContent = '⌂';
   button.addEventListener('pointerdown', (e) => e.stopPropagation());
   button.addEventListener('click', onExit);
+  return button;
+}
+
+/** Mute toggle for the whole arcade; `extraClass` places it. */
+export function soundButton(extraClass: string): HTMLElement {
+  const button = document.createElement('button');
+  button.className = `corner-button sound-button ${extraClass}`;
+  const show = (muted: boolean) => {
+    button.textContent = muted ? '🔇' : '🔊';
+    button.title = muted ? pick(TEXT).soundOff : pick(TEXT).soundOn;
+    button.setAttribute('aria-pressed', String(!muted));
+  };
+  show(sound.muted);
+  // Screens are thrown away whole: a detached button drops its listener.
+  const stop = sound.onChange((muted) => (button.isConnected ? show(muted) : stop()));
+  button.addEventListener('pointerdown', (e) => e.stopPropagation());
+  button.addEventListener('click', () => { sound.setMuted(!sound.muted); sound.play('click'); });
   return button;
 }

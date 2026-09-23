@@ -59,3 +59,6 @@
   .delta-tests { top: auto; bottom: 7.5rem; right: .5rem; width: 200px; }
   .delta-tests canvas { width: 176px !important; height: 110px !important; }
 }
+.delta-forecast h3 { margin: 0 0 .4rem; font-size: 1rem; }
+.delta-forecast p { margin: .4rem 0 0; font-size: .95rem; font-weight: 700; }
+.delta-forecast p.bad { color: #ff9d8a; }
