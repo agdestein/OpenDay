@@ -38,3 +38,24 @@
   .delta-inspection { bottom: 7.6rem; font-size: .75rem; }
   .delta-banner { font-size: 1.5rem; }
 }
+.delta-card-label { margin: 0 0 .2rem !important; font-size: .95rem !important; opacity: .7 !important; }
+.delta-card .delta-science { font-size: .95rem; opacity: .75; }
+.delta-century { max-width: min(720px, 94vw); max-height: 96vh; overflow-y: auto; padding: 1.2rem 1.8rem; }
+.delta-century h2 { font-size: 1.6rem; }
+.delta-century canvas { display: block; margin: .8rem auto 0; }
+.delta-century .score-flow-score { font-size: 2rem; margin-top: .2rem; }
+.delta-century-line { font-variant-numeric: tabular-nums; }
+.delta-tests {
+  position: absolute; top: 1rem; right: 1rem; width: 280px; padding: .75rem;
+  border-radius: 1rem; border: 1px solid rgba(255, 255, 255, .18); background: rgba(11, 16, 32, .8);
+  pointer-events: none !important;
+}
+.delta-tests canvas { display: block; border-radius: .5rem; }
+.delta-tests ol { margin: .6rem 0 0; padding-left: 1.3rem; font-size: .9rem; line-height: 1.5; }
+.delta-tests li.bad { color: #ff9d8a; font-weight: 700; }
+.delta-delve-slider { display: flex; align-items: center; gap: .6rem; width: 100%; }
+.delta-delve-slider input { flex: 1; accent-color: #e5c579; }
+@media (max-width: 700px) {
+  .delta-tests { top: auto; bottom: 7.5rem; right: .5rem; width: 200px; }
+  .delta-tests canvas { width: 176px !important; height: 110px !important; }
+}

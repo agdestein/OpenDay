@@ -159,3 +159,49 @@ const pondBed=limited.terrain.slice();placeSand(limited,[{x:51.5,y:31.5}],10,100
 const reset = makeScene(); reset.water.fill(9); resetWater(reset); assert.ok(HOMES.every(([x,y])=>reset.water[y*W+x]===0));
 assert.equal(makeScene().terrain.length, W*H);
 console.log('PASS: pump, progressive sand, frame-rate independence, height cap, limited budget, protected pond, water reset.');
+
+// Round 2: hidden weak spots, found by test storms.
+import { chooseWeakSections, weakDike, stormRun, finish, random, SECTIONS, WEAK_STORM, WEAK_BUDGET, TEST_STORMS,
+  fragilityRun, uniformDike, heightScore, century, dikeCost, exceedance, HEIGHT } from '../src/games/floodland/rounds.ts';
+{
+  const sections = new Set<string>();
+  for (let seed = 1; seed <= 20; seed++) { const w = chooseWeakSections(random(seed)); assert.equal(new Set(w).size, 3); sections.add(w.join()); }
+  assert.ok(sections.size > 8, 'Weak spots differ from round to round');
+  const weak = chooseWeakSections(random(4)), dike = weakDike(weak), scene = makeScene(dike);
+  const brokeIn = (r: { eroded: Float64Array }) => SECTIONS.map((s, k) => { for (let y = s.y0; y <= s.y1; y++) if (r.eroded[y] > .15) return k; return -1; }).filter(k => k >= 0);
+  const small = finish(stormRun(scene.terrain, dike, TEST_STORMS.min));
+  assert.deepEqual(brokeIn(small), [], 'A small test storm shows nothing: one test can mislead');
+  const big = finish(stormRun(scene.terrain, dike, TEST_STORMS.max));
+  assert.deepEqual(brokeIn(big), weak, 'A big test storm breaks exactly the weak sections');
+  assert.ok(countBits(finish(stormRun(scene.terrain, dike, WEAK_STORM)).flooded) >= 6, 'Undefended, the real storm floods the village');
+  const reinforce = (ks: number[]) => {
+    const s = makeScene(dike); let used = 0;
+    for (const k of ks) { const pts: Point[] = []; for (let y = SECTIONS[k].y0 - .5; y <= SECTIONS[k].y1 + .5; y += .25) pts.push({ x: 22.5, y }); for (let n = 0; n < 300 && crestOf(s, SECTIONS[k]) < 3.4; n++) used += placeSand(s, pts, .02, Infinity); }
+    return { used, flooded: countBits(finish(stormRun(s.terrain, dike, WEAK_STORM)).flooded) };
+  };
+  const right = reinforce(weak), wrong = reinforce(SECTIONS.map((_, k) => k).filter(k => !weak.includes(k)).slice(0, 3));
+  assert.equal(right.flooded, 0, 'Reinforcing the weak sections keeps everyone dry');
+  assert.ok(right.used < WEAK_BUDGET, '...within the budget');
+  assert.ok(wrong.flooded > 0, 'Reinforcing the wrong sections does not');
+  assert.ok(reinforce(SECTIONS.map((_, k) => k)).used > WEAK_BUDGET, 'There is not enough sand for every section');
+  console.log(`PASS: round 2. Weak ${weak}; right sections ${right.used.toFixed(0)} sand, 0 flooded; wrong sections ${wrong.flooded} flooded.`);
+}
+
+// Round 3: a fragility curve, storm odds and the cost of height.
+{
+  const f = finish(fragilityRun(2.5));
+  assert.equal(f.flooded[0], 0, 'Storms below the crest flood nothing');
+  assert.equal(f.flooded.at(-1), 8, 'Storms well above it flood everything');
+  for (let k = 1; k < f.flooded.length; k++) assert.ok(f.flooded[k] >= f.flooded[k - 1], 'More storm, more damage');
+  const g = finish(fragilityRun(3.25));
+  for (let z = HEIGHT.min; z <= HEIGHT.max; z += .25) assert.ok(Math.abs(f.expectedDamage(z) - g.expectedDamage(z)) <= Math.max(5, .1 * g.expectedDamage(z)), 'Shifting the curve with the crest is a good approximation');
+  const scores = [1.5, 2.75, 4].map(z => heightScore(f, z));
+  assert.ok(scores[1] > scores[0] && scores[1] > scores[2], `Neither too low nor too high: ${scores}`);
+  assert.equal(dikeCost(HEIGHT.min), 0);
+  assert.ok(Math.abs(exceedance(10)) < 1e-9 && Math.abs(exceedance(-10) - 1) < 1e-9);
+  const a = century(f, random(9)), b = century(f, random(9));
+  assert.deepEqual(a, b, 'A seeded century is repeatable');
+  assert.equal(a.peaks.length, 100);
+  assert.deepEqual(uniformDike(3)(0).profile, uniformDike(3)(39).profile);
+  console.log(`PASS: round 3. Fragility ${f.flooded.join(' ')}; scores at 1.5 / 2.75 / 4 m: ${scores.join(' / ')}.`);
+}

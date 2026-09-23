@@ -43,6 +43,8 @@ export class FloodSim {
   pumpedVolume = 0;
   pumpConfig: { intakes: readonly number[]; outlet: number; capacity: number; minLevel?: number } | null = null;
   erosion: Erosion | null = null;
+  /** Time steps taken so far (the explainer counts them). */
+  steps = 0;
   constructor(readonly width = GRID_W, readonly height = GRID_H) {
     const n = width * height;
     this.terrain = new Float64Array(n);
@@ -98,6 +100,7 @@ export class FloodSim {
       }
       const dt = Math.min(duration, 0.38 * DX / speed);
       this.step(dt);
+      this.steps++;
       if (this.erosion) this.erode(dt);
       if (this.pumpConfig) {
         const { intakes, outlet, capacity, minLevel } = this.pumpConfig;

@@ -14,8 +14,21 @@ const DIKE = [1, 2.4, 3.2, 2.4, 1];
 const POLDER = -.65;
 /** Erosion: fresh sand is loose, the old dike is clay with grass, the road is weak. */
 const SAND = { critical: 1.1, rate: 8e-3 };
-const OLD_DIKE = { critical: 1.5, rate: 3e-3 };
-const WEAK = { critical: 1.1, rate: 8e-3 };
+export const OLD_DIKE = { critical: 1.5, rate: 3e-3 };
+export const WEAK = { critical: 1.1, rate: 8e-3 };
+
+/** One row of the old dike: its cross-section and what it is made of. */
+export interface DikeRow { profile: readonly number[]; critical: number; rate: number }
+/** The first challenge's coast: a strong dike with a low sill and a weak road. */
+export function holdTheLine(y: number): DikeRow {
+  if (y >= SILL.y0 && y <= SILL.y1) return { profile: SILL.profile, ...OLD_DIKE };
+  if (y >= ROAD.y0 && y <= ROAD.y1) return { profile: ROAD.profile, ...WEAK };
+  return { profile: DIKE, ...OLD_DIKE };
+}
+/** A dike cross-section with the given crest height (m); the same slopes at every height. */
+export function dikeProfile(crest: number): number[] {
+  return [crest - 1.6, crest - .6, crest, crest - .6, crest - 1.6].map(z => Math.max(z, .3));
+}
 
 /** Physical seconds per displayed second: a storm of ~20 minutes plays in ~40 s. */
 export const TIME_SCALE = 24;
@@ -39,14 +52,14 @@ export function stormStrength(t: number): number {
   if (t < STORM.rise + STORM.hold) return 1;
   return ramp((STORM_LENGTH - t) / STORM.fall);
 }
-/** Sea level at the open boundary: a gentle swell, plus the surge and bigger waves
- * of a storm that started at `stormStart` (displayed seconds), if any. */
-export function seaLevelAt(t: number, stormStart: number | null): number {
+/** Sea level at the open boundary: a gentle swell, plus the surge (up to `peak`)
+ * and bigger waves of a storm that started at `stormStart` (displayed seconds). */
+export function seaLevelAt(t: number, stormStart: number | null, peak = STORM.peak): number {
   const s = stormStart === null ? 0 : stormStrength(t - stormStart);
-  return STORM.peak * s + (CALM_SEA + (STORM.waves - CALM_SEA) * s) * Math.sin(2 * Math.PI * t / 2.6);
+  return peak * s + (CALM_SEA + (STORM.waves - CALM_SEA) * s) * Math.sin(2 * Math.PI * t / 2.6);
 }
 
-export function makeScene(): FloodSim {
+export function makeScene(dike: (y: number) => DikeRow = holdTheLine): FloodSim {
   const s = new FloodSim();
   s.waveBoundary = true;
   const floor = new Float64Array(W * H), hardTop = new Float64Array(W * H);
@@ -56,11 +69,10 @@ export function makeScene(): FloodSim {
     let z = x < 16 ? -2.5 : x < 20 ? -2.5 + (x - 15) * 0.6 : POLDER;
     floor[i] = z;
     if (x >= DIKE_X[0] && x <= DIKE_X[1]) {
-      const k = x - DIKE_X[0];
-      const road = y >= ROAD.y0 && y <= ROAD.y1;
-      z = y >= SILL.y0 && y <= SILL.y1 ? SILL.profile[k] : road ? ROAD.profile[k] : DIKE[k];
+      const row = dike(y);
+      z = row.profile[x - DIKE_X[0]];
       floor[i] = POLDER;
-      if (road) { critical[i] = WEAK.critical; rate[i] = WEAK.rate; }
+      critical[i] = row.critical; rate[i] = row.rate;
     }
     if (x > 54) z = floor[i] = POLDER + (x - 54) * 0.42;
     s.terrain[i] = z;
