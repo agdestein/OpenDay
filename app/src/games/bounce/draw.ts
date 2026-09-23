@@ -36,10 +36,10 @@ export function drawBalls(ctx: CanvasRenderingContext2D, balls: Ball[], tint: nu
   }
 }
 
-/** 0 = still (blue) … 1 and above = fast (red). */
-export function speedColor(s: number): string {
+/** 0 = still (blue) … 1 and above = fast (red); optional opacity. */
+export function speedColor(s: number, alpha = 1): string {
   const t = Math.max(0, Math.min(1, s));
-  return `hsl(${230 - 230 * t}, 90%, ${50 + 12 * t}%)`;
+  return `hsla(${230 - 230 * t}, 90%, ${50 + 12 * t}%, ${alpha})`;
 }
 
 /** The pit's frame: base strip under the floor, outline, and a floor line that glows with heat. */

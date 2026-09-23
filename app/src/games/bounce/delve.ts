@@ -74,7 +74,7 @@ const CHAPTERS: Localized<ChapterText[]> = {
       title: 'Too many balls: equations for the crowd',
       paragraphs: [
         'A glass of water holds about 10²⁵ molecules: a 1 with 25 zeros. Computing it ball by ball, even the fastest supercomputer would need centuries for one femtosecond, a millionth of a billionth of a second.',
-        'So we zoom out. For every small square we keep only how full it is, how fast the stuff moves and how hot it is. That gives the equations of fluids, the ones inside Swirl Lab and Save the Netherlands. Slide the 🔭 in the pit to see it happen.',
+        'So we zoom out. On the right, thousands of small balls burst through a dam, and from far away they flow like water. For every small square we then keep only how full it is, how fast the stuff moves and how hot it is. That gives the equations of fluids, the ones inside Swirl Lab and Save the Netherlands. The 🔭 slider in the pit does the same.',
         'But averages forget what the small stuff does: tiny whirls, atoms in the floor. Rules that bring it back are closure models, like the 0.82 of chapter 3. Finding better ones, lately also with machine learning, is part of our group’s research. Now go and stir Swirl Lab: it is this pit, zoomed out.',
       ],
       formula: '10²⁵ molecules  →  millions of squares\n(how full, how fast, how hot)',
@@ -130,7 +130,7 @@ const CHAPTERS: Localized<ChapterText[]> = {
       title: 'Te veel ballen: vergelijkingen voor de menigte',
       paragraphs: [
         'Een glas water bevat ongeveer 10²⁵ moleculen: een 1 met 25 nullen. Als je dat bal voor bal uitrekent, heeft zelfs de snelste supercomputer eeuwen nodig voor één femtoseconde, een miljoenste van een miljardste seconde.',
-        'Dus zoomen we uit. Voor elk klein vakje houden we alleen bij hoe vol het is, hoe snel het spul beweegt en hoe heet het is. Dat geeft de vergelijkingen van stromingen, die in Wervel-lab en Red Nederland zitten. Schuif de 🔭 in de bak om het te zien.',
+        'Dus zoomen we uit. Rechts breken duizenden kleine ballen door een dam, en van ver weg stromen ze als water. Voor elk klein vakje houden we dan alleen bij hoe vol het is, hoe snel het spul beweegt en hoe heet het is. Dat geeft de vergelijkingen van stromingen, die in Wervel-lab en Red Nederland zitten. De 🔭-schuif in de bak doet hetzelfde.',
         'Maar gemiddelden vergeten wat het kleine spul doet: piepkleine wervels, atomen in de vloer. Regels die dat terugbrengen zijn sluitingsmodellen, zoals de 0,82 uit hoofdstuk 3. Betere vinden, tegenwoordig ook met machine learning, is een deel van het onderzoek van onze groep. Ga nu maar roeren in Wervel-lab: dat is deze bak, uitgezoomd.',
       ],
       formula: '10²⁵ moleculen  →  miljoenen vakjes\n(hoe vol, hoe snel, hoe heet)',
@@ -186,7 +186,7 @@ const CHAPTERS: Localized<ChapterText[]> = {
       title: 'For mange baller: likninger for mengden',
       paragraphs: [
         'Et glass vann inneholder omtrent 10²⁵ molekyler: et ett-tall med 25 nuller. Regnet ball for ball ville selv den raskeste superdatamaskinen trenge hundrevis av år for ett femtosekund, en milliondel av en milliardtedel av et sekund.',
-        'Så vi zoomer ut. For hver lille rute tar vi bare vare på hvor full den er, hvor fort stoffet beveger seg og hvor varmt det er. Det gir likningene for strømning, de som er inni Virvellab og Redd Nederland. Skyv 🔭 i binga for å se det skje.',
+        'Så vi zoomer ut. Til høyre bryter tusenvis av små baller gjennom en demning, og langt unna renner de som vann. For hver lille rute tar vi så bare vare på hvor full den er, hvor fort stoffet beveger seg og hvor varmt det er. Det gir likningene for strømning, de som er inni Virvellab og Redd Nederland. 🔭-glideren i binga gjør det samme.',
         'Men gjennomsnitt glemmer hva det lille gjør: bittesmå virvler, atomer i gulvet. Regler som henter det tilbake er lukningsmodeller, som 0,82 i kapittel 3. Å finne bedre, nå også med maskinlæring, er en del av forskningen i gruppen vår. Gå og rør i Virvellab nå: det er denne binga, zoomet ut.',
       ],
       formula: '10²⁵ molekyler  →  millioner av ruter\n(hvor fullt, hvor fort, hvor varmt)',
@@ -247,7 +247,9 @@ export const DELVE_CAPTIONS: Localized<{
   pressure: string;
   difference: (px: string) => string;
   zoomIn: string;
+  zooming: string;
   zoomOut: string;
+  squares: string;
 }> = {
   en: {
     allPairs: (n) => `every pair: ${n} checks`,
@@ -262,7 +264,9 @@ export const DELVE_CAPTIONS: Localized<{
     pressure: '💨 pressure',
     difference: (px) => `biggest difference: ${px} px`,
     zoomIn: 'zoomed in: balls',
-    zoomOut: 'zoomed out: a fluid',
+    zooming: 'zooming out…',
+    zoomOut: 'zoomed out: it flows like water',
+    squares: 'the computer keeps only the squares',
   },
   nl: {
     allPairs: (n) => `elk paar: ${n} controles`,
@@ -277,7 +281,9 @@ export const DELVE_CAPTIONS: Localized<{
     pressure: '💨 druk',
     difference: (px) => `grootste verschil: ${px} px`,
     zoomIn: 'ingezoomd: ballen',
-    zoomOut: 'uitgezoomd: een vloeistof',
+    zooming: 'uitzoomen…',
+    zoomOut: 'uitgezoomd: het stroomt als water',
+    squares: 'de computer onthoudt alleen de vakjes',
   },
   no: {
     allPairs: (n) => `hvert par: ${n} sjekker`,
@@ -292,7 +298,9 @@ export const DELVE_CAPTIONS: Localized<{
     pressure: '💨 trykk',
     difference: (px) => `største forskjell: ${px} px`,
     zoomIn: 'zoomet inn: baller',
-    zoomOut: 'zoomet ut: en væske',
+    zooming: 'zoomer ut…',
+    zoomOut: 'zoomet ut: det renner som vann',
+    squares: 'datamaskinen husker bare rutene',
   },
 };
 

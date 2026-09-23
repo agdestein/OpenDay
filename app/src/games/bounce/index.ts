@@ -18,8 +18,8 @@ import { fmtNumber, pick, type Localized } from '../../lib/i18n';
 import { bounceDelve, type SwitchName } from './delve';
 import { BounceDemos } from './demos';
 import { BallWorld, type Ball, type Box } from './physics';
-import { drawBalls, drawFrame, label } from './draw';
-import { FieldView } from './field';
+import { drawBalls, drawFrame, label, speedColor } from './draw';
+import { averageSquares, drawGridLines, drawSquares, type Squares } from './field';
 import { makeHold, toolButton, type ButtonDef, type Round, type RoundHost } from './rounds';
 import { PlinkoRound } from './roundPlinko';
 import { SiloRound } from './roundSilo';
@@ -28,7 +28,7 @@ import { SteamRound } from './roundSteam';
 const TEXT: Localized<{
   ballCount: (n: number) => string;
   pairs: (pairs: number, checks: number) => string;
-  zoomCaption: [string, string];
+  zoomCaption: (squares: number, balls: number) => [string, string];
   heat: string;
   cool: string;
   bigBall: string;
@@ -50,7 +50,10 @@ const TEXT: Localized<{
   en: {
     ballCount: (n) => `${n} balls, each moved 240 times per second`,
     pairs: (p, c) => `${fmtNumber(p)} pairs could touch; the grid checks only ${fmtNumber(c)}`,
-    zoomCaption: ['Zoomed out, no balls: just how full and how hot each square is.', 'That is what Swirl Lab computes.'],
+    zoomCaption: (s, n) => [
+      'Zoomed out: each square keeps only how full it is and how fast its balls move.',
+      `${s} squares instead of ${n} balls. That is what Swirl Lab computes.`,
+    ],
     heat: 'Heat',
     cool: 'Cool',
     bigBall: 'Big ball',
@@ -72,7 +75,10 @@ const TEXT: Localized<{
   nl: {
     ballCount: (n) => `${n} ballen, elk 240 keer per seconde verplaatst`,
     pairs: (p, c) => `${fmtNumber(p)} paren kunnen botsen; het rooster controleert er maar ${fmtNumber(c)}`,
-    zoomCaption: ['Uitgezoomd, geen ballen: alleen hoe vol en hoe heet elk vakje is.', 'Dat rekent Wervel-lab uit.'],
+    zoomCaption: (s, n) => [
+      'Uitgezoomd: elk vakje onthoudt alleen hoe vol het is en hoe snel de ballen erin gaan.',
+      `${s} vakjes in plaats van ${n} ballen. Dat rekent Wervel-lab uit.`,
+    ],
     heat: 'Verwarm',
     cool: 'Koel af',
     bigBall: 'Grote bal',
@@ -94,7 +100,10 @@ const TEXT: Localized<{
   no: {
     ballCount: (n) => `${n} baller, hver flyttet 240 ganger i sekundet`,
     pairs: (p, c) => `${fmtNumber(p)} par kan kollidere; rutenettet sjekker bare ${fmtNumber(c)}`,
-    zoomCaption: ['Zoomet ut, ingen baller: bare hvor full og hvor varm hver rute er.', 'Det er det Virvellab regner ut.'],
+    zoomCaption: (s, n) => [
+      'Zoomet ut: hver rute husker bare hvor full den er og hvor fort ballene i den går.',
+      `${s} ruter i stedet for ${n} baller. Det er det Virvellab regner ut.`,
+    ],
     heat: 'Varm opp',
     cool: 'Kjøl ned',
     bigBall: 'Stor ball',
@@ -137,8 +146,8 @@ const HANDFUL = 5;
 const FILL_LIMIT = 0.6;
 /** Height fraction filled when the game opens. */
 const START_FILL = 0.4;
-/** Zoom-out squares, in units. */
-const FIELD_CELL = 60;
+/** Zoom-out squares, in units: about three ball widths, so each holds a handful. */
+const FIELD_CELL = 90;
 const MARGIN = 10;
 const BACKGROUND = '#0b1020';
 
@@ -174,7 +183,7 @@ class BounceInstance implements GameInstance {
   /** 0..1: how much balls are coloured by speed (a heat view). */
   private tint = 0;
   private zoom = 0;
-  private field = new FieldView();
+  private squares: Squares | null = null;
   private popups: Popup[] = [];
 
   private challenge: Challenge | null = null;
@@ -416,34 +425,28 @@ class BounceInstance implements GameInstance {
       ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
     }
 
-    // Zoomed in: balls. Zoomed out: the smooth field a fluid solver would keep.
+    // The zoom slider, in steps you can see: balls take their speed colours,
+    // a grid appears, each square fills with the average of its balls (how
+    // full, how fast), and finally the balls go and only the squares remain.
     const z = this.zoom;
-    const ballsAlpha = 1 - smooth(0.25, 0.85, z);
-    const fieldAlpha = smooth(0.05, 0.6, z);
     const vref = 0.35 * world.kick;
-    if (fieldAlpha > 0) {
-      const cell = FIELD_CELL * u;
-      const grid = this.field.draw(ctx, world.balls, this.box, cell, vref, fieldAlpha);
-      if (z > 0.6) {
-        ctx.strokeStyle = `rgba(238, 242, 255, ${0.25 * smooth(0.6, 1, z)})`;
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        for (let i = 1; i < grid.nx; i++) {
-          ctx.moveTo(x0 + i * cell, y0);
-          ctx.lineTo(x0 + i * cell, y1);
-        }
-        for (let j = 1; j < grid.ny; j++) {
-          ctx.moveTo(x0, y0 + j * cell);
-          ctx.lineTo(x1, y0 + j * cell);
-        }
-        ctx.stroke();
-      }
+    const cell = FIELD_CELL * u;
+    let kept = 0;
+    if (z > 0.3) {
+      this.squares = averageSquares(world.balls, this.box, cell, this.squares ?? undefined);
+      const sq = this.squares;
+      for (let c = 0; c < sq.nx * sq.ny; c++) if (sq.full[c] > 0.02) kept++;
+      drawSquares(ctx, sq, this.box, smooth(0.3, 0.7, z), (full, speed) =>
+        full > 0.02 ? speedColor(speed / vref, 0.25 + 0.75 * full) : null,
+      );
     }
+    const ballsAlpha = 1 - smooth(0.7, 0.95, z);
     if (ballsAlpha > 0) {
       ctx.globalAlpha = ballsAlpha;
-      drawBalls(ctx, world.balls, this.tint, vref);
+      drawBalls(ctx, world.balls, Math.max(this.tint, smooth(0, 0.3, z)), vref);
       ctx.globalAlpha = 1;
     }
+    if (z > 0.1) drawGridLines(ctx, this.box, cell, 0.35 * smooth(0.1, 0.4, z));
 
     const hand = world.hand;
     if (hand.active) {
@@ -461,8 +464,9 @@ class BounceInstance implements GameInstance {
     const cx = (x0 + x1) / 2;
     const top = y0 + 80;
     if (z > 0.5) {
-      label(ctx, T.zoomCaption[0], cx, top, 18, 'rgba(238, 242, 255, 0.9)');
-      label(ctx, T.zoomCaption[1], cx, top + 24, 16, 'rgba(238, 242, 255, 0.7)');
+      const [line1, line2] = T.zoomCaption(kept, world.balls.length);
+      label(ctx, line1, cx, top, 18, 'rgba(238, 242, 255, 0.9)');
+      label(ctx, line2, cx, top + 24, 16, 'rgba(238, 242, 255, 0.7)');
     } else {
       const n = world.balls.length;
       label(ctx, T.ballCount(n), cx, top, 20, 'rgba(238, 242, 255, 0.85)');

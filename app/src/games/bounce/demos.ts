@@ -3,14 +3,14 @@
 // (BallWorld) in a small box: a ball and its numbers; the pair checks with
 // and without the grid; a floor made of atoms that turns the bounce into heat
 // (floorsim.ts) beside the pit's one-number shortcut for it; a gas with thermometer and pressure gauge; chaos twins; and
-// balls blurring into a fluid. Each demo lives in fixed coordinates, fitted
+// a dam break of thousands of small balls that, zoomed out, flows like water. Each demo lives in fixed coordinates, fitted
 // to the free part of the screen.
 import { fmtNumber, pick } from '../../lib/i18n';
 import { randRange } from '../../lib/util';
 import { DELVE_CAPTIONS, type SwitchName } from './delve';
 import { BallWorld, type Ball } from './physics';
 import { FloorSim, FLOOR } from './floorsim';
-import { FieldView } from './field';
+import { averageSquares, drawGridLines, drawSquares, type Squares } from './field';
 import { arrow, drawBalls, drawFloor, label, speedColor } from './draw';
 
 interface Area {
@@ -27,7 +27,14 @@ const GRID = { w: 480, h: 320, balls: 60, period: 4 };
 const SHORTCUT = { w: 150, gap: 40, vx: 40 };
 const GAS = { w: 420, h: 300, balls: 50, r: 9, g: 300, period: 10 };
 const CHAOS = { w: 240, h: 240, balls: 24, r: 12, speed: 60, nudge: 0.001, period: 14 };
-const ZOOM = { w: 440, h: 320, balls: 130, period: 9, cell: 32 };
+/**
+ * Chapter 6: a dam break of ~3 000 small balls, watched through a camera that
+ * starts close enough to see single balls and pulls back until they flow like
+ * water while the wave still sloshes; then squares take over (from `squares`,
+ * the balls fade 2 s later). Times in seconds; the camera starts `zoomIn`
+ * times closer, aimed at the foot of the dam.
+ */
+const DAM = { w: 800, h: 400, r: 2.6, fill: 0.85, open: 1.2, zoomIn: 10, zoomFrom: 2.2, zoomTo: 5.5, squares: 7, cell: 25, period: 14 };
 
 type Demo =
   | { kind: 'numbers'; x: number; y: number; vx: number; vy: number }
@@ -35,11 +42,10 @@ type Demo =
   | { kind: 'floor'; sim: FloorSim; e0: number; shortcut: BallWorld }
   | { kind: 'gas'; world: BallWorld; t: number; pressure: number }
   | { kind: 'chaos'; a: BallWorld; b: BallWorld; t: number }
-  | { kind: 'zoom'; world: BallWorld; t: number };
+  | { kind: 'zoom'; world: BallWorld; t: number; squares: Squares | null };
 
 export class BounceDemos {
   private demo: Demo | null = null;
-  private field = new FieldView();
 
   /** The labs' switches act on the demos (chapters 2 and 3) as well as on the pit. */
   constructor(private getSwitch: (name: SwitchName) => boolean) {}
@@ -64,7 +70,7 @@ export class BounceDemos {
     else if (chapter === 4) {
       const [a, b] = chaosTwins();
       this.demo = { kind: 'chaos', a, b, t: 0 };
-    } else this.demo = { kind: 'zoom', world: zoomWorld(), t: 0 };
+    } else this.demo = { kind: 'zoom', world: damWorld(), t: 0, squares: null };
   }
 
   step(dt: number): void {
@@ -107,7 +113,9 @@ export class BounceDemos {
       if (d.t > CHAOS.period) this.reset(4);
     } else {
       d.t += dt;
-      d.world.step(dt);
+      if (d.t > DAM.open) d.world.segments = [];
+      d.world.step(Math.min(dt, 1 / 30));
+      if (d.t > DAM.period) this.reset(5);
     }
   }
 
@@ -408,30 +416,93 @@ export class BounceDemos {
   // ---- chapter 6 ----
 
   private drawZoom(ctx: CanvasRenderingContext2D, area: Area, d: Extract<Demo, { kind: 'zoom' }>): void {
-    const { w, h } = ZOOM;
+    const { w, h } = DAM;
     const world = d.world;
-    const { s, ox, oy } = fit({ ...area, y1: area.y1 - 40 }, { x0: -10, y0: -10, x1: w + 10, y1: h + 10 });
-    const z = 0.5 - 0.5 * Math.cos((2 * Math.PI * d.t) / ZOOM.period);
-    const vref = 0.35 * world.kick;
-    drawFloor(ctx, ox, ox + w * s, oy + h * s, world.heat, 40 * s);
+    const t = d.t;
+    const view = { ...area, y1: area.y1 - 40 };
+    const full = fit(view, { x0: -8, y0: -8, x1: w + 8, y1: h + 8 });
+    // Camera: close up on the foot of the dam, then an even (exponential) pull-back.
+    const k =
+      t < DAM.zoomFrom ? DAM.zoomIn : t > DAM.zoomTo ? 1 : DAM.zoomIn ** (1 - (t - DAM.zoomFrom) / (DAM.zoomTo - DAM.zoomFrom));
+    const s = full.s * k;
+    const aim = (k - 1) / (DAM.zoomIn - 1);
+    const fx = w / 2 + (w / 3 - w / 2) * aim;
+    const fy = h / 2 + (h - 30 - h / 2) * aim;
+    const cx = (view.x0 + view.x1) / 2;
+    const cy = (view.y0 + view.y1) / 2;
+    const ox = cx - fx * s;
+    const oy = cy - fy * s;
+
     ctx.save();
-    ctx.translate(ox, oy);
-    ctx.scale(s, s);
-    const fieldAlpha = Math.min(1, Math.max(0, (z - 0.1) / 0.5));
-    const ballAlpha = 1 - Math.min(1, Math.max(0, (z - 0.3) / 0.5));
-    if (fieldAlpha > 0) this.field.draw(ctx, world.balls, world.box, ZOOM.cell, vref, fieldAlpha);
-    if (ballAlpha > 0) {
-      ctx.globalAlpha = ballAlpha;
-      drawBalls(ctx, world.balls, 1, vref);
+    ctx.beginPath();
+    ctx.rect(view.x0, view.y0, view.x1 - view.x0, view.y1 - view.y0);
+    ctx.clip();
+
+    // Squares fade in once zoomed out; then the balls go.
+    const squaresAlpha = smoothstep((t - DAM.squares) / 1.5);
+    const ballsAlpha = 1 - smoothstep((t - DAM.squares - 2) / 1.5);
+    if (squaresAlpha > 0) {
+      d.squares = averageSquares(world.balls, world.box, DAM.cell, d.squares ?? undefined);
+      ctx.save();
+      ctx.translate(ox, oy);
+      ctx.scale(s, s);
+      drawSquares(ctx, d.squares, world.box, squaresAlpha, (f) => (f > 0.02 ? `rgba(56, 152, 230, ${0.15 + 0.85 * f})` : null));
+      drawGridLines(ctx, world.box, DAM.cell, 0.3 * squaresAlpha, 1 / s);
+      ctx.restore();
+    }
+    if (ballsAlpha > 0) {
+      // One path for all balls; far away they are specks, drawn as tiny squares.
+      ctx.globalAlpha = ballsAlpha;
+      ctx.fillStyle = 'hsl(205, 85%, 62%)';
+      ctx.beginPath();
+      for (const b of world.balls) {
+        const px = ox + b.x * s;
+        const py = oy + b.y * s;
+        const pr = b.r * s;
+        if (pr < 1.2) ctx.rect(px - 0.8, py - 0.8, 1.6, 1.6);
+        else {
+          ctx.moveTo(px + pr, py);
+          ctx.arc(px, py, pr, 0, Math.PI * 2);
+        }
+      }
+      ctx.fill();
+      if (s * DAM.r > 6) {
+        // Close up, a highlight makes them read as balls.
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+        ctx.beginPath();
+        for (const b of world.balls) {
+          const pr = b.r * s;
+          ctx.moveTo(ox + b.x * s - 0.35 * pr + 0.3 * pr, oy + b.y * s - 0.35 * pr);
+          ctx.arc(ox + b.x * s - 0.35 * pr, oy + b.y * s - 0.35 * pr, 0.3 * pr, 0, Math.PI * 2);
+        }
+        ctx.fill();
+      }
       ctx.globalAlpha = 1;
     }
-    ctx.restore();
-    ctx.strokeStyle = 'rgba(238, 242, 255, 0.35)';
+
+    // Tank and dam.
+    ctx.strokeStyle = 'rgba(238, 242, 255, 0.45)';
     ctx.lineWidth = 2;
     ctx.strokeRect(ox, oy, w * s, h * s);
-    const t = pick(DELVE_CAPTIONS);
-    label(ctx, z < 0.5 ? t.zoomIn : t.zoomOut, (area.x0 + area.x1) / 2, area.y1 - 10, 20, z < 0.5 ? '#eef2ff' : '#fbbf24');
+    if (world.segments.length) {
+      ctx.strokeStyle = '#94a3b8';
+      ctx.lineWidth = Math.max(3, 2 * s);
+      ctx.beginPath();
+      ctx.moveTo(ox + (w / 3) * s, oy);
+      ctx.lineTo(ox + (w / 3) * s, oy + h * s);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    const c = pick(DELVE_CAPTIONS);
+    const text = t < DAM.zoomFrom ? c.zoomIn : t < DAM.zoomTo ? c.zooming : t < DAM.squares + 1 ? c.zoomOut : c.squares;
+    label(ctx, text, (area.x0 + area.x1) / 2, area.y1 - 10, 20, t < DAM.zoomTo ? '#eef2ff' : '#fbbf24');
   }
+}
+
+function smoothstep(x: number): number {
+  const t = Math.min(1, Math.max(0, x));
+  return t * t * (3 - 2 * t);
 }
 
 // ---- demo worlds ----
@@ -493,14 +564,20 @@ function chaosTwins(): BallWorld[] {
   return [a, b];
 }
 
-function zoomWorld(): BallWorld {
-  const { w, h } = ZOOM;
-  const g = 900;
-  const world = new BallWorld({ x0: 0, y0: 0, x1: w, y1: h }, g, 10, 1.4 * Math.sqrt(2 * g * h));
-  world.heat = 0.55;
-  for (let i = 0; i < ZOOM.balls; i++) {
-    world.add({ x: 12 + (i % 21) * 20, y: h - 12 - Math.floor(i / 21) * 20, vx: 0, vy: 0, r: randRange(7, 10), hue: randRange(0, 360) });
+/** Water behind a dam in the left third of a tank: small, slippery balls. */
+function damWorld(): BallWorld {
+  const { w, h, r } = DAM;
+  const world = new BallWorld({ x0: 0, y0: 0, x1: w, y1: h }, 1800 * (h / 620), 1.1 * r, 0);
+  world.friction = false;
+  const step = 2.1 * r;
+  const cols = Math.floor((w / 3 - r) / step);
+  const rows = Math.floor((DAM.fill * h) / step);
+  for (let j = 0; j < rows; j++) {
+    for (let i = 0; i < cols; i++) {
+      world.add({ x: r + i * step + randRange(0, 0.3), y: h - r - j * step, vx: 0, vy: 0, r: r * randRange(0.9, 1.1), hue: 205 });
+    }
   }
+  world.segments = [{ x1: w / 3, y1: 0, x2: w / 3, y2: h }];
   return world;
 }
 

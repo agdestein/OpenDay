@@ -48,8 +48,16 @@ goals, **B** adds depth, **C** can wait.
   loss and friction in chapter 3. Chapter 3 shows the pit's shortcut next to the atom
   floor it replaces: the floor was tuned in node so both bounce alike (peaks 144, 102,
   84, 66 px against 149, 108, 81, 63), and with the loss off the shortcut ball bounces
-  forever. The zoom-out is a slider in the toolbar; the pair counter sits under the
-  ball count.
+  forever. The pair counter sits under the ball count.
+- **Zoom-out without blur.** A first version blurred the balls into a smooth field;
+  it read as "out of focus", and with 2–5 balls per square the averages flickered.
+  Now the toolbar slider goes in visible steps: the balls take their speed colours, a
+  grid appears, each square (about three balls wide) fills with the average of its
+  balls (colour = how fast, opacity = how full), then the balls fade and only the
+  squares remain ("60 squares instead of 174 balls"). Delve chapter 6 does a real
+  zoom instead: a dam break of ~3 000 small balls, the camera starting close enough to
+  see single balls and pulling back until they flow like water, then the squares take
+  over. About 5 ms per frame in the browser.
 - **Group claim.** Delve chapter 6 says finding better closure models, "lately also
   with machine learning, is part of our group's research". *(Agree the wording.)*
 - Measured (node, 1280×720 pit): mean overlap 0.5 %, resting pile at zero speed, the

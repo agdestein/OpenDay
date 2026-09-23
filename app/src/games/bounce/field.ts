@@ -1,76 +1,86 @@
-// The zoom-out view: average the balls onto a coarse grid of squares and draw
-// only what a fluid simulation keeps — how full each square is (density) and
-// how fast its balls jiggle (temperature) — blurred into a smooth field. With
-// a boiling pit this looks like the fluids in Swirl Lab and Save the
-// Netherlands, which is the point: they compute the crowd, not the balls.
+// The zoom-out view: cut the pit into squares and keep, per square, only what a
+// fluid simulation keeps — how full it is and how fast its balls move — instead
+// of every ball. Drawn as flat squares on the same grid the other games show,
+// so "the computer keeps these numbers" is literally what you see.
 import type { Ball, Box } from './physics';
 
-// Swirl Lab's blue (brightened to show on the dark ground) and orange, cold
-// to hot, ending in pale yellow.
-const COLD = [56, 132, 220];
-const MID = [240, 140, 31];
-const HOT = [255, 236, 170];
-
-export class FieldView {
-  private canvas = document.createElement('canvas');
-  private image: ImageData | null = null;
-  private area = new Float32Array(0);
-  private mass = new Float32Array(0);
-  private energy = new Float32Array(0);
-
-  /**
-   * `cell` is the square size in px; `vref` the jiggle speed that counts as
-   * hot. Returns the grid size so callers can draw its lines.
-   */
-  draw(ctx: CanvasRenderingContext2D, balls: Ball[], box: Box, cell: number, vref: number, alpha: number): { nx: number; ny: number } {
-    const nx = Math.max(1, Math.ceil((box.x1 - box.x0) / cell));
-    const ny = Math.max(1, Math.ceil((box.y1 - box.y0) / cell));
-    const n = nx * ny;
-    if (this.area.length < n) {
-      this.area = new Float32Array(n);
-      this.mass = new Float32Array(n);
-      this.energy = new Float32Array(n);
-    }
-    this.area.fill(0, 0, n);
-    this.mass.fill(0, 0, n);
-    this.energy.fill(0, 0, n);
-    for (const b of balls) {
-      const i = Math.min(nx - 1, Math.max(0, Math.floor((b.x - box.x0) / cell)));
-      const j = Math.min(ny - 1, Math.max(0, Math.floor((b.y - box.y0) / cell)));
-      const c = j * nx + i;
-      this.area[c] += Math.PI * b.r * b.r;
-      this.mass[c] += b.m;
-      this.energy[c] += b.m * (b.vx * b.vx + b.vy * b.vy);
-    }
-    if (this.canvas.width !== nx || this.canvas.height !== ny || !this.image) {
-      this.canvas.width = nx;
-      this.canvas.height = ny;
-      this.image = new ImageData(nx, ny);
-    }
-    const data = this.image.data;
-    const full = cell * cell;
-    for (let c = 0; c < n; c++) {
-      const density = Math.min(1, this.area[c] / (0.75 * full));
-      const t = this.mass[c] > 0 ? Math.min(1, Math.sqrt(this.energy[c] / this.mass[c]) / vref) : 0;
-      const [r, g, b] = ramp(t);
-      data[4 * c] = r;
-      data[4 * c + 1] = g;
-      data[4 * c + 2] = b;
-      data[4 * c + 3] = Math.round(255 * density);
-    }
-    this.canvas.getContext('2d')!.putImageData(this.image, 0, 0);
-    ctx.save();
-    ctx.globalAlpha = alpha;
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-    ctx.filter = `blur(${Math.round(cell * 0.2)}px)`;
-    ctx.drawImage(this.canvas, box.x0, box.y0, nx * cell, ny * cell);
-    ctx.restore();
-    return { nx, ny };
-  }
+export interface Squares {
+  nx: number;
+  ny: number;
+  cell: number;
+  /** Fraction of each square covered by balls, 0..1. */
+  full: Float32Array;
+  /** Root-mean-square speed of the balls in each square. */
+  speed: Float32Array;
 }
 
-function ramp(t: number): number[] {
-  const mix = (a: number[], b: number[], s: number) => a.map((v, k) => v + (b[k] - v) * s);
-  return t < 0.5 ? mix(COLD, MID, t / 0.5) : mix(MID, HOT, (t - 0.5) / 0.5);
+/** Averages the balls onto squares of size `cell`, starting at the box corner. */
+export function averageSquares(balls: Ball[], box: Box, cell: number, into?: Squares): Squares {
+  const nx = Math.max(1, Math.ceil((box.x1 - box.x0) / cell));
+  const ny = Math.max(1, Math.ceil((box.y1 - box.y0) / cell));
+  const n = nx * ny;
+  const sq =
+    into && into.full.length >= n
+      ? into
+      : { nx, ny, cell, full: new Float32Array(n), speed: new Float32Array(n) };
+  sq.nx = nx;
+  sq.ny = ny;
+  sq.cell = cell;
+  const mass = new Float32Array(n);
+  sq.full.fill(0, 0, n);
+  sq.speed.fill(0, 0, n);
+  for (const b of balls) {
+    const i = Math.min(nx - 1, Math.max(0, Math.floor((b.x - box.x0) / cell)));
+    const j = Math.min(ny - 1, Math.max(0, Math.floor((b.y - box.y0) / cell)));
+    const c = j * nx + i;
+    sq.full[c] += Math.PI * b.r * b.r;
+    mass[c] += b.m;
+    sq.speed[c] += b.m * (b.vx * b.vx + b.vy * b.vy);
+  }
+  // A square packed with discs is ~80 % covered; call that full.
+  const packed = 0.8 * cell * cell;
+  for (let c = 0; c < n; c++) {
+    sq.full[c] = Math.min(1, sq.full[c] / packed);
+    sq.speed[c] = mass[c] > 0 ? Math.sqrt(sq.speed[c] / mass[c]) : 0;
+  }
+  return sq;
+}
+
+/** One flat square per cell, coloured by `color` (null = leave it empty). */
+export function drawSquares(
+  ctx: CanvasRenderingContext2D,
+  sq: Squares,
+  box: Box,
+  alpha: number,
+  color: (full: number, speed: number) => string | null,
+): void {
+  const gap = Math.max(1, sq.cell * 0.04);
+  ctx.globalAlpha = alpha;
+  for (let j = 0; j < sq.ny; j++) {
+    for (let i = 0; i < sq.nx; i++) {
+      const c = j * sq.nx + i;
+      const fill = color(sq.full[c], sq.speed[c]);
+      if (!fill) continue;
+      const x = box.x0 + i * sq.cell;
+      const y = box.y0 + j * sq.cell;
+      ctx.fillStyle = fill;
+      ctx.fillRect(x + gap / 2, y + gap / 2, Math.min(sq.cell, box.x1 - x) - gap, Math.min(sq.cell, box.y1 - y) - gap);
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+export function drawGridLines(ctx: CanvasRenderingContext2D, box: Box, cell: number, alpha: number, lineWidth = 1): void {
+  ctx.strokeStyle = `rgba(238, 242, 255, ${alpha})`;
+  ctx.lineWidth = lineWidth;
+  ctx.beginPath();
+  for (let x = box.x0 + cell; x < box.x1 - 0.5; x += cell) {
+    ctx.moveTo(x, box.y0);
+    ctx.lineTo(x, box.y1);
+  }
+  for (let y = box.y0 + cell; y < box.y1 - 0.5; y += cell) {
+    ctx.moveTo(box.x0, y);
+    ctx.lineTo(box.x1, y);
+  }
+  ctx.stroke();
 }
