@@ -4,7 +4,7 @@ A live shallow-water diorama of a Dutch polder behind an old coastal dike. The
 storm happens while you build: water piles up against sand the moment it lands,
 overtopped dikes wear away and breach, and a breach can be plugged if you are
 quick. [floodland-proposal.md](floodland-proposal.md) explains why the game was
-rebuilt this way (phase A of that proposal is what is described here).
+rebuilt this way (phases A and B of that proposal are what is described here).
 
 ## Free play
 
@@ -16,20 +16,25 @@ The game opens live, with a gentle swell on the sea.
 - **Click the sea** to drop a splash: a bump of water that spreads as a ring (with
   a foam ring drawn at the shallow-water wave speed √(g·depth)).
 - **🌊 Storm!** sends one storm (below). Sand is unlimited; nothing is scored.
-- **🔢 Computer view** shows the grid from above with flow arrows and a readout
-  of ground, water depth and flow speed under the pointer.
+- **🔍 X-ray** (or hold Space) turns the pointer into a magnifying glass (3.4×)
+  that shows what the computer keeps for each square: water depth (or ground
+  height where it is dry) and a flow arrow. It works in every round.
 - **🧹 Start over** restores the landscape.
 
-## Challenge: Hold the line
+## Challenge: three rounds
 
-One round of about 43 s: 5 s warning, the storm (10 s rising, 14 s at its
-height, 10 s falling), then 4 s of calm. 150 sand. Score = dry homes × 100 + sand
-left, on the shared daily scoreboard. A home counts as flooded once more than
-0.3 m of water stands in it, and stays counted. When the round ends, homes still
-reachable by the calm sea (a breach cut below +0.1 m) also count as lost: a
-polder below sea level keeps flooding through an open hole, as in 1953. The calm
-phase asks you to close the hole. The round is recorded (15 fps, terrain included,
-~28 MB) so *Watch again* can scrub back through it.
+Each round opens with a card: one sentence for the player and a 🔬 science line for
+parents. The three scores add up on the shared daily scoreboard. Storm rounds can
+be watched again (recorded at 15 fps, terrain included, ~28 MB) before moving on.
+
+### Round 1: Hold the line *(water finds the lowest spot)*
+
+About 43 s: 5 s warning, the storm (10 s rising, 14 s at its height, 10 s falling),
+then 4 s of calm. 150 sand; building goes on during the storm. Score = dry homes ×
+100 + sand left. A home counts as flooded once more than 0.3 m of water stands in
+it, and stays counted. When the round ends, homes still reachable by the calm sea
+(a breach cut below +0.1 m) also count as lost: a polder below sea level keeps
+flooding through an open hole, as in 1953. The calm phase asks you to close it.
 
 The landscape has two low places in the old dike (3.2 m crest): a harbour sill
 (0.8 m, six cells long) and a road over the dike (1.9 m, three cells, built on
@@ -42,6 +47,71 @@ loose sand). The storm peaks at 2.5 m with ±0.4 m waves. Calibration
 | Sill raised to 3.1 m only | 8 (the road breaches later) | — |
 | Sill and road raised to 2.9 m before the storm | 0 | 83 |
 | Nothing built, then sandbagging the sill (12–18 s) and road (22–26 s) | 0 | — |
+
+### Round 2: Weak spots *(you can only reinforce where it can fail; Deltares)*
+
+A 2.8 m dike that looks the same everywhere. Three of its seven four-row sections
+are rotten inside (critical speed 0.9 m/s instead of 2.2 m/s), chosen at random
+each round. 45 sand: enough for the three weak sections (~31), not for all seven
+(~72). Before the storm, up to three **test storms** run on a copy of the current
+landscape (sand included), each a different guess between 2.4 and 3.2 m. A small
+panel shows the copy from above as it runs, then lists the result; red marks on
+the dike show where a test broke it (stronger with more tests agreeing), blue
+dots where water only came over. Test storms below ~2.6 m show nothing, so one
+test can mislead. Then the real storm (3.0 m) comes and building is locked:
+decide first, as engineers must. Score as round 1.
+
+Tested: a 2.4 m test breaks nothing; a 3.2 m test breaks exactly the weak
+sections; undefended, the real storm floods the village; reinforcing the weak
+sections keeps everyone dry, reinforcing three others does not.
+
+### Round 3: How high? *(storms are random; van Dantzig)*
+
+One height for the whole dike, 1.5–4 m in 0.25 m steps, 150 points per metre above
+1.5 m. **Live 100 years** first runs six full storms against that dike (0.2 m
+below the crest to 0.45 m above), shown side by side as they compute (~2–5 s):
+together they are the dike's *fragility curve* (homes flooded against storm
+height). Then a century plays in 5 s: each year's highest storm is drawn from a
+Gumbel distribution (μ = 1.2 m, β = 0.35 m), and years whose storm floods homes
+turn red. The score does not depend on that luck: it is 1000 − building cost −
+the *average* flood damage over the Gumbel distribution (10 points per flooded
+home). The result card shows the U-shaped total against height, with the best
+height and yours; the heading says how often the dike fails ("about once every
+200 years").
+
+For the curve at other heights the fragility curve is shifted with the crest.
+Every dike has the same slopes (`dikeProfile`), which makes that exact: curves
+measured at 2.5 and 3.25 m agree. Scores: 0 at 1.5 m, 772 at 2.75 m (best),
+624 at 4 m.
+
+## Explainer
+
+The shared 🔬 panel, in free play only, with the landscape (or a picture) beside it:
+
+1. **The land is a grid of numbers** — the X-ray lens drifts over the polder.
+2. **Two rules for every square** — a one-row tank you can pour into, with the
+   depth of each column and arrows for the flow through each wall.
+3. **Don't skip a square** — the time-step limit, with a live count of the
+   solver's steps per displayed second (a storm raises it).
+4. **Why dikes break** — a live slice through the harbour sill: the original
+   ground dashed, eroded ground brown, eroding cells red.
+5. **A thousand storms** — how often each storm height comes (bars; red where it
+   floods homes) and the fragility curve, with a dike-height slider and "fails
+   about once every N years".
+6. **This really happened** — 1953, van Dantzig, the group's Deltares project,
+   and what the game leaves out.
+
+History sources: van Dantzig was one of the founders of the Mathematisch Centrum;
+after 1953 the Delta Committee asked him to model the economically optimal dike
+height (*Economic decision problems for flood prevention*, Econometrica 24, 1956);
+the work led to statutory safety standards and his approach is still used in
+cost-benefit analysis of flood protection
+([Wikipedia](https://en.wikipedia.org/wiki/David_van_Dantzig)). His optimum for
+Central Holland was about 1 in 125 000 per year; the Delta Committee set the
+standard at 1 in 10 000, so the game does not claim the 10 000 came from him.
+The arcade's general explainer (`shell/about.ts`) says the Mathematisch Centrum
+"helped compute the storm surges behind the Delta Works"; that is not confirmed
+by these sources.
 
 ## Look and feedback
 
@@ -78,6 +148,8 @@ physical seconds. A frame costs ~0.2 ms of solver time (worst 0.7 ms headless).
   pushed up and flows away.
 - **Pump.** The pond and pump regulate the polder toward −0.95 m (35 m³/s),
   moving water through the pipe to the sea; it cannot keep up with a breach.
+- **Background runs.** Test storms and the six fragility storms are generators
+  (`rounds.ts`) advanced for about 6 ms per frame, so the game never stalls.
 - **Kiosk safety.** A numerical failure (negative or NaN depth) resets the water,
   keeping the landscape.
 
@@ -89,9 +161,11 @@ simulation. The homes and landscape are fictional.
 `npm run test:floodland` (and `npm run build`) cover lake at rest, closed-basin
 conservation, the wet/dry dam break, erosion (none at rest, conservation, floor
 and layers), the calm swell (no overtopping, no erosion, pump regulation,
-boundary accounting), the four calibration plays above, the spill level, the
-recording (bounds, terrain, seeking), splashes, the pump, and the sand brush
-(frame-rate independence, cap, budget, protected pond).
+boundary accounting), the round 1 plays above, the spill level, the recording
+(bounds, terrain, seeking), splashes, the pump, the sand brush (frame-rate
+independence, cap, budget, protected pond), round 2 (varied weak spots, what
+test storms reveal, right versus wrong reinforcement, budget) and round 3
+(fragility monotone and exactly shifting, U-shaped score, repeatable century).
 
 Hardware frame rate on the stand machines and child playtests remain to be done.
 

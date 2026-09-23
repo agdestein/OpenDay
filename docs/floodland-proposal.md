@@ -1,10 +1,14 @@
 # Save the Netherlands: assessment and proposal
 
 An assessment of the game as it was on 23 September 2026 against
-[message.md](message.md), and a proposal for the next version. **Phase A is built**
-(see [floodland-remake.md](floodland-remake.md) for the game as it is now, including
-where it differs from this plan: the challenge landscape has a second weak spot, a road
-over the dike, and homes behind an open breach count as lost). B and C are still plan. The event is on 3 October 2026, so the proposal is phased: **A** is what makes the
+[message.md](message.md), and a proposal for the next version. **Phases A and B are
+built** (see [floodland-remake.md](floodland-remake.md) for the game as it is now).
+Where the build differs from this plan: round 1 has a second weak spot (a road over
+the dike) and counts homes behind an open breach as lost; in round 2 building stops
+when the real storm comes, and the real storm is a fixed big one; round 3 chooses one
+height with buttons rather than painting sand, and scores the average damage rather
+than the luck of the one century shown; and the van Dantzig line below overstated the
+history (see the correction under Science lines). C is still plan. The event is on 3 October 2026, so the proposal is phased: **A** is what makes the
 game meet the goals, **B** adds depth for kids who stay and the talking points for
 parents, **C** can wait until after the event.
 
@@ -174,11 +178,14 @@ button and the hidden cross-section.
   of higher dikes against the cost of floods. That is where the Dutch safety standard
   of 1 in 10 000 years comes from."
 
-**To verify before printing:** van Dantzig's role (Delta Committee; *Economic Decision
-Problems for Flood Prevention*, Econometrica 1956) and the 1 : 10 000 standard for
-central Holland; and the existing wording in `shell/about.ts` ("helped compute the
-storm surges behind the Delta Works"), which may be a loose rendering of the same
-history.
+**Checked (September 2026):** van Dantzig's role is confirmed (a founder of the
+Mathematisch Centrum; asked by the Delta Committee after 1953; Econometrica 1956;
+his method is still used). The round 3 line above is **wrong** as written: his
+economic optimum for Central Holland was about 1 in 125 000 per year, and the Delta
+Committee set 1 in 10 000 without deriving it from his analysis. The game says he
+"worked out how high Dutch dikes should be by weighing these same costs" instead.
+The `shell/about.ts` wording ("helped compute the storm surges behind the Delta
+Works") could not be confirmed.
 
 ## Phases
 

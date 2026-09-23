@@ -112,8 +112,10 @@ videos, and Keiwan Donyagard's [Evolution](https://keiwan.itch.io/evolution).
 
 Save the Netherlands (`app/src/games/floodland/`) runs a finite-volume shallow-water model
 (hydrostatic reconstruction, Rusanov fluxes, wetting and drying) live every frame, with
-erosion so overtopped dikes breach. Free play has sand, splashes and a storm button; the
-challenge scores dry homes and sand left. See [the notes](docs/floodland-remake.md).
+erosion so overtopped dikes breach. Free play has sand, splashes, a storm button and an
+X-ray lens; the challenge has three rounds (hold the line, find the weak spots with test
+storms, choose a dike height against a century of random storms, after van Dantzig's
+1956 analysis). See [the notes](docs/floodland-remake.md).
 
 Weather Detective (`app/src/games/detective/`) grew out of our group's project with
 [KNMI](https://www.knmi.nl/) on multi-fidelity Gaussian process regression of
