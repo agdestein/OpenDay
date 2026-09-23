@@ -1,8 +1,11 @@
 // Delve chapters for Ball Pit, in the shared chaptered style
 // (shell/delve.ts): text in the card on the left, one live illustration per
-// chapter drawn by the game on its canvas (demos.ts). The switch labs in
-// chapters 3–5 are the only place to change the model: they switch
-// collisions, friction and heat loss in the ball pit itself.
+// chapter drawn by the game on its canvas (demos.ts). One arc, from one ball
+// to the rest of the arcade: a ball is numbers and a rule; collisions cost the
+// most; lost bounce is heat, and our 0.82 stands in for the floor's atoms
+// (a closure); crowds have laws of their own; tiny differences grow; and there
+// are far too many balls to count, so we compute the crowd — which is what the
+// fluid games do. Chapter 3's lab switches the model in the ball pit itself.
 import type { DelveChapter } from '../../shell/delve';
 import { pick, type Localized } from '../../lib/i18n';
 
@@ -22,148 +25,175 @@ interface ChapterText {
 const CHAPTERS: Localized<ChapterText[]> = {
   en: [
     {
-      title: 'A ball is just five numbers',
+      title: 'A ball is five numbers and one rule',
       paragraphs: [
-        'Before a computer can simulate anything, you must decide what matters — that step is called modeling. For a bouncing ball, surprisingly little does: where it is (x, y), how fast it moves horizontally and vertically (vx, vy), and its radius. Five numbers, and that is the whole ball.',
-        'The computer keeps such a little table for every single ball — hundreds of balls, hundreds of tables — and updates them all 60 times per second. On the right, a ball drifts around while its numbers tick along in the corner.',
-        'Modeling is the quiet art of simulation: keep exactly the numbers that decide the future, throw away everything else. This model has no spin and no air resistance — a bowling ball and a ping-pong ball would fall exactly alike. Good enough for a game, and honestly quite close to Galileo’s ramp experiments.',
+        'Before a computer can simulate anything, someone decides what matters. For a ball that is surprisingly little: where it is (x, y), how fast it moves sideways and up or down (vx, vy), and how big it is. Five numbers, and that is the whole ball. The pit keeps such a list for every ball.',
+        'Then one rule, over and over. Every tick, gravity adds a little to the downward speed, and the ball hops a little way along its speed. The pit does this 240 times a second for every ball, and out come the same curves Galileo drew for cannonballs.',
+        'What we leave out matters just as much: no spin, no air, no squash. Choosing what to keep is called modelling. (Gravity Doodle shows how the ticks themselves can go wrong.)',
       ],
-      formula: 'ball ⇄ ( x , y , vx , vy , r )',
+      formula: 'ball = ( x , y , vx , vy , r )\nv ← v + g·dt\nx ← x + v·dt',
     },
     {
-      title: 'Gravity: one rule, repeated 60 times a second',
+      title: 'Collisions are the expensive part',
       paragraphs: [
-        'A computer cannot let a ball fall smoothly — it can only take snapshots. Every tick it asks two questions: where am I? how fast am I going? Then it applies gravity’s single rule: every second, downward speed grows by a fixed amount.',
-        'First add gravity × tick to the speed, then hop: position += speed × tick. Two lines of code, 60 times per second — and out come perfect parabolas, the same curve Galileo drew for cannonballs four centuries ago.',
-        'On the right the ticks are slowed down about ten times so you can see them: every hop is perfectly straight, and only between hops does the arrow bend downward. Smaller ticks trace smoother arcs — how finely you chop up time is always a real choice in a simulation.',
+        'Moving a ball is two sums. The hard part is finding out who touches whom. The simple way is to check every pair of balls. Four hundred balls make 79 800 pairs, and the pit must check them 240 times a second.',
+        'Double the balls and the pairs grow four times. The trick: sort the balls into a grid of squares and only check balls in neighbouring squares. Now twice the balls is only twice the work. On the right the white ball checks every other ball, then only its neighbours.',
+        'Doing the same sum smarter, so that it fits in a computer at all, is half of scientific computing.',
       ],
-      formula: 'v ← v + g·dt\nx ← x + v·dt',
+      formula: 'every pair:  N × (N − 1) ÷ 2 checks\nwith a grid:  about 10 × N',
     },
     {
-      title: 'Collisions: push apart along the line of centers',
+      title: 'Where does the bounce go?',
       paragraphs: [
-        'Two balls touch — now what? Real balls squash, thud, maybe squeak. Our model throws all that away and keeps one rule: push them apart along the line joining their centers, never sideways. That single rule is enough for believable glancing hits, pile-ups and stacks.',
-        'The pushes are equal and opposite (Newton’s third law), but the kicks are not: acceleration = force ÷ mass. Mass here grows with area, so the big ball barely notices the little one ricocheting off it.',
-        'Switch 🎱 collisions off below and go back to the pit: balls sail through each other like ghosts. Nothing in a simulation happens “by itself” — every rule was written down by someone.',
+        'A dropped ball never bounces back quite as high. The motion is not lost: the floor is made of atoms, held together like balls on springs. Every landing sets them shaking, and shaking atoms are what heat is.',
+        'On the right the floor is drawn atom by atom. The bars keep the books: the ball’s energy flows into the floor’s jiggle, and the total stays the same. Nature’s accounts always balance.',
+        'The pit cannot afford to simulate the floor’s atoms. It takes a shortcut: every bounce keeps 82 % of the speed. A rule that stands in for everything too small to simulate is called a closure model. Switch the losses off below and the pit never comes to rest.',
       ],
-      formula: 'F₁ = −F₂   (Newton III)\nm ∝ r²',
+      formula: 'bounce speed ← 0.82 × landing speed\n(the floor’s atoms, in one number)',
     },
     {
-      title: 'Friction: every slide pays a toll',
+      title: 'Crowds obey laws no ball knows',
       paragraphs: [
-        'Wherever a ball rubs along the floor, a wall or another ball, roughness shaves a slice off its sliding speed at every touch. Watch the arcs shrink on the right: each bounce lands a bit shorter, until the ball stops travelling and simply plops straight down.',
-        'While it rolls, millions of microscopic bumps keep braking it — wait long enough and even rolling grinds to a halt. That is why the ball pile settles into calm instead of shivering forever.',
-        'Nobody simulates those billions of microscopic bumps one by one. They are compressed into a single honest shortcut: multiply sliding speed by 0.96 at every wall touch. Choosing which shortcuts to take is half of modeling.',
+        'No ball knows what temperature is. But the faster the balls jiggle, the hotter the crowd: temperature is the average jiggle. Pressure is how hard and how often they hit the wall. On the right the burner turns up and down, and thermometer and pressure gauge rise and fall together.',
+        'From laws like these come steam engines, weather and the air in your lungs, and nobody had to program them. They come out of the crowd, the way the bell curve came out of Plinko.',
+        'Some of the very first computer simulations were balls like these. In 1953 one of the first computers simulated hard discs, and in 1957 Berni Alder and Tom Wainwright found that hard balls, with no stickiness at all, freeze into a crystal when you squeeze them. One of the first discoveries ever made by simulation.',
       ],
-      formula: 'slide ← 0.96 × slide\n(at every wall touch)',
+      formula: 'temperature  ∝  average speed²\npressure  =  pushes on the wall per second',
     },
     {
-      title: 'Energy never vanishes — it changes costume',
+      title: 'Tiny differences grow',
       paragraphs: [
-        'Energy cannot be created or destroyed, only moved around. A falling ball trades height energy for speed energy; each bounce converts a slice of speed into heat; friction skims a bit more off every slide.',
-        'The bars on the right keep the books: speed + height + heat always sums to the same total — even as the motion visibly dies out. The “lost” energy warmed the ball and floor by an unmeasurable whisper of a degree. Nature’s accountancy always balances.',
-        'Try the switches below: they do not change the total, only how fast motion drains into heat. Switch every loss off and the box becomes a perpetual motion machine — nothing ever settles. Real physics always leaks; that is why real things come to rest.',
+        'Two boxes on the right: the same balls with the same speeds. In the right box one ball starts a thousandth of a pixel to the side. Watch the colours: blue means the twin balls are still together, red means they have parted.',
+        'Every collision makes the difference bigger, until the two boxes have nothing to do with each other. This is chaos, the butterfly effect, and it is why a weather forecast cannot look more than about ten days ahead.',
+        'So forecasters don’t compute one future but dozens, each nudged a little, and look at how they spread. You did the same in Plinko: one ball is luck, three hundred make a curve you can count on.',
       ],
-      formula: 'E_speed + E_height + E_heat = constant',
+      formula: '0.001 px → doubles, and doubles… → the whole box',
+    },
+    {
+      title: 'Too many balls: equations for the crowd',
+      paragraphs: [
+        'A glass of water holds about 10²⁵ molecules: a 1 with 25 zeros. Computing it ball by ball, even the fastest supercomputer would need centuries for one femtosecond, a millionth of a billionth of a second.',
+        'So we zoom out. For every small square we keep only how full it is, how fast the stuff moves and how hot it is. That gives the equations of fluids, the ones inside Swirl Lab and Save the Netherlands. Slide the 🔭 in the pit to see it happen.',
+        'But averages forget what the small stuff does: tiny whirls, atoms in the floor. Rules that bring it back are closure models, like the 0.82 of chapter 3. Finding better ones, lately also with machine learning, is part of our group’s research. Now go and stir Swirl Lab: it is this pit, zoomed out.',
+      ],
+      formula: '10²⁵ molecules  →  millions of squares\n(how full, how fast, how hot)',
     },
   ],
   nl: [
     {
-      title: 'Een bal is maar vijf getallen',
+      title: 'Een bal is vijf getallen en één regel',
       paragraphs: [
-        'Voordat een computer iets kan simuleren, moet je beslissen wat ertoe doet — die stap heet modelleren. Voor een stuiterende bal is dat verbazingwekkend weinig: waar hij is (x, y), hoe snel hij horizontaal en verticaal gaat (vx, vy), en zijn straal. Vijf getallen, en dat is de hele bal.',
-        'De computer houdt zo’n tabelletje voor élke bal bij — honderden ballen, honderden tabelletjes — en werkt ze allemaal 60 keer per seconde bij. Rechts drijft een bal rond terwijl zijn getallen in de hoek meelopen.',
-        'Modelleren is de stille kunst van het simuleren: bewaar precies de getallen die de toekomst bepalen en gooi de rest weg. Dit model heeft geen draai en geen luchtweerstand — een kegelbal en een tafeltennisbal zouden exact hetzelfde vallen. Goed genoeg voor een spel, en eerlijk gezegd verrassend dicht bij Galileï’s hellingproeven.',
+        'Voordat een computer iets kan simuleren, beslist iemand wat ertoe doet. Voor een bal is dat verrassend weinig: waar hij is (x, y), hoe snel hij opzij en omhoog of omlaag gaat (vx, vy), en hoe groot hij is. Vijf getallen, en dat is de hele bal. De bak houdt zo’n lijstje bij voor elke bal.',
+        'Dan één regel, steeds opnieuw. Elke tik telt de zwaartekracht een beetje bij de snelheid omlaag op, en springt de bal een stukje verder langs zijn snelheid. De bak doet dat 240 keer per seconde voor elke bal, en er komen dezelfde bogen uit die Galileï voor kanonskogels tekende.',
+        'Wat we weglaten doet er net zo veel toe: geen draai, geen lucht, geen indeuken. Kiezen wat je houdt heet modelleren. (Zwaartekracht-doodle laat zien hoe de tikken zelf mis kunnen gaan.)',
       ],
-      formula: 'bal ⇄ ( x , y , vx , vy , r )',
+      formula: 'bal = ( x , y , vx , vy , r )\nv ← v + g·dt\nx ← x + v·dt',
     },
     {
-      title: 'Zwaartekracht: één regel, 60 keer per seconde herhaald',
+      title: 'Botsingen zijn het dure deel',
       paragraphs: [
-        'Een computer kan een bal niet vloeiend laten vallen — hij kan alleen momentopnames maken. Elke tik stelt hij twee vragen: waar ben ik? hoe snel ga ik? Daarna past hij de enige regel van de zwaartekracht toe: elke seconde groeit de neerwaartse snelheid met een vast bedrag.',
-        'Eerst tel je zwaartekracht × tik bij de snelheid op, dan volgt de sprong: positie += snelheid × tik. Twee regels code, 60 keer per seconde — en daar komen perfecte parabolen uit, dezelfde kromme die Galileï vier eeuwen geleden al voor kanonskogels tekende.',
-        'Rechts zijn de tikken ongeveer tien keer vertraagd zodat je ze kunt zien: elke sprong is kaarsrecht, en alleen tussen de sprongen door buigt het pijltje naar beneden. Kleinere tikken geven gladdere bogen — hoe fijn je de tijd hakt is altijd een echte keuze in een simulatie.',
+        'Een bal verplaatsen is twee sommetjes. Het moeilijke is uitzoeken wie wie raakt. De simpele manier is elk paar ballen controleren. Vierhonderd ballen geven 79 800 paren, en die moet de bak 240 keer per seconde controleren.',
+        'Verdubbel de ballen en de paren worden vier keer zoveel. De truc: sorteer de ballen in een rooster van vakjes en controleer alleen ballen in buurvakjes. Nu is twee keer zoveel ballen maar twee keer zoveel werk. Rechts controleert de witte bal eerst alle andere ballen, daarna alleen zijn buren.',
+        'Dezelfde som slimmer uitrekenen, zodat hij überhaupt in een computer past, is de helft van rekenwetenschap.',
       ],
-      formula: 'v ← v + g·dt\nx ← x + v·dt',
+      formula: 'elk paar:  N × (N − 1) ÷ 2 controles\nmet een rooster:  ongeveer 10 × N',
     },
     {
-      title: 'Botsingen: duwen langs de middellijn',
+      title: 'Waar blijft de stuiter?',
       paragraphs: [
-        'Twee ballen raken elkaar — en nu? Echte ballen vervormen, ploffen, piepen misschien. Ons model gooit dat allemaal weg en houdt één regel over: duw ze uit elkaar langs de lijn die hun middelpunten verbindt, nooit zijwaarts. Die ene regel is genoeg voor geloofwaardige raketslagen, stapels en botsingen.',
-        'De duwkrachten zijn even groot en tegengesteld (de derde wet van Newton), maar de schoppen niet: versnelling = kracht ÷ massa. Massa groeit hier met de oppervlakte, dus de grote bal merkt de kleine die ervanaf kaatst nauwelijks op.',
-        'Zet hieronder 🎱 botsingen uit en ga terug naar de bak: ballen varen als geesten door elkaar heen. Niets in een simulatie gebeurt “zomaar” — iedere regel is ooit door iemand opgeschreven.',
+        'Een bal die je laat vallen, stuitert nooit helemaal even hoog terug. De beweging is niet weg: de vloer bestaat uit atomen, aan elkaar vast als balletjes aan veertjes. Elke landing zet ze aan het trillen, en trillende atomen, dat is warmte.',
+        'Rechts is de vloer atoom voor atoom getekend. De balken houden de boekhouding bij: de energie van de bal stroomt naar het trillen van de vloer, en het totaal blijft gelijk. De boekhouding van de natuur klopt altijd.',
+        'De bak kan het niet betalen om de atomen van de vloer te simuleren. Hij neemt een kortere weg: elke stuiter houdt 82 % van de snelheid over. Een regel die in de plaats komt van alles wat te klein is om te simuleren, heet een sluitingsmodel. Zet hieronder de verliezen uit en de bak komt nooit meer tot rust.',
       ],
-      formula: 'F₁ = −F₂   (Newton III)\nm ∝ r²',
+      formula: 'stuitersnelheid ← 0,82 × landingssnelheid\n(de atomen van de vloer, in één getal)',
     },
     {
-      title: 'Wrijving: elke glijbeweging betaalt tol',
+      title: 'Menigten volgen wetten die geen bal kent',
       paragraphs: [
-        'Waar een bal over de vloer, langs een wand of langs een andere bal schuurt, snapt de ruwheid bij elk contact een hapje uit zijn glijdende snelheid. Kijk hoe de bogen rechts krimpen: elke stuiter landt weer wat korter, tot de bal niet meer vooruit komt en er gewoon recht onderin plonst.',
-        'Terwijl hij rolt, remmen miljoenen microscopische bobbeltjes hem voortdurend af — wacht lang genoeg en zelfs het rollen sputtert stil. Daarom zakt de ballenberg in rust in plaats van eeuwig te rillen.',
-        'Niemand simuleert die miljarden microscopische bobbeltjes apart. Ze worden samengeperst tot één eerlijke snelkoppeling: glij-snelheid × 0,96 bij elke wandaanraking. Kiezen welke snelkoppelingen je neemt is de helft van modelleren.',
+        'Geen enkele bal weet wat temperatuur is. Maar hoe sneller de ballen trillen, hoe heter de menigte: temperatuur is het gemiddelde trillen. Druk is hoe hard en hoe vaak ze tegen de wand botsen. Rechts gaat de brander hoger en lager, en thermometer en drukmeter stijgen en dalen samen.',
+        'Uit zulke wetten komen stoommachines, het weer en de lucht in je longen, en niemand hoefde ze te programmeren. Ze komen uit de menigte, zoals de klokvorm uit Plinko kwam.',
+        'Een paar van de allereerste computersimulaties waren ballen zoals deze. In 1953 simuleerde een van de eerste computers harde schijfjes, en in 1957 ontdekten Berni Alder en Tom Wainwright dat harde ballen, zonder enige plakkerigheid, bevriezen tot een kristal als je ze samenperst. Een van de eerste ontdekkingen ooit gedaan door te simuleren.',
       ],
-      formula: 'glij ← 0,96 × glij\n(bij elke wandaanraking)',
+      formula: 'temperatuur  ∝  gemiddelde snelheid²\ndruk  =  duwtjes tegen de wand per seconde',
     },
     {
-      title: 'Energie verdwijnt nooit — hij verkleedt zich',
+      title: 'Kleine verschillen groeien',
       paragraphs: [
-        'Energie kan niet worden gemaakt of vernietigd, alleen verplaatst. Een vallende bal ruilt hoogte-energie voor bewegingsenergie; elke botsing slaat een plakje beweging om in warmte; wrijving schaapt nog wat meer weg van elke glijbeweging.',
-        'De balken rechts houden de boeken bij: beweging + hoogte + warmte telt altijd op tot hetzelfde totaal — ook als de beweging zichtbaar uitsterft. De “verloren” energie verwarmde bal en vloer met een onmeetbaar zuchtje van een graad. De boekhouding van de natuur gaat altijd op.',
-        'Probeer de schakelaars hieronder: ze veranderen niet het totaal, alleen hoe snel de beweging naar warmte wegsijpelt. Zet áll verlies uit en de doos wordt een perpetuum mobile — niets komt ooit tot rust. Echte natuur lekt altijd; daarom komen echte dingen tot rust.',
+        'Rechts twee bakken: dezelfde ballen met dezelfde snelheden. In de rechterbak begint één bal een duizendste pixel opzij. Let op de kleuren: blauw betekent dat de tweelingballen nog samen zijn, rood dat ze uit elkaar zijn gegaan.',
+        'Elke botsing maakt het verschil groter, tot de twee bakken niets meer met elkaar te maken hebben. Dit is chaos, het vlindereffect, en het is de reden dat een weersverwachting niet verder dan zo’n tien dagen vooruit kan kijken.',
+        'Daarom rekenen weermensen niet één toekomst uit maar tientallen, elk een tikje anders, en kijken ze hoe die uiteenlopen. Jij deed hetzelfde in Plinko: één bal is geluk, driehonderd maken een kromme waar je op kunt rekenen.',
       ],
-      formula: 'E_beweging + E_hoogte + E_warmte = constant',
+      formula: '0,001 px → verdubbelt, en verdubbelt… → de hele bak',
+    },
+    {
+      title: 'Te veel ballen: vergelijkingen voor de menigte',
+      paragraphs: [
+        'Een glas water bevat ongeveer 10²⁵ moleculen: een 1 met 25 nullen. Als je dat bal voor bal uitrekent, heeft zelfs de snelste supercomputer eeuwen nodig voor één femtoseconde, een miljoenste van een miljardste seconde.',
+        'Dus zoomen we uit. Voor elk klein vakje houden we alleen bij hoe vol het is, hoe snel het spul beweegt en hoe heet het is. Dat geeft de vergelijkingen van stromingen, die in Wervel-lab en Red Nederland zitten. Schuif de 🔭 in de bak om het te zien.',
+        'Maar gemiddelden vergeten wat het kleine spul doet: piepkleine wervels, atomen in de vloer. Regels die dat terugbrengen zijn sluitingsmodellen, zoals de 0,82 uit hoofdstuk 3. Betere vinden, tegenwoordig ook met machine learning, is een deel van het onderzoek van onze groep. Ga nu maar roeren in Wervel-lab: dat is deze bak, uitgezoomd.',
+      ],
+      formula: '10²⁵ moleculen  →  miljoenen vakjes\n(hoe vol, hoe snel, hoe heet)',
     },
   ],
   no: [
     {
-      title: 'En ball er bare fem tall',
+      title: 'En ball er fem tall og én regel',
       paragraphs: [
-        'Før en datamaskin kan simulere noe som helst, må du bestemme hva som betyr noe — det steget heter å modellere. For en sprettende ball er det forbløffende lite: hvor den er (x, y), hvor fort den beveger seg vannrett og loddrett (vx, vy), og radiusen sin. Fem tall, og det er hele ballen.',
-        'Datamaskinen fører et slikt lite skjema for hver eneste ball — hundrevis av baller, hundrevis av skjemaer — og oppdaterer alle sammen 60 ganger i sekundet. Til høyre driver en ball rundt mens tallene i hjørnet tikker med.',
-        'Å modellere er simuleringens stille kunst: ta vare på nøyaktig tallene som bestemmer fremtiden, og kast resten. Denne modellen har ingen spinn og ingen luftmotstand — en bowlingkule og et bordtennisball ville falt nøyaktig likt. Godt nok til et spill, og ærlig talt overraskende nært Galileis rampeforsøk.',
+        'Før en datamaskin kan simulere noe, bestemmer noen hva som betyr noe. For en ball er det overraskende lite: hvor den er (x, y), hvor fort den går sidelengs og opp eller ned (vx, vy), og hvor stor den er. Fem tall, og det er hele ballen. Binga fører en slik liste for hver ball.',
+        'Så én regel, om og om igjen. Hvert tikk legger tyngdekraften litt til farten nedover, og ballen hopper et lite stykke langs farten sin. Binga gjør dette 240 ganger i sekundet for hver ball, og ut kommer de samme buene Galilei tegnet for kanonkuler.',
+        'Det vi utelater betyr like mye: ikke noe spinn, ingen luft, ingen bulker. Å velge hva man beholder kalles å modellere. (Tyngdekraft-doodle viser hvordan selve tikkene kan gå galt.)',
       ],
-      formula: 'ball ⇄ ( x , y , vx , vy , r )',
+      formula: 'ball = ( x , y , vx , vy , r )\nv ← v + g·dt\nx ← x + v·dt',
     },
     {
-      title: 'Tyngdekraft: én regel, gjentatt 60 ganger i sekundet',
+      title: 'Kollisjoner er den dyre delen',
       paragraphs: [
-        'En datamaskin kan ikke la en ball falle glatt — den kan bare ta øyeblikksbilder. Hvert tikk stiller den to spørsmål: hvor er jeg? hvor fort går jeg? Så bruker den tyngdekraftens eneste regel: hvert sekund vokser farten nedover med et fast beløp.',
-        'Først legger du tyngdekraft × tikk til farten, så kommer hoppet: posisjon += fart × tikk. To linjer kode, 60 ganger i sekundet — og ut kommer perfekte parabler, samme kurve som Galilei tegnet for kanonkuler for fire århundrer siden.',
-        'Til høyre er tikkingen bremsa ned omtrent ti ganger så du kan se den: hvert hopp er knivskarpt rett, og bare mellom hoppene bøyer pilen seg nedover. Mindre tikker gir glattere buer — hvor fint du hoger opp tiden er alltid et ekte valg i en simulering.',
+        'Å flytte en ball er to regnestykker. Det vanskelige er å finne ut hvem som treffer hvem. Den enkle måten er å sjekke hvert par av baller. Fire hundre baller gir 79 800 par, og binga må sjekke dem 240 ganger i sekundet.',
+        'Doble ballene, og parene blir fire ganger så mange. Trikset: sorter ballene i et rutenett og sjekk bare baller i naboruter. Nå er dobbelt så mange baller bare dobbelt så mye arbeid. Til høyre sjekker den hvite ballen først alle andre baller, så bare naboene sine.',
+        'Å regne ut det samme smartere, så det i det hele tatt får plass i en datamaskin, er halve beregningsvitenskapen.',
       ],
-      formula: 'v ← v + g·dt\nx ← x + v·dt',
+      formula: 'hvert par:  N × (N − 1) ÷ 2 sjekker\nmed rutenett:  omtrent 10 × N',
     },
     {
-      title: 'Kollisjoner: dytt fra hverandre langs senterlinjen',
+      title: 'Hvor blir det av spretten?',
       paragraphs: [
-        'To baller treffer hverandre — og så? Ekte baller trykkes sammen, dultes, kanskje de piper. Modellen vår kaster alt dét bort og beholder én regel: dytt dem fra hverandre langs linjen mellom sentrene deres, aldri sidelengs. Den eneste regelen strekker til for troverdige skrå treff, hauger og kollisjoner.',
-        'Dyttene er like store og motsatte (Newtons tredje lov), men sparkene er ikke det: akselerasjon = kraft ÷ masse. Massen vokser her med flaten, så den store ballen merker knapt den lille som rikosjetterer avgårde.',
-        'Slå av 🎱 kollisjoner her under og gå tilbake til binga: ballene seiler gjennom hverandre som ånder. Ingenting i en simulering skjer “av seg selv” — hver regel er skrevet ned av noen.',
+        'En ball du slipper, spretter aldri helt like høyt tilbake. Bevegelsen er ikke borte: gulvet er laget av atomer, holdt sammen som kuler på fjærer. Hver landing får dem til å riste, og ristende atomer, det er varme.',
+        'Til høyre er gulvet tegnet atom for atom. Søylene fører regnskapet: ballens energi strømmer over i gulvets risting, og summen holder seg lik. Naturens regnskap går alltid opp.',
+        'Binga har ikke råd til å simulere gulvets atomer. Den tar en snarvei: hvert sprett beholder 82 % av farten. En regel som står i stedet for alt som er for lite til å simulere, kalles en lukningsmodell. Slå av tapene her under, og binga kommer aldri til ro.',
       ],
-      formula: 'F₁ = −F₂   (Newton III)\nm ∝ r²',
+      formula: 'sprettfart ← 0,82 × landingsfart\n(gulvets atomer, i ett tall)',
     },
     {
-      title: 'Friksjon: hver glid betaler toll',
+      title: 'Mengder følger lover ingen ball kjenner',
       paragraphs: [
-        'Der ballen gnir mot gulvet, en vegg eller en annen ball, stjeler ruheten en skive av glidefarten ved hvert kontakt. Se hvordan buene til høyre krymper: hvert sprett lander litt kortere, helt til ballen ikke reiser lenger, men bare plopper rett ned.',
-        'Mens den ruller, bremser millioner av mikroskopiske ujevnheter den hele tiden — vent lenge nok, og selv rulling går bort til seg. Derfor synker ballhaugen til ro i stedet for å skjelve i evighet.',
-        'Ingen simulerer de milliardene av mikroskopiske ujevnheter én for én. De presses sammen til én ærlig snarvei: multipliser glidefarten med 0,96 ved hver veggtouch. Å velge hvilke snarveier man tar er halve modelleringsjobben.',
+        'Ingen ball vet hva temperatur er. Men jo fortere ballene rister, jo varmere er mengden: temperatur er gjennomsnittlig risting. Trykk er hvor hardt og hvor ofte de treffer veggen. Til høyre skrus brenneren opp og ned, og termometer og trykkmåler stiger og synker sammen.',
+        'Fra slike lover kommer dampmaskiner, vær og lufta i lungene dine, og ingen måtte programmere dem. De kommer ut av mengden, slik klokkekurven kom ut av Plinko.',
+        'Noen av de aller første datasimuleringene var baller som disse. I 1953 simulerte en av de første datamaskinene harde skiver, og i 1957 fant Berni Alder og Tom Wainwright ut at harde baller, helt uten klebrighet, fryser til en krystall når man klemmer dem sammen. En av de første oppdagelsene som noen gang ble gjort ved simulering.',
       ],
-      formula: 'glid ← 0,96 × glid\n(ved hver veggtouch)',
+      formula: 'temperatur  ∝  gjennomsnittlig fart²\ntrykk  =  dytt mot veggen per sekund',
     },
     {
-      title: 'Energi forsvinner aldri — den bare kler seg ut',
+      title: 'Små forskjeller vokser',
       paragraphs: [
-        'Energi kan ikke skapes eller ødelegges, bare flyttes. En fallende ball bytter høydeenergi mot bevegelsesenergi; hvert sprett gjør en skive av farten om til varme; friksjonen skaver litt mer av hvert glid.',
-        'Søylene til høyre fører boken: fart + høyde + varme summerer seg alltid til samme total — selv om bevegelsen åpenbart dør ut. Den “tapte” energien varmet opp ball og gulv med en umålig hvisken av en grad. Naturens regnskap går alltid opp.',
-        'Prøv bryterne nedenfor: de endrer ikke totalen, bare hvor raskt bevegelsen siver over i varme. Slå av alt tap, og boksen blir en perpetuum mobile — ingenting kommer noensinne til ro. Ekte fysikk lekker alltid; derfor kommer ekte ting til ro.',
+        'To bokser til høyre: de samme ballene med de samme fartene. I den høyre boksen starter én ball en tusendels piksel til siden. Se på fargene: blått betyr at tvillingballene fortsatt er sammen, rødt at de har skilt lag.',
+        'Hver kollisjon gjør forskjellen større, til de to boksene ikke har noe med hverandre å gjøre. Dette er kaos, sommerfugleffekten, og det er grunnen til at et værvarsel ikke kan se mer enn rundt ti dager fram.',
+        'Derfor regner meteorologer ikke ut én framtid, men dusinvis, hver litt dyttet, og ser hvordan de sprer seg. Du gjorde det samme i Plinko: én ball er flaks, tre hundre lager en kurve du kan stole på.',
       ],
-      formula: 'E_fart + E_høyde + E_varme = konstant',
+      formula: '0,001 px → dobles, og dobles… → hele boksen',
+    },
+    {
+      title: 'For mange baller: likninger for mengden',
+      paragraphs: [
+        'Et glass vann inneholder omtrent 10²⁵ molekyler: et ett-tall med 25 nuller. Regnet ball for ball ville selv den raskeste superdatamaskinen trenge hundrevis av år for ett femtosekund, en milliondel av en milliardtedel av et sekund.',
+        'Så vi zoomer ut. For hver lille rute tar vi bare vare på hvor full den er, hvor fort stoffet beveger seg og hvor varmt det er. Det gir likningene for strømning, de som er inni Virvellab og Redd Nederland. Skyv 🔭 i binga for å se det skje.',
+        'Men gjennomsnitt glemmer hva det lille gjør: bittesmå virvler, atomer i gulvet. Regler som henter det tilbake er lukningsmodeller, som 0,82 i kapittel 3. Å finne bedre, nå også med maskinlæring, er en del av forskningen i gruppen vår. Gå og rør i Virvellab nå: det er denne binga, zoomet ut.',
+      ],
+      formula: '10²⁵ molekyler  →  millioner av ruter\n(hvor fullt, hvor fort, hvor varmt)',
     },
   ],
 };
 
-/** Labels for the chapter-5 "try it live" switch lab. */
+/** Labels for chapter 3's switch lab. */
 const LAB: Localized<{
   title: string;
   on: string;
@@ -172,86 +202,89 @@ const LAB: Localized<{
   friction: string;
   dissipate: string;
   note: string;
-  notePit: string;
 }> = {
   en: {
-    title: '🧪 Try it live',
+    title: '🧪 Try it in the pit',
     on: 'ON',
     off: 'OFF',
     collisions: '🎱 Ball collisions',
-    friction: '🧤 Wall friction',
-    dissipate: '🔥 Heat loss',
-    note: '🔥 and 🧤 act on the demo instantly; all three also change the game you return to.',
-    notePit: 'This changes the ball pit you return to.',
+    friction: '🧤 Friction',
+    dissipate: '🔥 Bounce loss (0.82)',
+    note: 'These change the ball pit you return to.',
   },
   nl: {
-    title: '🧪 Probeer het zelf',
+    title: '🧪 Probeer het in de bak',
     on: 'AAN',
     off: 'UIT',
     collisions: '🎱 Botsingen',
     friction: '🧤 Wrijving',
-    dissipate: '🔥 Warmteverlies',
-    note: '🔥 en 🧤 werken direct op de demo; alle drie veranderen ze ook het spel waarnaar je terugkeert.',
-    notePit: 'Dit verandert de ballenbak waar je naar terugkeert.',
+    dissipate: '🔥 Stuiterverlies (0,82)',
+    note: 'Dit verandert de ballenbak waar je naar terugkeert.',
   },
   no: {
-    title: '🧪 Prøv det live',
+    title: '🧪 Prøv det i binga',
     on: 'PÅ',
     off: 'AV',
     collisions: '🎱 Kollisjoner',
     friction: '🧤 Friksjon',
-    dissipate: '🔥 Varmetap',
-    note: '🔥 og 🧤 virker med én gang på demoen; alle tre endrer også spillet du kommer tilbake til.',
-    notePit: 'Dette endrer ballbinga du kommer tilbake til.',
+    dissipate: '🔥 Sprett-tap (0,82)',
+    note: 'Dette endrer ballbinga du kommer tilbake til.',
   },
 };
 
 /** Short captions drawn onto the canvas next to the demos. */
 export const DELVE_CAPTIONS: Localized<{
-  tick: string;
-  lineOfCenters: string;
-  barSpeed: string;
-  barHeight: string;
-  barHeat: string;
+  allPairs: (n: string) => string;
+  gridPairs: (n: string) => string;
+  barBall: string;
+  barFloor: string;
   barTotal: string;
-  allHeat: string;
+  thermometer: string;
+  pressure: string;
+  difference: (px: string) => string;
+  zoomIn: string;
+  zoomOut: string;
 }> = {
   en: {
-    tick: 'each hop = one tick of the simulation (slowed down)',
-    lineOfCenters: 'the line of centers',
-    barSpeed: '🏎 speed',
-    barHeight: '🪜 height',
-    barHeat: '🔥 heat',
+    allPairs: (n) => `every pair: ${n} checks`,
+    gridPairs: (n) => `grid: ${n} checks`,
+    barBall: '⚽ ball',
+    barFloor: '🔥 floor jiggle',
     barTotal: 'total — never changes!',
-    allHeat: '💤 all motion has become heat',
+    thermometer: '🌡️ temperature',
+    pressure: '💨 pressure',
+    difference: (px) => `biggest difference: ${px} px`,
+    zoomIn: 'zoomed in: balls',
+    zoomOut: 'zoomed out: a fluid',
   },
   nl: {
-    tick: 'elke sprong = één simulatietik (uitgeremd)',
-    lineOfCenters: 'de lijn door de middelpunten',
-    barSpeed: '🏎 beweging',
-    barHeight: '🪜 hoogte',
-    barHeat: '🔥 warmte',
+    allPairs: (n) => `elk paar: ${n} controles`,
+    gridPairs: (n) => `rooster: ${n} controles`,
+    barBall: '⚽ bal',
+    barFloor: '🔥 trillende vloer',
     barTotal: 'totaal — verandert nooit!',
-    allHeat: '💤 alle beweging is warmte geworden',
+    thermometer: '🌡️ temperatuur',
+    pressure: '💨 druk',
+    difference: (px) => `grootste verschil: ${px} px`,
+    zoomIn: 'ingezoomd: ballen',
+    zoomOut: 'uitgezoomd: een vloeistof',
   },
   no: {
-    tick: 'hvert hopp = ett simuleringstikk (utbremset)',
-    lineOfCenters: 'linjen gjennom sentrene',
-    barSpeed: '🏎 fart',
-    barHeight: '🪜 høyde',
-    barHeat: '🔥 varme',
+    allPairs: (n) => `hvert par: ${n} sjekker`,
+    gridPairs: (n) => `rutenett: ${n} sjekker`,
+    barBall: '⚽ ball',
+    barFloor: '🔥 gulvristing',
     barTotal: 'totalt — endres aldri!',
-    allHeat: '💤 all bevegelse har blitt varme',
+    thermometer: '🌡️ temperatur',
+    pressure: '💨 trykk',
+    difference: (px) => `største forskjell: ${px} px`,
+    zoomIn: 'zoomet inn: baller',
+    zoomOut: 'zoomet ut: en væske',
   },
 };
 
-const LAB_SWITCHES: (SwitchName[] | undefined)[] = [
-  undefined,
-  undefined,
-  ['collisions'],
-  ['friction'],
-  ['collisions', 'friction', 'dissipate'],
-];
+/** Chapter 3 (index 2) carries the switch lab. */
+const LAB_CHAPTER = 2;
 
 export function bounceDelve(api: BounceDelveApi): DelveChapter[] {
   const chapters = pick(CHAPTERS);
@@ -260,9 +293,8 @@ export function bounceDelve(api: BounceDelveApi): DelveChapter[] {
     title: chapter.title,
     paragraphs: chapter.paragraphs,
     formula: chapter.formula,
-    // Chapters 3–5 each get a lab with the switches they talk about.
     extras:
-      LAB_SWITCHES[i]
+      i === LAB_CHAPTER
         ? (host: HTMLElement) => {
             const labEl = document.createElement('div');
             labEl.className = 'delve-lab';
@@ -270,13 +302,12 @@ export function bounceDelve(api: BounceDelveApi): DelveChapter[] {
             title.className = 'delve-lab-title';
             title.textContent = lab.title;
             labEl.appendChild(title);
-
-            const mk = (name: SwitchName, label: string): void => {
+            for (const name of ['collisions', 'friction', 'dissipate'] as SwitchName[]) {
               const row = document.createElement('button');
               row.className = 'arcade-button';
               row.style.cssText = 'display:block;width:100%;margin-top:0.45rem;';
               const sync = () => {
-                row.textContent = `${label}: ${api.getSwitch(name) ? lab.on : lab.off}`;
+                row.textContent = `${lab[name]}: ${api.getSwitch(name) ? lab.on : lab.off}`;
               };
               row.addEventListener('click', () => {
                 api.setSwitch(name, !api.getSwitch(name));
@@ -284,12 +315,10 @@ export function bounceDelve(api: BounceDelveApi): DelveChapter[] {
               });
               sync();
               labEl.appendChild(row);
-            };
-            for (const name of LAB_SWITCHES[i]!) mk(name, lab[name]);
-
+            }
             const note = document.createElement('p');
             note.className = 'delve-lab-note';
-            note.textContent = i === 4 ? lab.note : lab.notePit;
+            note.textContent = lab.note;
             labEl.appendChild(note);
             host.appendChild(labEl);
           }

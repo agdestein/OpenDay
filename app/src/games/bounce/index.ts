@@ -1,11 +1,14 @@
 // Ball Pit (game id 'bounce', once the Phase-0 placeholder "Bouncy Balls").
 // Toy: a pit of balls that opens half full; the mouse is a hand that shoves
 // them, holding the button pours more, the hot plate boils the pile into a
-// gas and the cold button settles it again, and a heavy golden ball crashes
-// in. (It does not rise when shaken, the Brazil-nut effect: that needs
-// spinning, rolling balls, which this model leaves out.) Challenge: Plinko, a Galton board where one ball is luck
-// and three hundred make the same bell curve every time. Physics in
-// physics.ts, the board in plinko.ts, the delve demos in demos.ts.
+// gas and the cold button settles it again, a heavy golden ball crashes in,
+// and the zoom slider blurs the balls into the smooth field a fluid
+// simulation would compute. (The golden ball does not rise when shaken, the
+// Brazil-nut effect: that needs spinning, rolling balls, which this model
+// leaves out.) Challenge: three rounds — Plinko (luck and crowds), Silo
+// (random jams) and Steam engine (temperature and pressure) — summed onto
+// the day's scoreboard. Physics in physics.ts, rounds in round*.ts, the delve
+// demos in demos.ts.
 import type { ArcadeGame, GameHost, GameInstance } from '../../shell/types';
 import { clamp, pointerPos, randRange } from '../../lib/util';
 import { delvePanel, delveToggle, type DelveHandle, type DelveToggleHandle } from '../../shell/delve';
@@ -14,102 +17,109 @@ import { sound } from '../../lib/sound';
 import { fmtNumber, pick, type Localized } from '../../lib/i18n';
 import { bounceDelve, type SwitchName } from './delve';
 import { BounceDemos } from './demos';
-import { BallWorld, type Ball, type Box, type Circle } from './physics';
-import { PLINKO, bucketOf, plinkoLayout, plinkoTally, type PlinkoLayout } from './plinko';
+import { BallWorld, type Ball, type Box } from './physics';
+import { drawBalls, drawFrame, label } from './draw';
+import { FieldView } from './field';
+import { makeHold, toolButton, type ButtonDef, type Round, type RoundHost } from './rounds';
+import { PlinkoRound } from './roundPlinko';
+import { SiloRound } from './roundSilo';
+import { SteamRound } from './roundSteam';
 
 const TEXT: Localized<{
   ballCount: (n: number) => string;
+  pairs: (pairs: number, checks: number) => string;
+  zoomCaption: [string, string];
   heat: string;
   cool: string;
   bigBall: string;
+  zoom: string;
   reset: string;
-  plinko: string;
+  challenge: string;
   full: string;
   delveHeading: string;
-  drop: string;
   stop: string;
-  hudBalls: (n: number) => string;
-  hudScore: (n: number) => string;
-  hintPlace: string;
-  dropsIn: (s: number) => string;
-  hintTwins: string;
-  twinsApart: (n: number) => string;
-  twinsSame: string;
-  hintPour: string;
+  round: (i: number, n: number) => string;
+  roundPoints: (n: number) => string;
+  nextRound: string;
+  finalScore: string;
+  challengeHeading: string;
   points: (n: number) => string;
   playAgain: string;
   freePlay: string;
 }> = {
   en: {
     ballCount: (n) => `${n} balls, each moved 240 times per second`,
+    pairs: (p, c) => `${fmtNumber(p)} pairs could touch; the grid checks only ${fmtNumber(c)}`,
+    zoomCaption: ['Zoomed out, no balls: just how full and how hot each square is.', 'That is what Swirl Lab computes.'],
     heat: 'Heat',
     cool: 'Cool',
     bigBall: 'Big ball',
+    zoom: 'Zoom out',
     reset: 'Reset',
-    plinko: 'Plinko!',
+    challenge: 'Challenge!',
     full: 'Full!',
     delveHeading: '🔬 The science of the Ball Pit',
-    drop: 'Drop!',
     stop: 'Stop',
-    hudBalls: (n) => `⚪ ${n} to go`,
-    hudScore: (n) => `⭐ ${fmtNumber(n)}`,
-    hintPlace: 'Drag the white bumpers onto the board to steer the balls into the 🥇 gold bucket!',
-    dropsIn: (s) => `Drop! (${s})`,
-    hintTwins: 'Two twin balls, dropped a hundredth of a pixel apart…',
-    twinsApart: (n) => `…and they land ${n} buckets apart! One ball is luck. Now watch what 300 do.`,
-    twinsSame: '…one ball is luck. Now watch what 300 do.',
-    hintPour: 'Keep steering: you can drag the bumpers while the balls fall.',
+    round: (i, n) => `Round ${i}/${n}`,
+    roundPoints: (n) => `+${fmtNumber(n)} points`,
+    nextRound: 'Next round ▶',
+    finalScore: 'Final score ▶',
+    challengeHeading: '🏀 Ball Pit challenge',
     points: (n) => `${fmtNumber(n)} points`,
     playAgain: 'Play again',
     freePlay: 'Ball pit',
   },
   nl: {
     ballCount: (n) => `${n} ballen, elk 240 keer per seconde verplaatst`,
+    pairs: (p, c) => `${fmtNumber(p)} paren kunnen botsen; het rooster controleert er maar ${fmtNumber(c)}`,
+    zoomCaption: ['Uitgezoomd, geen ballen: alleen hoe vol en hoe heet elk vakje is.', 'Dat rekent Wervel-lab uit.'],
     heat: 'Verwarm',
     cool: 'Koel af',
     bigBall: 'Grote bal',
+    zoom: 'Zoom uit',
     reset: 'Reset',
-    plinko: 'Plinko!',
+    challenge: 'Uitdaging!',
     full: 'Vol!',
     delveHeading: '🔬 De wetenschap van de Ballenbak',
-    drop: 'Los!',
     stop: 'Stop',
-    hudBalls: (n) => `⚪ nog ${n}`,
-    hudScore: (n) => `⭐ ${fmtNumber(n)}`,
-    hintPlace: 'Sleep de witte stuiters op het bord en stuur de ballen naar het 🥇 gouden bakje!',
-    dropsIn: (s) => `Los! (${s})`,
-    hintTwins: 'Twee tweelingballen, een honderdste pixel uit elkaar losgelaten…',
-    twinsApart: (n) => `…en ze landen ${n} bakjes uit elkaar! Eén bal is geluk. Kijk nu wat 300 ballen doen.`,
-    twinsSame: '…één bal is geluk. Kijk nu wat 300 ballen doen.',
-    hintPour: 'Blijf sturen: je mag de stuiters verslepen terwijl de ballen vallen.',
+    round: (i, n) => `Ronde ${i}/${n}`,
+    roundPoints: (n) => `+${fmtNumber(n)} punten`,
+    nextRound: 'Volgende ronde ▶',
+    finalScore: 'Eindscore ▶',
+    challengeHeading: '🏀 Ballenbak-uitdaging',
     points: (n) => `${fmtNumber(n)} punten`,
     playAgain: 'Nog een keer',
     freePlay: 'Ballenbak',
   },
   no: {
     ballCount: (n) => `${n} baller, hver flyttet 240 ganger i sekundet`,
+    pairs: (p, c) => `${fmtNumber(p)} par kan kollidere; rutenettet sjekker bare ${fmtNumber(c)}`,
+    zoomCaption: ['Zoomet ut, ingen baller: bare hvor full og hvor varm hver rute er.', 'Det er det Virvellab regner ut.'],
     heat: 'Varm opp',
     cool: 'Kjøl ned',
     bigBall: 'Stor ball',
+    zoom: 'Zoom ut',
     reset: 'Nullstill',
-    plinko: 'Plinko!',
+    challenge: 'Utfordring!',
     full: 'Fullt!',
     delveHeading: '🔬 Vitenskapen bak Ballbinga',
-    drop: 'Slipp!',
     stop: 'Stopp',
-    hudBalls: (n) => `⚪ ${n} igjen`,
-    hudScore: (n) => `⭐ ${fmtNumber(n)}`,
-    hintPlace: 'Dra de hvite støtfangerne inn på brettet og styr ballene til den 🥇 gylne bøtta!',
-    dropsIn: (s) => `Slipp! (${s})`,
-    hintTwins: 'To tvillingballer, sluppet en hundredels piksel fra hverandre…',
-    twinsApart: (n) => `…og de lander ${n} bøtter fra hverandre! Én ball er flaks. Se nå hva 300 gjør.`,
-    twinsSame: '…én ball er flaks. Se nå hva 300 gjør.',
-    hintPour: 'Fortsett å styre: du kan dra støtfangerne mens ballene faller.',
+    round: (i, n) => `Runde ${i}/${n}`,
+    roundPoints: (n) => `+${fmtNumber(n)} poeng`,
+    nextRound: 'Neste runde ▶',
+    finalScore: 'Sluttpoeng ▶',
+    challengeHeading: '🏀 Ballbinge-utfordring',
     points: (n) => `${fmtNumber(n)} poeng`,
     playAgain: 'Spill igjen',
     freePlay: 'Ballbinge',
   },
 };
+
+const ROUNDS: ((host: RoundHost) => Round)[] = [
+  (host) => new PlinkoRound(host),
+  (host) => new SiloRound(host),
+  (host) => new SteamRound(host),
+];
 
 // Sizes are in "units": CSS px on a box 620 px tall, scaled to the screen.
 const R_MIN = 9;
@@ -127,11 +137,10 @@ const HANDFUL = 5;
 const FILL_LIMIT = 0.6;
 /** Height fraction filled when the game opens. */
 const START_FILL = 0.4;
+/** Zoom-out squares, in units. */
+const FIELD_CELL = 60;
 const MARGIN = 10;
 const BACKGROUND = '#0b1020';
-
-type Mode = 'toy' | 'plinko';
-type Phase = 'place' | 'twins' | 'pour' | 'settle' | 'done';
 
 interface Popup {
   x: number;
@@ -141,27 +150,15 @@ interface Popup {
   age: number;
 }
 
-interface Plinko {
-  layout: PlinkoLayout;
-  world: BallWorld;
-  bumpers: Circle[];
-  phase: Phase;
-  timer: number;
-  dropped: number;
-  acc: number;
-  twins: Ball[];
-  trails: { x: number; y: number }[][];
-  twinsTold: boolean;
-  counted: WeakSet<Ball>;
-  /** Time of the last points popup per bucket, so they don't pile up. */
-  popped: number[];
-  score: number;
-  counts: number[];
+interface Challenge {
+  index: number;
+  total: number;
+  round: Round;
+  card: HTMLElement | null;
 }
 
 class BounceInstance implements GameInstance {
   private ctx: CanvasRenderingContext2D;
-  private mode: Mode = 'toy';
   private toy!: BallWorld;
   private box: Box = { x0: 0, y0: 0, x1: 1, y1: 1 };
   private unit = 1;
@@ -176,15 +173,16 @@ class BounceInstance implements GameInstance {
   private heat = 0;
   /** 0..1: how much balls are coloured by speed (a heat view). */
   private tint = 0;
+  private zoom = 0;
+  private field = new FieldView();
   private popups: Popup[] = [];
 
-  private plinko: Plinko | null = null;
-  private dragging: Circle | null = null;
+  private challenge: Challenge | null = null;
   private flow: ScoreFlowHandle | null = null;
 
   private toyBar!: HTMLElement;
   private gameBar!: HTMLElement;
-  private dropButton!: HTMLButtonElement;
+  private zoomInput!: HTMLInputElement;
   private hud!: HTMLElement;
   private hint!: HTMLElement;
   private delve: DelveHandle | null = null;
@@ -214,6 +212,7 @@ class BounceInstance implements GameInstance {
     c.removeEventListener('pointerup', this.onUp);
     c.removeEventListener('pointercancel', this.onUp);
     c.removeEventListener('pointerleave', this.onLeave);
+    this.challenge?.round.dispose();
     this.delve?.dispose();
     this.flow?.dispose();
   }
@@ -230,27 +229,27 @@ class BounceInstance implements GameInstance {
     if (box.x0 === this.box.x0 && box.x1 === this.box.x1 && box.y1 === this.box.y1) return;
     this.box = box;
     this.unit = clamp((box.y1 - box.y0) / 620, 0.5, 2);
-    if (this.toy) this.fitWorld(this.toy);
+    if (this.toy) this.fitToy();
   }
 
-  private fitWorld(world: BallWorld): void {
+  private fitToy(): void {
     const bh = this.box.y1 - this.box.y0;
-    world.box = this.box;
-    world.gravity = GRAVITY * bh;
-    world.kick = KICK * Math.sqrt(2 * world.gravity * bh);
+    this.toy.box = this.box;
+    this.toy.gravity = GRAVITY * bh;
+    this.toy.kick = KICK * Math.sqrt(2 * this.toy.gravity * bh);
   }
 
   private fillToy(): void {
     const u = this.unit;
     this.toy = new BallWorld(this.box, 1, R_MAX * u, 1);
-    this.fitWorld(this.toy);
+    this.fitToy();
     this.applySwitches();
     const { x0, x1, y1 } = this.box;
     const top = y1 - START_FILL * (y1 - this.box.y0);
     const step = 2 * R_MAX * u;
     for (let y = y1 - R_MAX * u; y > top; y -= step) {
       for (let x = x0 + R_MAX * u; x < x1 - R_MAX * u; x += step) {
-        this.addBall(this.toy, x + randRange(-2, 2), y, 0, 0);
+        this.addBall(x + randRange(-2, 2), y, 0, 0);
       }
     }
     // Let the pile settle before anybody sees it.
@@ -258,8 +257,8 @@ class BounceInstance implements GameInstance {
     this.toy.loudest = 0;
   }
 
-  private addBall(world: BallWorld, x: number, y: number, vx: number, vy: number): Ball {
-    return world.add({ x, y, vx, vy, r: randRange(R_MIN, R_MAX) * this.unit, hue: randRange(0, 360) });
+  private addBall(x: number, y: number, vx: number, vy: number): Ball {
+    return this.toy.add({ x, y, vx, vy, r: randRange(R_MIN, R_MAX) * this.unit, hue: randRange(0, 360) });
   }
 
   private applySwitches(): void {
@@ -271,7 +270,7 @@ class BounceInstance implements GameInstance {
   // ---- input ----
 
   private onDown = (e: PointerEvent) => {
-    if (this.delve || this.flow) return;
+    if (this.delve || this.flow || this.challenge?.card) return;
     const p = pointerPos(this.host.canvas, e);
     Object.assign(this.pointer, p, { inside: true, down: true, mouse: e.pointerType !== 'touch' });
     try {
@@ -279,11 +278,8 @@ class BounceInstance implements GameInstance {
     } catch {
       // Synthetic or already-gone pointer: moves over the canvas still arrive.
     }
-    if (this.mode === 'plinko' && this.plinko) {
-      const reach = 14 * this.unit;
-      this.dragging =
-        this.plinko.bumpers.find((b) => Math.hypot(b.x - p.x, b.y - p.y) < b.r + reach) ?? null;
-      if (this.dragging) sound.play('click');
+    if (this.challenge) {
+      this.challenge.round.down(p.x, p.y);
       return;
     }
     // A tap drops a handful; holding keeps pouring (see frame).
@@ -294,17 +290,12 @@ class BounceInstance implements GameInstance {
   private onMove = (e: PointerEvent) => {
     const p = pointerPos(this.host.canvas, e);
     Object.assign(this.pointer, p, { inside: true, mouse: e.pointerType !== 'touch' });
-    const d = this.dragging;
-    if (d && this.plinko) {
-      const a = this.plinko.layout.dragArea;
-      d.x = clamp(p.x, a.x0, a.x1);
-      d.y = clamp(p.y, a.y0, a.y1);
-    }
+    this.challenge?.round.move(p.x, p.y);
   };
 
   private onUp = () => {
     this.pointer.down = false;
-    this.dragging = null;
+    this.challenge?.round.up();
   };
 
   private onLeave = () => {
@@ -312,16 +303,15 @@ class BounceInstance implements GameInstance {
   };
 
   private pour(count: number): void {
-    const world = this.toy;
     const u = this.unit;
     const { x0, y0, x1, y1 } = this.box;
     let area = 0;
-    for (const b of world.balls) area += Math.PI * b.r * b.r;
+    for (const b of this.toy.balls) area += Math.PI * b.r * b.r;
     const limit = FILL_LIMIT * (x1 - x0) * (y1 - y0);
     for (let k = 0; k < count; k++) {
       if (area > limit) {
         if (this.fullCooldown <= 0) {
-          this.popups.push({ x: this.pointer.x, y: this.pointer.y - 30 * u, text: pick(TEXT).full, color: '#fca5a5', age: 0 });
+          this.popup(this.pointer.x, this.pointer.y - 30 * u, pick(TEXT).full, '#fca5a5');
           sound.play('thud');
           this.fullCooldown = 1.2;
         }
@@ -329,18 +319,21 @@ class BounceInstance implements GameInstance {
       }
       const x = clamp(this.pointer.x + randRange(-18, 18) * u, x0 + R_MAX * u, x1 - R_MAX * u);
       const y = clamp(this.pointer.y + randRange(-18, 18) * u, y0 + R_MAX * u, y1 - R_MAX * u);
-      const b = this.addBall(world, x, y, randRange(-150, 150) * u, randRange(-150, 50) * u);
+      const b = this.addBall(x, y, randRange(-150, 150) * u, randRange(-150, 50) * u);
       area += Math.PI * b.r * b.r;
     }
   }
 
   private dropGold(): void {
-    const world = this.toy;
-    world.balls = world.balls.filter((b) => !b.gold);
+    this.toy.balls = this.toy.balls.filter((b) => !b.gold);
     const r = GOLD_R * this.unit;
     const { x0, x1, y0 } = this.box;
-    world.add({ x: randRange(x0 + r, x1 - r), y: y0 + r + 2, vx: 0, vy: 0, r, gold: true, hue: 45 });
+    this.toy.add({ x: randRange(x0 + r, x1 - r), y: y0 + r + 2, vx: 0, vy: 0, r, gold: true, hue: 45 });
     sound.play('ding');
+  }
+
+  private popup(x: number, y: number, text: string, color: string): void {
+    this.popups.push({ x, y, text, color, age: 0 });
   }
 
   // ---- frame ----
@@ -359,21 +352,16 @@ class BounceInstance implements GameInstance {
       this.demos.draw(ctx, w, h);
       return;
     }
-    if (this.mode === 'toy') this.measure();
     this.fullCooldown -= dt;
-
-    if (this.mode === 'plinko' && this.plinko) {
-      this.stepPlinko(this.plinko, dt);
-      this.drawPit(ctx, w, h, this.plinko.world);
-      this.drawPlinko(ctx, this.plinko);
+    const ch = this.challenge;
+    if (ch) {
+      ch.round.step(dt);
+      ch.round.draw(ctx, w, h);
+      this.updateHud(ch);
     } else {
+      this.measure();
       this.stepToy(dt);
-      this.drawPit(ctx, w, h, this.toy);
-      this.drawHand(ctx);
-      ctx.fillStyle = 'rgba(238, 242, 255, 0.8)';
-      ctx.font = '700 20px system-ui, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(pick(TEXT).ballCount(this.toy.balls.length), w / 2, this.box.y0 + 34);
+      this.drawToy(ctx, w, h);
     }
     this.drawPopups(ctx, dt);
   }
@@ -404,11 +392,7 @@ class BounceInstance implements GameInstance {
     }
 
     world.step(dt);
-    this.clack(world);
-  }
-
-  /** One collision sound per frame, for the hardest hit: pitch by size, volume by speed. */
-  private clack(world: BallWorld): void {
+    // One collision sound per frame, for the hardest hit: pitch by size, volume by speed.
     const vref = Math.sqrt(2 * world.gravity * (this.box.y1 - this.box.y0));
     if (world.loudest > 0.08 * vref) {
       sound.play('clack', {
@@ -419,270 +403,168 @@ class BounceInstance implements GameInstance {
     world.loudest = 0;
   }
 
-  // ---- drawing ----
-
-  private drawPit(ctx: CanvasRenderingContext2D, w: number, h: number, world: BallWorld): void {
-    const { x0, y0, x1, y1 } = world.box;
+  private drawToy(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+    const world = this.toy;
+    const { x0, y0, x1, y1 } = this.box;
     const u = this.unit;
-
-    // Base under the floor (where the toolbar sits), and the hot/cold plate.
-    ctx.fillStyle = '#10172e';
-    ctx.fillRect(0, y1, w, h - y1);
-    if (this.mode === 'toy' && this.heat > 0) {
-      const g = ctx.createLinearGradient(0, y1, 0, y1 - 90 * u);
-      g.addColorStop(0, `rgba(251, 146, 60, ${0.45 * this.heat})`);
-      g.addColorStop(1, 'rgba(251, 146, 60, 0)');
-      ctx.fillStyle = g;
-      ctx.fillRect(x0, y1 - 90 * u, x1 - x0, 90 * u);
-    }
-    if (this.mode === 'toy' && this.cooling) {
+    drawFrame(ctx, this.box, w, h, this.heat);
+    if (this.cooling) {
       const g = ctx.createLinearGradient(0, y0, 0, y1);
       g.addColorStop(0, 'rgba(125, 211, 252, 0.12)');
       g.addColorStop(1, 'rgba(125, 211, 252, 0.02)');
       ctx.fillStyle = g;
       ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
     }
-    ctx.strokeStyle = 'rgba(238, 242, 255, 0.18)';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(x0, y0, x1 - x0, y1 - y0);
-    const hot = this.mode === 'toy' ? this.heat : 0;
-    ctx.strokeStyle = hot > 0 ? `rgb(${160 + 95 * hot}, ${170 - 40 * hot}, ${190 - 150 * hot})` : 'rgba(238, 242, 255, 0.45)';
-    ctx.lineWidth = 4 + 3 * hot;
-    ctx.beginPath();
-    ctx.moveTo(x0, y1);
-    ctx.lineTo(x1, y1);
-    ctx.stroke();
 
-    // Balls: own colour, crossfading into a speed colour (blue slow, red fast).
-    const vref = 0.35 * world.kick || 1;
-    const tint = this.mode === 'toy' ? this.tint : 0;
-    for (const b of world.balls) {
-      if (b.gold) continue;
-      ctx.beginPath();
-      ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
-      ctx.fillStyle = `hsl(${b.hue}, 85%, 62%)`;
-      ctx.fill();
-      if (tint > 0.01) {
-        const s = Math.min(1, Math.hypot(b.vx, b.vy) / vref);
-        ctx.globalAlpha = tint;
-        ctx.fillStyle = `hsl(${230 - 230 * s}, 90%, ${50 + 12 * s}%)`;
-        ctx.fill();
-        ctx.globalAlpha = 1;
+    // Zoomed in: balls. Zoomed out: the smooth field a fluid solver would keep.
+    const z = this.zoom;
+    const ballsAlpha = 1 - smooth(0.25, 0.85, z);
+    const fieldAlpha = smooth(0.05, 0.6, z);
+    const vref = 0.35 * world.kick;
+    if (fieldAlpha > 0) {
+      const cell = FIELD_CELL * u;
+      const grid = this.field.draw(ctx, world.balls, this.box, cell, vref, fieldAlpha);
+      if (z > 0.6) {
+        ctx.strokeStyle = `rgba(238, 242, 255, ${0.25 * smooth(0.6, 1, z)})`;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (let i = 1; i < grid.nx; i++) {
+          ctx.moveTo(x0 + i * cell, y0);
+          ctx.lineTo(x0 + i * cell, y1);
+        }
+        for (let j = 1; j < grid.ny; j++) {
+          ctx.moveTo(x0, y0 + j * cell);
+          ctx.lineTo(x1, y0 + j * cell);
+        }
+        ctx.stroke();
       }
-      ctx.beginPath();
-      ctx.arc(b.x - 0.35 * b.r, b.y - 0.35 * b.r, 0.3 * b.r, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-      ctx.fill();
     }
-    for (const b of world.balls) {
-      if (!b.gold) continue;
-      const g = ctx.createRadialGradient(b.x - 0.4 * b.r, b.y - 0.4 * b.r, 0.1 * b.r, b.x, b.y, b.r);
-      g.addColorStop(0, '#fff7c2');
-      g.addColorStop(0.45, '#fbbf24');
-      g.addColorStop(1, '#b45309');
-      ctx.beginPath();
-      ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
-      ctx.fillStyle = g;
-      ctx.fill();
+    if (ballsAlpha > 0) {
+      ctx.globalAlpha = ballsAlpha;
+      drawBalls(ctx, world.balls, this.tint, vref);
+      ctx.globalAlpha = 1;
     }
-  }
 
-  private drawHand(ctx: CanvasRenderingContext2D): void {
-    const hand = this.toy.hand;
-    if (!hand.active) return;
-    ctx.beginPath();
-    ctx.arc(hand.x, hand.y, hand.r, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(238, 242, 255, 0.07)';
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(238, 242, 255, 0.45)';
-    ctx.lineWidth = 2;
-    ctx.stroke();
+    const hand = world.hand;
+    if (hand.active) {
+      ctx.beginPath();
+      ctx.arc(hand.x, hand.y, hand.r, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(238, 242, 255, 0.07)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(238, 242, 255, 0.45)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    // Below the corner buttons and the delve pill, which own the top row.
+    const T = pick(TEXT);
+    const cx = (x0 + x1) / 2;
+    const top = y0 + 80;
+    if (z > 0.5) {
+      label(ctx, T.zoomCaption[0], cx, top, 18, 'rgba(238, 242, 255, 0.9)');
+      label(ctx, T.zoomCaption[1], cx, top + 24, 16, 'rgba(238, 242, 255, 0.7)');
+    } else {
+      const n = world.balls.length;
+      label(ctx, T.ballCount(n), cx, top, 20, 'rgba(238, 242, 255, 0.85)');
+      if (world.collisions) {
+        label(ctx, T.pairs((n * (n - 1)) / 2, Math.round(world.pairChecks)), cx, top + 24, 14, 'rgba(238, 242, 255, 0.55)');
+      }
+    }
   }
 
   private drawPopups(ctx: CanvasRenderingContext2D, dt: number): void {
-    ctx.textAlign = 'center';
     for (const p of this.popups) {
       p.age += dt;
       ctx.globalAlpha = Math.max(0, 1 - p.age);
-      ctx.fillStyle = p.color;
-      ctx.font = `800 ${Math.round(22 * this.unit + 6)}px system-ui, sans-serif`;
-      ctx.fillText(p.text, p.x, p.y - 40 * p.age * this.unit);
+      label(ctx, p.text, p.x, p.y - 40 * p.age * this.unit, 22 * this.unit + 6, p.color);
     }
     ctx.globalAlpha = 1;
     this.popups = this.popups.filter((p) => p.age < 1);
   }
 
-  // ---- Plinko ----
+  // ---- challenge ----
 
-  /** The board stands a little higher than the pit, leaving a line for the hint. */
-  private plinkoBox(): Box {
-    return { ...this.box, y1: this.box.y1 - 34 };
+  private roundHost(): RoundHost {
+    return {
+      box: this.box,
+      unit: this.unit,
+      hint: (text) => (this.hint.textContent = text),
+      popup: (x, y, text, color) => this.popup(x, y, text, color),
+      buttons: (defs) => this.roundButtons(defs),
+      finish: (score, summary) => this.roundOver(score, summary),
+    };
   }
 
-  private plinkoWorld(layout: PlinkoLayout, bumpers: Circle[]): BallWorld {
-    const box = this.plinkoBox();
-    const world = new BallWorld(box, 1, layout.ballR, 0);
-    world.box = box;
-    world.gravity = GRAVITY * (this.box.y1 - this.box.y0);
-    world.kick = 0;
-    world.pegRestitution = 0.3;
-    // Air in the board: without it balls skate sideways and the bell turns flat.
-    world.sideDrag = 6;
-    world.dragLine = layout.bucketTop;
-    world.pegs = [...layout.pegs, ...bumpers];
-    world.segments = layout.segments;
-    return world;
-  }
-
-  private startPlinko(): void {
+  private startChallenge(): void {
     this.closeDelve();
     this.flow?.dispose();
     this.flow = null;
-    const side = Math.random() < 0.5 ? -1 : 1;
-    const layout = plinkoLayout(this.plinkoBox(), this.unit, side * 3);
-    const bumpers = layout.bumperStarts.map((p) => ({ x: p.x, y: p.y, r: layout.bumperR }));
-    this.plinko = {
-      layout,
-      world: this.plinkoWorld(layout, bumpers),
-      bumpers,
-      phase: 'place',
-      timer: PLINKO.placeTime,
-      dropped: 0,
-      acc: 0,
-      twins: [],
-      trails: [[], []],
-      twinsTold: false,
-      counted: new WeakSet(),
-      popped: new Array(PLINKO.buckets).fill(-1),
-      score: 0,
-      counts: new Array(PLINKO.buckets).fill(0),
-    };
-    this.mode = 'plinko';
+    this.challenge?.round.dispose();
     this.heating = false;
     this.cooling = false;
     this.toyBar.classList.add('hidden');
-    this.gameBar.classList.remove('hidden');
-    this.dropButton.disabled = false;
     this.toggle.element.classList.add('hidden');
     this.hud.classList.remove('hidden');
-    this.hint.textContent = pick(TEXT).hintPlace;
+    this.gameBar.classList.remove('hidden');
+    this.challenge = { index: 0, total: 0, round: ROUNDS[0](this.roundHost()), card: null };
   }
 
-  private drop(pl: Plinko): void {
-    pl.phase = 'twins';
-    pl.timer = 0;
-    this.dropButton.disabled = true;
-    this.setLabel(this.dropButton, pick(TEXT).drop);
-    this.hint.textContent = pick(TEXT).hintTwins;
-    // Try a few twin pairs on a scratch copy of the board and show one that
-    // parts ways: every pair really starts a hundredth of a pixel apart.
-    const { layout } = pl;
-    let best = 0;
-    let bestGap = -1;
-    for (let k = 0; k < 8 && bestGap < 2; k++) {
-      const offset = randRange(-0.8, 0.8) * this.unit;
-      const scratch = this.plinkoWorld(layout, pl.bumpers.map((b) => ({ ...b })));
-      const [a, b] = this.addTwins(scratch, offset);
-      for (let t = 0; t < 4; t += 1 / 60) scratch.step(1 / 60);
-      const gap = Math.abs(bucketOf(layout, a.x) - bucketOf(layout, b.x));
-      if (gap > bestGap) {
-        bestGap = gap;
-        best = offset;
-      }
-    }
-    pl.twins = this.addTwins(pl.world, best);
-    sound.play('click');
+  private nextRound(): void {
+    const ch = this.challenge;
+    if (!ch) return;
+    ch.card?.remove();
+    ch.card = null;
+    ch.round.dispose();
+    ch.index++;
+    this.gameBar.classList.remove('hidden');
+    ch.round = ROUNDS[ch.index](this.roundHost());
   }
 
-  private addTwins(world: BallWorld, offset: number): Ball[] {
-    const { spout, ballR } = this.plinko!.layout;
-    return [0, PLINKO.twinGap].map((gap, i) =>
-      world.add({ x: spout.x + offset + gap, y: spout.y, vx: 0, vy: 0, r: ballR, twin: i + 1, hue: 0 }),
-    );
-  }
-
-  private stepPlinko(pl: Plinko, dt: number): void {
-    const T = pick(TEXT);
-    const { layout, world } = pl;
-    if (pl.phase === 'place') {
-      pl.timer -= dt;
-      this.setLabel(this.dropButton, T.dropsIn(Math.max(0, Math.ceil(pl.timer))));
-      if (pl.timer <= 0) this.drop(pl);
-    } else if (pl.phase === 'twins') {
-      pl.timer += dt;
-      if (pl.timer >= PLINKO.twinTime) {
-        pl.phase = 'pour';
-        pl.acc = 0;
-      }
-    } else if (pl.phase === 'pour') {
-      pl.acc += PLINKO.rate * dt;
-      while (pl.acc >= 1 && pl.dropped < PLINKO.balls) {
-        pl.acc -= 1;
-        pl.dropped++;
-        const jitter = randRange(-1, 1) * this.unit;
-        world.add({ x: layout.spout.x + jitter, y: layout.spout.y, vx: 0, vy: 0, r: layout.ballR, hue: randRange(0, 360) });
-      }
-      if (pl.dropped >= PLINKO.balls) {
-        pl.phase = 'settle';
-        pl.timer = 0;
-      }
-    } else if (pl.phase === 'settle') {
-      pl.timer += dt;
-      const still = 30 * this.unit;
-      const moving = world.balls.some((b) => b.y < layout.countLine || Math.hypot(b.vx, b.vy) > still);
-      if ((pl.timer > 1.5 && !moving) || pl.timer > 8) this.finishPlinko(pl);
-    }
-    if (pl.phase === 'done') return;
-
-    world.step(dt);
-    world.loudest = 0;
-    pl.twins.forEach((b, i) => {
-      const trail = pl.trails[i];
-      if (b.y < layout.countLine || trail.length === 0) trail.push({ x: b.x, y: b.y });
-    });
-    if (!pl.twinsTold && pl.twins.length && pl.twins.every((b) => b.y > layout.countLine)) {
-      pl.twinsTold = true;
-      const gap = Math.abs(bucketOf(layout, pl.twins[0].x) - bucketOf(layout, pl.twins[1].x));
-      this.hint.textContent = gap > 0 ? T.twinsApart(gap) : T.twinsSame;
-      window.setTimeout(() => {
-        if (this.plinko === pl && pl.phase !== 'done') this.hint.textContent = T.hintPour;
-      }, 5000);
-    }
-
-    // Points pop out of the buckets as the balls land.
-    for (const b of world.balls) {
-      if (b.twin || b.y < layout.countLine || pl.counted.has(b)) continue;
-      pl.counted.add(b);
-      const i = bucketOf(layout, b.x);
-      const now = performance.now() / 1000;
-      if (i < 0 || now - pl.popped[i] < 0.45) continue;
-      if (i === layout.gold || layout.silver.includes(i)) pl.popped[i] = now;
-      if (i === layout.gold) {
-        this.popups.push({ x: layout.edges[i] + layout.spacing / 2, y: layout.countLine, text: `+${PLINKO.goldPoints}`, color: '#fbbf24', age: 0 });
-        sound.play('ding');
-      } else if (layout.silver.includes(i)) {
-        this.popups.push({ x: layout.edges[i] + layout.spacing / 2, y: layout.countLine, text: `+${PLINKO.silverPoints}`, color: '#cbd5e1', age: 0.3 });
-        sound.play('click');
-      }
-    }
-    const tally = plinkoTally(layout, world.balls);
-    pl.score = tally.score;
-    pl.counts = tally.counts;
-    this.hud.textContent = `🎯 Plinko   ·   ${T.hudBalls(PLINKO.balls - pl.dropped)}   ·   ${T.hudScore(pl.score)}`;
-  }
-
-  private finishPlinko(pl: Plinko): void {
-    pl.phase = 'done';
+  private roundOver(score: number, summary: string): void {
+    const ch = this.challenge;
+    if (!ch) return;
+    ch.total += score;
     const T = pick(TEXT);
     this.gameBar.classList.add('hidden');
     this.hint.textContent = '';
+    const last = ch.index === ROUNDS.length - 1;
+    const card = document.createElement('div');
+    card.className = 'score-flow';
+    const heading = document.createElement('h2');
+    heading.textContent = ch.round.title;
+    const points = document.createElement('div');
+    points.className = 'score-flow-score';
+    points.textContent = T.roundPoints(score);
+    const text = document.createElement('p');
+    text.className = 'score-flow-prompt';
+    text.style.maxWidth = '32rem';
+    text.textContent = summary;
+    const actions = document.createElement('div');
+    actions.className = 'score-flow-actions';
+    const next = document.createElement('button');
+    next.className = 'arcade-button';
+    next.textContent = last ? T.finalScore : T.nextRound;
+    next.addEventListener('click', () => (last ? this.finishChallenge() : this.nextRound()));
+    actions.appendChild(next);
+    card.append(heading, points, text, actions);
+    ch.card = card;
+    this.host.overlay.appendChild(card);
+    sound.play('cheer');
+  }
+
+  private finishChallenge(): void {
+    const ch = this.challenge;
+    if (!ch) return;
+    ch.card?.remove();
+    ch.card = null;
+    const T = pick(TEXT);
     this.flow = scoreFlow({
       gameId: 'bounce',
-      heading: '🎯 Plinko',
-      score: pl.score,
-      scoreLabel: T.points(pl.score),
+      heading: T.challengeHeading,
+      score: ch.total,
+      scoreLabel: T.points(ch.total),
       actions: [
-        { label: T.playAgain, onClick: () => this.startPlinko() },
+        { label: T.playAgain, onClick: () => this.startChallenge() },
         { label: T.freePlay, onClick: () => this.exitToToy() },
       ],
     });
@@ -692,9 +574,12 @@ class BounceInstance implements GameInstance {
   private exitToToy(): void {
     this.flow?.dispose();
     this.flow = null;
-    this.plinko = null;
-    this.dragging = null;
-    this.mode = 'toy';
+    const ch = this.challenge;
+    if (ch) {
+      ch.card?.remove();
+      ch.round.dispose();
+    }
+    this.challenge = null;
     this.gameBar.classList.add('hidden');
     this.toyBar.classList.remove('hidden');
     this.toggle.element.classList.remove('hidden');
@@ -702,170 +587,83 @@ class BounceInstance implements GameInstance {
     this.hint.textContent = '';
   }
 
-  private drawPlinko(ctx: CanvasRenderingContext2D, pl: Plinko): void {
-    const { layout } = pl;
-    const u = this.unit;
-    const { y1 } = pl.world.box;
-    const S = layout.spacing;
-    const edges = layout.edges;
-
-    // Bucket colours and multipliers, drawn over the balls so they stay readable.
-    const buckets = (fillOnly: boolean) => {
-      for (let i = 0; i < edges.length - 1; i++) {
-        const gold = i === layout.gold;
-        const silver = layout.silver.includes(i);
-        if (!gold && !silver) continue;
-        if (fillOnly) {
-          ctx.fillStyle = gold ? 'rgba(251, 191, 36, 0.2)' : 'rgba(203, 213, 225, 0.1)';
-          ctx.fillRect(edges[i], layout.bucketTop, S, y1 - layout.bucketTop);
-          continue;
-        }
-        ctx.fillStyle = gold ? '#fbbf24' : '#cbd5e1';
-        ctx.font = `800 ${Math.round(S * 0.3)}px system-ui, sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.fillText(gold ? `🥇×${PLINKO.goldPoints}` : `×${PLINKO.silverPoints}`, edges[i] + S / 2, layout.bucketTop + S * 0.45);
-      }
-    };
-    buckets(true);
-    buckets(false);
-
-    // Pegs and bucket walls.
-    ctx.fillStyle = 'rgba(238, 242, 255, 0.55)';
-    for (const p of layout.pegs) {
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.strokeStyle = 'rgba(238, 242, 255, 0.45)';
-    ctx.lineWidth = 3;
-    for (const s of layout.segments) {
-      ctx.beginPath();
-      ctx.moveTo(s.x1, s.y1);
-      ctx.lineTo(s.x2, s.y2);
-      ctx.stroke();
-    }
-
-    // The spout.
-    const { spout } = layout;
-    ctx.fillStyle = 'rgba(238, 242, 255, 0.35)';
-    ctx.beginPath();
-    ctx.moveTo(spout.x - S * 0.5, spout.y - S * 0.6);
-    ctx.lineTo(spout.x + S * 0.5, spout.y - S * 0.6);
-    ctx.lineTo(spout.x + S * 0.15, spout.y - layout.ballR);
-    ctx.lineTo(spout.x - S * 0.15, spout.y - layout.ballR);
-    ctx.closePath();
-    ctx.fill();
-
-    // Bumpers: pulse while waiting to be placed.
-    const pulse = pl.phase === 'place' ? 0.5 + 0.5 * Math.sin(performance.now() / 250) : 0;
-    for (const b of pl.bumpers) {
-      ctx.beginPath();
-      ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
-      ctx.fillStyle = b === this.dragging ? '#ffffff' : 'rgba(238, 242, 255, 0.85)';
-      ctx.fill();
-      ctx.strokeStyle = `rgba(125, 211, 252, ${0.4 + 0.6 * pulse})`;
-      ctx.lineWidth = 3 + 3 * pulse;
-      ctx.stroke();
-    }
-
-    // The twins and their paths.
-    const colors = ['#f472b6', '#22d3ee'];
-    pl.twins.forEach((b, i) => {
-      const trail = pl.trails[i];
-      if (trail.length > 1) {
-        ctx.beginPath();
-        ctx.moveTo(trail[0].x, trail[0].y);
-        for (const p of trail) ctx.lineTo(p.x, p.y);
-        ctx.strokeStyle = colors[i];
-        ctx.globalAlpha = 0.8;
-        ctx.lineWidth = 2.5;
-        ctx.stroke();
-        ctx.globalAlpha = 1;
-      }
-      ctx.beginPath();
-      ctx.arc(b.x, b.y, b.r * 1.6, 0, Math.PI * 2);
-      ctx.fillStyle = colors[i];
-      ctx.fill();
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-    });
-
-    // Live counts above the buckets.
-    ctx.font = `700 ${Math.round(12 * u + 4)}px system-ui, sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.fillStyle = 'rgba(238, 242, 255, 0.85)';
-    pl.counts.forEach((n, i) => {
-      if (n > 0) ctx.fillText(String(n), edges[i] + S / 2, layout.bucketTop - 6);
-    });
+  private updateHud(ch: Challenge): void {
+    const T = pick(TEXT);
+    const text = [
+      T.round(ch.index + 1, ROUNDS.length),
+      ch.round.title,
+      ch.round.hud(),
+      `⭐ ${fmtNumber(ch.total + (ch.card ? 0 : ch.round.score))}`,
+    ].join('   ·   ');
+    if (this.hud.textContent !== text) this.hud.textContent = text;
   }
 
   // ---- UI ----
 
-  private setLabel(button: HTMLButtonElement, text: string): void {
-    const label = button.querySelector('.tool-label')!;
-    if (label.textContent !== text) label.textContent = text;
+  private makeButton(bar: HTMLElement, def: ButtonDef): HTMLButtonElement {
+    const button = toolButton(def.emoji, def.label);
+    if (def.onClick) button.addEventListener('click', def.onClick);
+    if (def.hold) makeHold(button, def.hold);
+    bar.appendChild(button);
+    return button;
+  }
+
+  /** The round's buttons, then Stop. */
+  private roundButtons(defs: ButtonDef[]): HTMLButtonElement[] {
+    this.gameBar.replaceChildren();
+    const buttons = defs.map((def) => this.makeButton(this.gameBar, def));
+    this.makeButton(this.gameBar, { emoji: '⏹', label: pick(TEXT).stop, onClick: () => this.exitToToy() });
+    return buttons;
   }
 
   private buildUi(): void {
     const T = pick(TEXT);
-    const add = (bar: HTMLElement, emoji: string, label: string, onClick?: () => void): HTMLButtonElement => {
-      const button = document.createElement('button');
-      button.className = 'tool-button';
-      const icon = document.createElement('span');
-      icon.className = 'tool-emoji';
-      icon.textContent = emoji;
-      const text = document.createElement('span');
-      text.className = 'tool-label';
-      text.textContent = label;
-      button.append(icon, text);
-      if (onClick) button.addEventListener('click', onClick);
-      bar.appendChild(button);
-      return button;
-    };
-    /** Held buttons: a tap gives a burst, holding keeps it going. */
-    const hold = (button: HTMLButtonElement, set: (on: boolean) => void) => {
-      button.addEventListener('pointerdown', (e) => {
-        try {
-          button.setPointerCapture(e.pointerId);
-        } catch {
-          // No live pointer to capture: pointerup still ends the hold.
-        }
-        button.classList.add('active');
-        set(true);
-      });
-      const off = () => {
-        button.classList.remove('active');
-        set(false);
-      };
-      button.addEventListener('pointerup', off);
-      button.addEventListener('pointercancel', off);
-      button.addEventListener('lostpointercapture', off);
-    };
-
     this.toyBar = document.createElement('div');
     this.toyBar.className = 'game-toolbar';
-    hold(add(this.toyBar, '🔥', T.heat), (on) => {
-      this.heating = on;
-      if (on) {
-        this.heat = Math.max(this.heat, 0.45);
-        this.cooling = false;
-      }
+    this.makeButton(this.toyBar, {
+      emoji: '🔥',
+      label: T.heat,
+      hold: (on) => {
+        this.heating = on;
+        if (on) {
+          this.heat = Math.max(this.heat, 0.45);
+          this.cooling = false;
+        }
+      },
     });
-    hold(add(this.toyBar, '❄️', T.cool), (on) => {
-      this.cooling = on;
-      if (on) this.heat = 0;
+    this.makeButton(this.toyBar, {
+      emoji: '❄️',
+      label: T.cool,
+      hold: (on) => {
+        this.cooling = on;
+        if (on) this.heat = 0;
+      },
     });
-    add(this.toyBar, '🟡', T.bigBall, () => this.dropGold());
-    add(this.toyBar, '🧹', T.reset, () => this.fillToy());
-    add(this.toyBar, '🎯', T.plinko, () => this.startPlinko());
+    this.makeButton(this.toyBar, { emoji: '🟡', label: T.bigBall, onClick: () => this.dropGold() });
+
+    // The zoom slider lives in a tool-button-shaped box (a range input can't sit in a button).
+    const zoom = document.createElement('label');
+    zoom.className = 'tool-button';
+    const icon = document.createElement('span');
+    icon.className = 'tool-emoji';
+    icon.textContent = '🔭';
+    this.zoomInput = document.createElement('input');
+    this.zoomInput.type = 'range';
+    this.zoomInput.min = '0';
+    this.zoomInput.max = '1';
+    this.zoomInput.step = '0.01';
+    this.zoomInput.value = '0';
+    this.zoomInput.setAttribute('aria-label', T.zoom);
+    this.zoomInput.style.cssText = 'width:6.5rem;margin:0.1rem 0 0;accent-color:#7dd3fc;';
+    this.zoomInput.addEventListener('input', () => (this.zoom = Number(this.zoomInput.value)));
+    zoom.append(icon, this.zoomInput);
+    this.toyBar.appendChild(zoom);
+
+    this.makeButton(this.toyBar, { emoji: '🧹', label: T.reset, onClick: () => this.fillToy() });
+    this.makeButton(this.toyBar, { emoji: '🎯', label: T.challenge, onClick: () => this.startChallenge() });
 
     this.gameBar = document.createElement('div');
     this.gameBar.className = 'game-toolbar hidden';
-    this.dropButton = add(this.gameBar, '▶️', T.drop, () => {
-      if (this.plinko?.phase === 'place') this.drop(this.plinko);
-    });
-    add(this.gameBar, '⏹', T.stop, () => this.exitToToy());
 
     this.hud = document.createElement('div');
     this.hud.className = 'challenge-hud hidden';
@@ -878,13 +676,9 @@ class BounceInstance implements GameInstance {
 
   // ---- delve layer ----
 
-  /** Single entry point for switch flips from the delve labs. */
   private setSwitch(name: SwitchName, value: boolean): void {
     this.switches[name] = value;
     this.applySwitches();
-    // The chapter-5 demo is an energy story about these switches: restart it
-    // so the books stay honest.
-    if (this.delve && this.delve.chapter === 4) this.demos.reset(4);
   }
 
   private openDelve(): void {
@@ -912,8 +706,13 @@ class BounceInstance implements GameInstance {
     this.delve = null;
     this.demos.clear();
     this.toggle.setOpen(false);
-    if (this.mode === 'toy') this.toyBar.classList.remove('hidden');
+    if (!this.challenge) this.toyBar.classList.remove('hidden');
   }
+}
+
+function smooth(a: number, b: number, x: number): number {
+  const t = clamp((x - a) / (b - a), 0, 1);
+  return t * t * (3 - 2 * t);
 }
 
 export const bounce: ArcadeGame = {

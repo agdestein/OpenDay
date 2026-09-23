@@ -14,10 +14,18 @@ export const PLINKO = {
   silverPoints: 3,
   /** Seconds to place bumpers before the balls drop by themselves. */
   placeTime: 25,
-  /** Twins fall alone this long before the pour starts. */
+  /** Twins fall alone at least this long before the pour starts. */
   twinTime: 2.6,
   /** Horizontal distance between the twins at the spout (px). */
   twinGap: 0.001,
+  /**
+   * Board physics, tuned in node: soft pegs and some air above the buckets
+   * give a clear bell curve (half the balls in the middle three buckets)
+   * while the board stays chaotic enough that twins usually land 2–3
+   * buckets apart. More air makes a sharper bell but twins that never part.
+   */
+  pegBounce: 0.5,
+  air: 3,
 };
 
 export interface PlinkoLayout {
@@ -55,7 +63,8 @@ export function plinkoLayout(box: Box, unit: number, goldOffset: number): Plinko
   const bx0 = cx - (n / 2) * S;
   const bx1 = cx + (n / 2) * S;
   const bucketTop = box.y1 - bh * 0.3;
-  const pegTop = box.y0 + bh * 0.17;
+  // Below the HUD strip at the top of the screen.
+  const pegTop = box.y0 + bh * 0.22;
   const rowGap = S * 0.87;
   const pegR = S * 0.1;
 
@@ -101,7 +110,7 @@ export function plinkoLayout(box: Box, unit: number, goldOffset: number): Plinko
     edges,
     bucketTop,
     countLine: (lastRow + bucketTop) / 2,
-    spout: { x: cx, y: box.y0 + bh * 0.08 },
+    spout: { x: cx, y: box.y0 + bh * 0.14 },
     ballR: Math.max(3, Math.min(S * 0.14, 6 * unit)),
     bumperR,
     bumperStarts,

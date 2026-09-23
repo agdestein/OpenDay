@@ -56,14 +56,28 @@ export interface Hand {
   active: boolean;
 }
 
+/**
+ * A heavy lid across the whole box that slides up and down only; the balls
+ * underneath hold it up by drumming on it (round 3's steam engine).
+ */
+export interface Piston {
+  y: number;
+  vy: number;
+  mass: number;
+  active: boolean;
+  /** Lowest the lid can sink (a stop above the floor). */
+  maxY: number;
+  /** Solver scratch. */
+  py: number;
+  uy: number;
+}
+
 /** Restitution at walls when motion is allowed to turn into heat. */
 export const WALL_RESTITUTION = 0.82;
 /** Restitution between balls when motion is allowed to turn into heat. */
 export const BALL_RESTITUTION = 0.9;
 /** Sliding speed kept per wall touch with friction on (the delve's 0.96). */
 export const WALL_FRICTION = 0.96;
-/** Coulomb coefficient between balls with friction on. */
-const BALL_FRICTION = 0.3;
 /** Per-second decay of rolling speed on the floor with friction on. */
 const ROLL_FRICTION = 1.6;
 const HAND_RESTITUTION = 0.3;
@@ -81,9 +95,17 @@ export class BallWorld {
   pegs: Circle[] = [];
   segments: Segment[] = [];
   hand: Hand = { x: 0, y: 0, vx: 0, vy: 0, r: 0, active: false };
+  piston: Piston = { y: 0, vy: 0, mass: 1, active: false, maxY: Infinity, py: 0, uy: 0 };
+  /** Momentum delivered to the right wall since the caller last reset it (pressure). */
+  rightWallImpulse = 0;
   collisions = true;
   friction = true;
   dissipate = true;
+  /** Restitution at walls and between balls when losses are on. */
+  wallRestitution = WALL_RESTITUTION;
+  ballRestitution = BALL_RESTITUTION;
+  /** Coulomb coefficient between balls (and against pegs/segments) with friction on. */
+  ballFriction = 0.3;
   /** Restitution of pegs and segments (Plinko wants soft pegs). */
   pegRestitution = WALL_RESTITUTION;
   /** Per-second damping of sideways speed above `dragLine` (Plinko's air). */
@@ -96,7 +118,7 @@ export class BallWorld {
   /** Strongest impact speed since the caller last reset it (for sound). */
   loudest = 0;
   loudestR = 0;
-  /** Ball-pair distance checks in the last step (the delve's cost counter). */
+  /** Ball-pair distance checks in one contact pass, averaged over the last step (the cost counter). */
   pairChecks = 0;
 
   /** Grid cell size: twice the largest ordinary radius. Bigger balls go brute force. */
@@ -132,6 +154,7 @@ export class BallWorld {
     const h = dt / n;
     this.pairChecks = 0;
     for (let s = 0; s < n; s++) this.substep(h);
+    this.pairChecks /= n * (PASSES + 1);
     this.guard();
   }
 
@@ -139,6 +162,14 @@ export class BallWorld {
     const g = this.gravity;
     const damp = this.cool > 0 ? Math.max(0, 1 - this.cool * 6 * h) : 1;
     const side = Math.max(0, 1 - this.sideDrag * h);
+    const pis = this.piston;
+    if (pis.active) {
+      pis.vy += g * h;
+      pis.py = pis.y;
+      pis.uy = pis.vy;
+      pis.y += pis.vy * h;
+      this.stopPiston();
+    }
     for (const b of this.balls) {
       b.vy += g * h;
       b.vx *= damp;
@@ -160,6 +191,7 @@ export class BallWorld {
       b.vx = (b.x - b.px) * inv;
       b.vy = (b.y - b.py) * inv;
     }
+    if (pis.active) pis.vy = (pis.y - pis.py) * inv;
     if (this.collisions) this.collidePairs(true);
     for (const b of this.balls) this.collideStatic(b, true, h);
   }
@@ -278,7 +310,7 @@ export class BallWorld {
     const vn = rvx * nx + rvy * ny;
     let want: number;
     if (before < 0) {
-      const e = this.dissipate ? (-before < this.restSpeed ? 0 : BALL_RESTITUTION) : 1;
+      const e = this.dissipate ? (-before < this.restSpeed ? 0 : this.ballRestitution) : 1;
       want = -e * before;
       this.noise(-before, Math.min(a.r, b.r));
     } else {
@@ -293,7 +325,7 @@ export class BallWorld {
       const tx = -ny;
       const ty = nx;
       const vt = rvx * tx + rvy * ty;
-      const cap = BALL_FRICTION * Math.abs(jn);
+      const cap = this.ballFriction * Math.abs(jn);
       const jt = Math.max(-cap, Math.min(cap, -vt / w));
       a.vx -= jt * tx * ia;
       a.vy -= jt * ty * ia;
@@ -353,15 +385,52 @@ export class BallWorld {
         }
       }
     }
+    if (this.piston.active) this.collidePiston(b, velocity);
     const { x0, y0, x1, y1 } = this.box;
     const r = b.r + (velocity ? SLOP : 0);
     if (b.x < x0 + r) this.wall(b, 1, 0, Math.max(0, x0 + b.r - b.x), velocity, false);
-    else if (b.x > x1 - r) this.wall(b, -1, 0, Math.max(0, b.x - (x1 - b.r)), velocity, false);
+    else if (b.x > x1 - r) {
+      const vx = b.vx;
+      this.wall(b, -1, 0, Math.max(0, b.x - (x1 - b.r)), velocity, false);
+      if (velocity) this.rightWallImpulse += b.m * Math.abs(b.vx - vx);
+    }
     if (b.y < y0 + r) this.wall(b, 0, 1, Math.max(0, y0 + b.r - b.y), velocity, false);
     else if (b.y > y1 - r) {
       this.wall(b, 0, -1, b.y - (y1 - b.r), velocity, true);
       if (velocity && this.friction) b.vx *= Math.max(0, 1 - ROLL_FRICTION * h);
     }
+  }
+
+  private collidePiston(b: Ball, velocity: boolean): void {
+    const pis = this.piston;
+    const top = b.y - b.r - (velocity ? SLOP : 0);
+    if (top >= pis.y) return;
+    const ib = 1 / b.m;
+    const ip = 1 / pis.mass;
+    const w = ib + ip;
+    if (!velocity) {
+      const pen = pis.y - (b.y - b.r);
+      b.y += (pen * ib) / w;
+      pis.y -= (pen * ip) / w;
+      this.stopPiston();
+      return;
+    }
+    // Normal points down, from the lid into the ball.
+    const before = b.uy - pis.uy;
+    const vn = b.vy - pis.vy;
+    const e = this.dissipate ? (-before < this.restSpeed ? 0 : this.ballRestitution) : 1;
+    const want = before < 0 ? -e * before : Math.min(vn, before);
+    const j = (want - vn) / w;
+    b.vy += j * ib;
+    pis.vy -= j * ip;
+    if (before < 0) this.noise(-before, b.r);
+  }
+
+  private stopPiston(): void {
+    const pis = this.piston;
+    const top = this.box.y0;
+    if (pis.y < top) pis.y = top;
+    if (pis.y > pis.maxY) pis.y = pis.maxY;
   }
 
   /** Contact with something immovable; n points from it towards the ball. */
@@ -372,7 +441,7 @@ export class BallWorld {
     pen: number,
     velocity: boolean,
     floor: boolean,
-    restitution = WALL_RESTITUTION,
+    restitution = this.wallRestitution,
   ): void {
     if (!velocity) {
       b.x += nx * pen;
@@ -416,7 +485,9 @@ export class BallWorld {
   /** Kiosk safety: no NaN and no runaway speed survives a step. */
   private guard(): void {
     const { x0, y0, x1, y1 } = this.box;
-    const vmax = 8 * Math.sqrt(this.gravity * (y1 - y0));
+    // Eight times the speed of a fall through the whole box (with a floor
+    // for gravity-free boxes, which would otherwise cap every speed at zero).
+    const vmax = 8 * Math.sqrt(Math.max(this.gravity, 1000) * (y1 - y0));
     for (const b of this.balls) {
       if (!Number.isFinite(b.x + b.y + b.vx + b.vy)) {
         b.x = (x0 + x1) / 2 + (Math.random() - 0.5) * 20;
