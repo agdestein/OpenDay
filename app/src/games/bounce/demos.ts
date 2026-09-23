@@ -2,7 +2,7 @@
 // canvas beside the shared chaptered panel. Most run the pit's own physics
 // (BallWorld) in a small box: a ball and its numbers; the pair checks with
 // and without the grid; a floor made of atoms that turns the bounce into heat
-// (floorsim.ts); a gas with thermometer and pressure gauge; chaos twins; and
+// (floorsim.ts) beside the pit's one-number shortcut for it; a gas with thermometer and pressure gauge; chaos twins; and
 // balls blurring into a fluid. Each demo lives in fixed coordinates, fitted
 // to the free part of the screen.
 import { fmtNumber, pick } from '../../lib/i18n';
@@ -23,6 +23,8 @@ interface Area {
 /** Chapter 1: a ball bouncing in a box, its numbers on show. */
 const NUMBERS = { w: 360, h: 250, r: 20, g: 500 };
 const GRID = { w: 480, h: 320, balls: 60, period: 4 };
+/** Chapter 3's shortcut panel: one ball on a plain floor, same drop as the atom floor. */
+const SHORTCUT = { w: 150, gap: 40, vx: 40 };
 const GAS = { w: 420, h: 300, balls: 50, r: 9, g: 300, period: 10 };
 const CHAOS = { w: 240, h: 240, balls: 24, r: 12, speed: 60, nudge: 0.001, period: 14 };
 const ZOOM = { w: 440, h: 320, balls: 130, period: 9, cell: 32 };
@@ -30,7 +32,7 @@ const ZOOM = { w: 440, h: 320, balls: 130, period: 9, cell: 32 };
 type Demo =
   | { kind: 'numbers'; x: number; y: number; vx: number; vy: number }
   | { kind: 'grid'; world: BallWorld; t: number }
-  | { kind: 'floor'; sim: FloorSim; e0: number }
+  | { kind: 'floor'; sim: FloorSim; e0: number; shortcut: BallWorld }
   | { kind: 'gas'; world: BallWorld; t: number; pressure: number }
   | { kind: 'chaos'; a: BallWorld; b: BallWorld; t: number }
   | { kind: 'zoom'; world: BallWorld; t: number };
@@ -39,8 +41,14 @@ export class BounceDemos {
   private demo: Demo | null = null;
   private field = new FieldView();
 
-  // Kept for a lab that acts on a demo; the chapter-3 lab acts on the pit.
-  constructor(readonly getSwitch: (name: SwitchName) => boolean) {}
+  /** The labs' switches act on the demos (chapters 2 and 3) as well as on the pit. */
+  constructor(private getSwitch: (name: SwitchName) => boolean) {}
+
+  /** Chapter index of the demo showing, or -1. */
+  get chapter(): number {
+    if (!this.demo) return -1;
+    return ['numbers', 'grid', 'floor', 'gas', 'chaos', 'zoom'].indexOf(this.demo.kind);
+  }
 
   clear(): void {
     this.demo = null;
@@ -51,7 +59,7 @@ export class BounceDemos {
     else if (chapter === 1) this.demo = { kind: 'grid', world: gridWorld(), t: 0 };
     else if (chapter === 2) {
       const sim = new FloorSim();
-      this.demo = { kind: 'floor', sim, e0: sim.ballEnergy() + sim.floorEnergy() };
+      this.demo = { kind: 'floor', sim, e0: sim.ballEnergy() + sim.floorEnergy(), shortcut: shortcutWorld() };
     } else if (chapter === 3) this.demo = { kind: 'gas', world: gasWorld(), t: 0, pressure: 0 };
     else if (chapter === 4) {
       const [a, b] = chaosTwins();
@@ -77,9 +85,13 @@ export class BounceDemos {
       }
     } else if (d.kind === 'grid') {
       d.t += dt;
+      d.world.collisions = this.getSwitch('collisions');
       d.world.step(dt);
     } else if (d.kind === 'floor') {
       d.sim.advance(Math.min(dt, 1 / 30));
+      d.shortcut.dissipate = this.getSwitch('dissipate');
+      d.shortcut.friction = this.getSwitch('friction');
+      d.shortcut.step(Math.min(dt, 1 / 30));
       if (d.sim.time > 14) this.reset(2);
     } else if (d.kind === 'gas') {
       d.t += dt;
@@ -172,6 +184,8 @@ export class BounceDemos {
     const world = d.world;
     const t = pick(DELVE_CAPTIONS);
     const gridMode = Math.floor(d.t / GRID.period) % 2 === 1;
+    // With collisions off nothing is checked, so no check lines or grid.
+    const checking = world.collisions;
     const { s, ox, oy } = fit({ ...area, y1: area.y1 - 40 }, { x0: -10, y0: -10, x1: w + 10, y1: h + 10 });
     const X = (x: number) => ox + s * x;
     const Y = (y: number) => oy + s * y;
@@ -181,7 +195,7 @@ export class BounceDemos {
     const cj = Math.floor(me.y / cell);
     const near = (b: Ball) => Math.abs(Math.floor(b.x / cell) - ci) <= 1 && Math.abs(Math.floor(b.y / cell) - cj) <= 1;
 
-    if (gridMode) {
+    if (checking && gridMode) {
       ctx.fillStyle = 'rgba(125, 211, 252, 0.15)';
       ctx.fillRect(X((ci - 1) * cell), Y((cj - 1) * cell), 3 * cell * s, 3 * cell * s);
       ctx.strokeStyle = 'rgba(238, 242, 255, 0.12)';
@@ -201,7 +215,7 @@ export class BounceDemos {
     ctx.lineWidth = 1.2;
     ctx.beginPath();
     for (const b of world.balls) {
-      if (b === me || (gridMode && !near(b))) continue;
+      if (!checking || b === me || (gridMode && !near(b))) continue;
       ctx.moveTo(X(me.x), Y(me.y));
       ctx.lineTo(X(b.x), Y(b.y));
     }
@@ -220,7 +234,11 @@ export class BounceDemos {
     ctx.fill();
 
     const n = world.balls.length;
-    const text = gridMode ? t.gridPairs(fmtNumber(Math.round(world.pairChecks))) : t.allPairs(fmtNumber((n * (n - 1)) / 2));
+    const text = !world.collisions
+      ? t.noCollisions
+      : gridMode
+        ? t.gridPairs(fmtNumber(Math.round(world.pairChecks)))
+        : t.allPairs(fmtNumber((n * (n - 1)) / 2));
     label(ctx, text, (area.x0 + area.x1) / 2, area.y1 - 10, 20, gridMode ? '#7dd3fc' : '#fbbf24');
   }
 
@@ -229,7 +247,11 @@ export class BounceDemos {
   private drawFloor(ctx: CanvasRenderingContext2D, area: Area, d: Extract<Demo, { kind: 'floor' }>): void {
     const sim = d.sim;
     const plotH = 120;
-    const { s, ox, oy } = fit({ ...area, y1: area.y1 - plotH }, { x0: 0, y0: 20, x1: FLOOR.width, y1: FLOOR.top + FLOOR.rows * FLOOR.spacing + 10 });
+    const floorBottom = FLOOR.top + FLOOR.rows * FLOOR.spacing;
+    const { s, ox, oy } = fit(
+      { ...area, y1: area.y1 - plotH },
+      { x0: 0, y0: 20, x1: FLOOR.width + SHORTCUT.gap + SHORTCUT.w, y1: floorBottom + 40 },
+    );
     const X = (x: number) => ox + s * x;
     const Y = (y: number) => oy + s * y;
     const { cols, rows } = FLOOR;
@@ -263,7 +285,36 @@ export class BounceDemos {
     ctx.fillStyle = 'hsl(210, 80%, 65%)';
     ctx.fill();
 
+    // Beside it, the pit's shortcut: the same ball on a plain floor that keeps
+    // 82 % of the speed per bounce (or all of it, with the loss switched off).
     const t = pick(DELVE_CAPTIONS);
+    const sx = FLOOR.width + SHORTCUT.gap;
+    const sb = d.shortcut.box;
+    ctx.strokeStyle = 'rgba(238, 242, 255, 0.3)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(X(sx), Y(20));
+    ctx.lineTo(X(sx), Y(sb.y1));
+    ctx.moveTo(X(sx + sb.x1), Y(20));
+    ctx.lineTo(X(sx + sb.x1), Y(sb.y1));
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(238, 242, 255, 0.6)';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(X(sx), Y(sb.y1));
+    ctx.lineTo(X(sx + sb.x1), Y(sb.y1));
+    ctx.stroke();
+    for (const b of d.shortcut.balls) {
+      ctx.beginPath();
+      ctx.arc(X(sx + b.x), Y(b.y), b.r * s, 0, Math.PI * 2);
+      ctx.fillStyle = 'hsl(210, 80%, 65%)';
+      ctx.fill();
+    }
+    const cap = Math.max(12, 16 * s);
+    label(ctx, t.atoms, X(FLOOR.width / 2), Y(floorBottom + 30), cap, 'rgba(238, 242, 255, 0.8)');
+    const factor = d.shortcut.dissipate ? fmtNumber(0.82) : fmtNumber(1);
+    label(ctx, t.shortcut(factor), X(sx + sb.x1 / 2), Y(floorBottom + 30), cap, d.shortcut.dissipate ? 'rgba(238, 242, 255, 0.8)' : '#fbbf24');
+
     energyBars(ctx, area, plotH, [
       { label: t.barBall, color: '#7dd3fc', frac: sim.ballEnergy() / d.e0 },
       { label: t.barFloor, color: '#f87171', frac: sim.floorEnergy() / d.e0 },
@@ -409,6 +460,14 @@ function billiards(w: number, h: number, count: number, rMin: number, rMax: numb
 
 function gridWorld(): BallWorld {
   return billiards(GRID.w, GRID.h, GRID.balls, 8, 12, 150);
+}
+
+function shortcutWorld(): BallWorld {
+  // Its floor sits where the atom floor's ball comes to rest on the top row.
+  const floor = FLOOR.top - FLOOR.atomR;
+  const world = new BallWorld({ x0: 0, y0: -200, x1: SHORTCUT.w, y1: floor }, FLOOR.gravity, FLOOR.ballR, 0);
+  world.add({ x: FLOOR.ballR + 4, y: 40, vx: SHORTCUT.vx, vy: 0, r: FLOOR.ballR, hue: 210 });
+  return world;
 }
 
 function gasWorld(): BallWorld {

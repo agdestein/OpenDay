@@ -8,18 +8,21 @@
 export const FLOOR = {
   width: 400,
   cols: 25,
-  rows: 3,
+  rows: 4,
   spacing: 16,
   /** y of the top row of atoms. */
   top: 250,
   atomR: 6,
   /** Spring to the atom's own place, and to each neighbour. */
   tether: 20000,
-  bond: 30000,
+  bond: 40000,
   contact: 60000,
   ballR: 22,
-  /** In atom masses. Tuned in node so each bounce loses roughly a tenth. */
-  ballMass: 12,
+  /**
+   * In atom masses. Tuned in node so the bounces match the pit's shortcut
+   * (restitution 0.82): peaks 144, 102, 84, 66 px against 149, 108, 81, 63.
+   */
+  ballMass: 6,
   gravity: 900,
   dt: 1 / 6000,
 };

@@ -679,6 +679,8 @@ class BounceInstance implements GameInstance {
   private setSwitch(name: SwitchName, value: boolean): void {
     this.switches[name] = value;
     this.applySwitches();
+    // Chapter 3 compares the atom floor with the shortcut: restart both together.
+    if (this.demos.chapter === 2) this.demos.reset(2);
   }
 
   private openDelve(): void {

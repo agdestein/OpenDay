@@ -42,9 +42,14 @@ goals, **B** adds depth, **C** can wait.
   the board steps in fixed 1/60 s ticks so the copy and the real run agree (it is
   chaotic, so a different frame rate sent them elsewhere). The pour waits until the
   twins have landed.
-- **Controls.** Heat and Cool are hold buttons (a tap gives a short burst). The three
-  model switches live in one lab in delve chapter 3, next to the closure-model text.
-  The zoom-out is a slider in the toolbar; the pair counter sits under the ball count.
+- **Controls.** Heat and Cool are hold buttons (a tap gives a short burst). The model
+  switches live in the delve, and each acts on the demo beside it as well as on the
+  pit: collisions in chapter 2 (the balls pass through each other, zero checks), bounce
+  loss and friction in chapter 3. Chapter 3 shows the pit's shortcut next to the atom
+  floor it replaces: the floor was tuned in node so both bounce alike (peaks 144, 102,
+  84, 66 px against 149, 108, 81, 63), and with the loss off the shortcut ball bounces
+  forever. The zoom-out is a slider in the toolbar; the pair counter sits under the
+  ball count.
 - **Group claim.** Delve chapter 6 says finding better closure models, "lately also
   with machine learning, is part of our group's research". *(Agree the wording.)*
 - Measured (node, 1280×720 pit): mean overlap 0.5 %, resting pile at zero speed, the

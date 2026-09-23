@@ -5,7 +5,8 @@
 // most; lost bounce is heat, and our 0.82 stands in for the floor's atoms
 // (a closure); crowds have laws of their own; tiny differences grow; and there
 // are far too many balls to count, so we compute the crowd — which is what the
-// fluid games do. Chapter 3's lab switches the model in the ball pit itself.
+// fluid games do. The labs in chapters 2 and 3 switch the model, both in the
+// demo beside them and in the ball pit itself.
 import type { DelveChapter } from '../../shell/delve';
 import { pick, type Localized } from '../../lib/i18n';
 
@@ -38,7 +39,7 @@ const CHAPTERS: Localized<ChapterText[]> = {
       paragraphs: [
         'Moving a ball is two sums. The hard part is finding out who touches whom. The simple way is to check every pair of balls. Four hundred balls make 79 800 pairs, and the pit must check them 240 times a second.',
         'Double the balls and the pairs grow four times. The trick: sort the balls into a grid of squares and only check balls in neighbouring squares. Now twice the balls is only twice the work. On the right the white ball checks every other ball, then only its neighbours.',
-        'Doing the same sum smarter, so that it fits in a computer at all, is half of scientific computing.',
+        'Doing the same sum smarter, so that it fits in a computer at all, is half of scientific computing. Switch 🎱 collisions off below: no checks at all, and the balls sail through each other like ghosts.',
       ],
       formula: 'every pair:  N × (N − 1) ÷ 2 checks\nwith a grid:  about 10 × N',
     },
@@ -46,8 +47,8 @@ const CHAPTERS: Localized<ChapterText[]> = {
       title: 'Where does the bounce go?',
       paragraphs: [
         'A dropped ball never bounces back quite as high. The motion is not lost: the floor is made of atoms, held together like balls on springs. Every landing sets them shaking, and shaking atoms are what heat is.',
-        'On the right the floor is drawn atom by atom. The bars keep the books: the ball’s energy flows into the floor’s jiggle, and the total stays the same. Nature’s accounts always balance.',
-        'The pit cannot afford to simulate the floor’s atoms. It takes a shortcut: every bounce keeps 82 % of the speed. A rule that stands in for everything too small to simulate is called a closure model. Switch the losses off below and the pit never comes to rest.',
+        'On the left the floor is drawn atom by atom. The bars keep the books: the ball’s energy flows into the floor’s jiggle, and the total stays the same. Nature’s accounts always balance.',
+        'The pit cannot afford to simulate the floor’s atoms. It takes a shortcut: every bounce keeps 82 % of the speed, like the ball on the right, and it bounces much like the real one. A rule that stands in for everything too small to simulate is called a closure model. Switch the bounce loss off below: that ball bounces forever, and so does the pit.',
       ],
       formula: 'bounce speed ← 0.82 × landing speed\n(the floor’s atoms, in one number)',
     },
@@ -94,7 +95,7 @@ const CHAPTERS: Localized<ChapterText[]> = {
       paragraphs: [
         'Een bal verplaatsen is twee sommetjes. Het moeilijke is uitzoeken wie wie raakt. De simpele manier is elk paar ballen controleren. Vierhonderd ballen geven 79 800 paren, en die moet de bak 240 keer per seconde controleren.',
         'Verdubbel de ballen en de paren worden vier keer zoveel. De truc: sorteer de ballen in een rooster van vakjes en controleer alleen ballen in buurvakjes. Nu is twee keer zoveel ballen maar twee keer zoveel werk. Rechts controleert de witte bal eerst alle andere ballen, daarna alleen zijn buren.',
-        'Dezelfde som slimmer uitrekenen, zodat hij überhaupt in een computer past, is de helft van rekenwetenschap.',
+        'Dezelfde som slimmer uitrekenen, zodat hij überhaupt in een computer past, is de helft van rekenwetenschap. Zet hieronder 🎱 botsingen uit: geen controles meer, en de ballen varen als geesten door elkaar heen.',
       ],
       formula: 'elk paar:  N × (N − 1) ÷ 2 controles\nmet een rooster:  ongeveer 10 × N',
     },
@@ -102,8 +103,8 @@ const CHAPTERS: Localized<ChapterText[]> = {
       title: 'Waar blijft de stuiter?',
       paragraphs: [
         'Een bal die je laat vallen, stuitert nooit helemaal even hoog terug. De beweging is niet weg: de vloer bestaat uit atomen, aan elkaar vast als balletjes aan veertjes. Elke landing zet ze aan het trillen, en trillende atomen, dat is warmte.',
-        'Rechts is de vloer atoom voor atoom getekend. De balken houden de boekhouding bij: de energie van de bal stroomt naar het trillen van de vloer, en het totaal blijft gelijk. De boekhouding van de natuur klopt altijd.',
-        'De bak kan het niet betalen om de atomen van de vloer te simuleren. Hij neemt een kortere weg: elke stuiter houdt 82 % van de snelheid over. Een regel die in de plaats komt van alles wat te klein is om te simuleren, heet een sluitingsmodel. Zet hieronder de verliezen uit en de bak komt nooit meer tot rust.',
+        'Links is de vloer atoom voor atoom getekend. De balken houden de boekhouding bij: de energie van de bal stroomt naar het trillen van de vloer, en het totaal blijft gelijk. De boekhouding van de natuur klopt altijd.',
+        'De bak kan het niet betalen om de atomen van de vloer te simuleren. Hij neemt een kortere weg: elke stuiter houdt 82 % van de snelheid over, zoals de bal rechts, en die stuitert bijna net als de echte. Een regel die in de plaats komt van alles wat te klein is om te simuleren, heet een sluitingsmodel. Zet hieronder het stuiterverlies uit: die bal stuitert eeuwig door, en de bak ook.',
       ],
       formula: 'stuitersnelheid ← 0,82 × landingssnelheid\n(de atomen van de vloer, in één getal)',
     },
@@ -150,7 +151,7 @@ const CHAPTERS: Localized<ChapterText[]> = {
       paragraphs: [
         'Å flytte en ball er to regnestykker. Det vanskelige er å finne ut hvem som treffer hvem. Den enkle måten er å sjekke hvert par av baller. Fire hundre baller gir 79 800 par, og binga må sjekke dem 240 ganger i sekundet.',
         'Doble ballene, og parene blir fire ganger så mange. Trikset: sorter ballene i et rutenett og sjekk bare baller i naboruter. Nå er dobbelt så mange baller bare dobbelt så mye arbeid. Til høyre sjekker den hvite ballen først alle andre baller, så bare naboene sine.',
-        'Å regne ut det samme smartere, så det i det hele tatt får plass i en datamaskin, er halve beregningsvitenskapen.',
+        'Å regne ut det samme smartere, så det i det hele tatt får plass i en datamaskin, er halve beregningsvitenskapen. Slå av 🎱 kollisjoner her under: ingen sjekker i det hele tatt, og ballene seiler gjennom hverandre som gjenferd.',
       ],
       formula: 'hvert par:  N × (N − 1) ÷ 2 sjekker\nmed rutenett:  omtrent 10 × N',
     },
@@ -158,8 +159,8 @@ const CHAPTERS: Localized<ChapterText[]> = {
       title: 'Hvor blir det av spretten?',
       paragraphs: [
         'En ball du slipper, spretter aldri helt like høyt tilbake. Bevegelsen er ikke borte: gulvet er laget av atomer, holdt sammen som kuler på fjærer. Hver landing får dem til å riste, og ristende atomer, det er varme.',
-        'Til høyre er gulvet tegnet atom for atom. Søylene fører regnskapet: ballens energi strømmer over i gulvets risting, og summen holder seg lik. Naturens regnskap går alltid opp.',
-        'Binga har ikke råd til å simulere gulvets atomer. Den tar en snarvei: hvert sprett beholder 82 % av farten. En regel som står i stedet for alt som er for lite til å simulere, kalles en lukningsmodell. Slå av tapene her under, og binga kommer aldri til ro.',
+        'Til venstre er gulvet tegnet atom for atom. Søylene fører regnskapet: ballens energi strømmer over i gulvets risting, og summen holder seg lik. Naturens regnskap går alltid opp.',
+        'Binga har ikke råd til å simulere gulvets atomer. Den tar en snarvei: hvert sprett beholder 82 % av farten, som ballen til høyre, og den spretter nesten som den ekte. En regel som står i stedet for alt som er for lite til å simulere, kalles en lukningsmodell. Slå av sprett-tapet her under: den ballen spretter for alltid, og binga også.',
       ],
       formula: 'sprettfart ← 0,82 × landingsfart\n(gulvets atomer, i ett tall)',
     },
@@ -210,7 +211,7 @@ const LAB: Localized<{
     collisions: '🎱 Ball collisions',
     friction: '🧤 Friction',
     dissipate: '🔥 Bounce loss (0.82)',
-    note: 'These change the ball pit you return to.',
+    note: 'This changes the demo on the right and the ball pit you return to.',
   },
   nl: {
     title: '🧪 Probeer het in de bak',
@@ -219,7 +220,7 @@ const LAB: Localized<{
     collisions: '🎱 Botsingen',
     friction: '🧤 Wrijving',
     dissipate: '🔥 Stuiterverlies (0,82)',
-    note: 'Dit verandert de ballenbak waar je naar terugkeert.',
+    note: 'Dit verandert de demo rechts en de ballenbak waar je naar terugkeert.',
   },
   no: {
     title: '🧪 Prøv det i binga',
@@ -228,7 +229,7 @@ const LAB: Localized<{
     collisions: '🎱 Kollisjoner',
     friction: '🧤 Friksjon',
     dissipate: '🔥 Sprett-tap (0,82)',
-    note: 'Dette endrer ballbinga du kommer tilbake til.',
+    note: 'Dette endrer demoen til høyre og ballbinga du kommer tilbake til.',
   },
 };
 
@@ -236,6 +237,9 @@ const LAB: Localized<{
 export const DELVE_CAPTIONS: Localized<{
   allPairs: (n: string) => string;
   gridPairs: (n: string) => string;
+  noCollisions: string;
+  atoms: string;
+  shortcut: (e: string) => string;
   barBall: string;
   barFloor: string;
   barTotal: string;
@@ -248,6 +252,9 @@ export const DELVE_CAPTIONS: Localized<{
   en: {
     allPairs: (n) => `every pair: ${n} checks`,
     gridPairs: (n) => `grid: ${n} checks`,
+    noCollisions: 'collisions off: 0 checks',
+    atoms: 'real floor: atoms on springs',
+    shortcut: (e) => `the pit’s shortcut: × ${e}`,
     barBall: '⚽ ball',
     barFloor: '🔥 floor jiggle',
     barTotal: 'total — never changes!',
@@ -260,6 +267,9 @@ export const DELVE_CAPTIONS: Localized<{
   nl: {
     allPairs: (n) => `elk paar: ${n} controles`,
     gridPairs: (n) => `rooster: ${n} controles`,
+    noCollisions: 'botsingen uit: 0 controles',
+    atoms: 'echte vloer: atomen aan veertjes',
+    shortcut: (e) => `kortere weg van de bak: × ${e}`,
     barBall: '⚽ bal',
     barFloor: '🔥 trillende vloer',
     barTotal: 'totaal — verandert nooit!',
@@ -272,6 +282,9 @@ export const DELVE_CAPTIONS: Localized<{
   no: {
     allPairs: (n) => `hvert par: ${n} sjekker`,
     gridPairs: (n) => `rutenett: ${n} sjekker`,
+    noCollisions: 'kollisjoner av: 0 sjekker',
+    atoms: 'ekte gulv: atomer på fjærer',
+    shortcut: (e) => `bingas snarvei: × ${e}`,
     barBall: '⚽ ball',
     barFloor: '🔥 gulvristing',
     barTotal: 'totalt — endres aldri!',
@@ -283,8 +296,8 @@ export const DELVE_CAPTIONS: Localized<{
   },
 };
 
-/** Chapter 3 (index 2) carries the switch lab. */
-const LAB_CHAPTER = 2;
+/** Which switches each chapter's lab carries (chapter 2: collisions; chapter 3: the losses). */
+const LABS: Partial<Record<number, SwitchName[]>> = { 1: ['collisions'], 2: ['dissipate', 'friction'] };
 
 export function bounceDelve(api: BounceDelveApi): DelveChapter[] {
   const chapters = pick(CHAPTERS);
@@ -294,7 +307,7 @@ export function bounceDelve(api: BounceDelveApi): DelveChapter[] {
     paragraphs: chapter.paragraphs,
     formula: chapter.formula,
     extras:
-      i === LAB_CHAPTER
+      LABS[i]
         ? (host: HTMLElement) => {
             const labEl = document.createElement('div');
             labEl.className = 'delve-lab';
@@ -302,7 +315,7 @@ export function bounceDelve(api: BounceDelveApi): DelveChapter[] {
             title.className = 'delve-lab-title';
             title.textContent = lab.title;
             labEl.appendChild(title);
-            for (const name of ['collisions', 'friction', 'dissipate'] as SwitchName[]) {
+            for (const name of LABS[i]!) {
               const row = document.createElement('button');
               row.className = 'arcade-button';
               row.style.cssText = 'display:block;width:100%;margin-top:0.45rem;';
