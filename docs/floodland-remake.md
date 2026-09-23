@@ -4,7 +4,7 @@ A live shallow-water diorama of a Dutch polder behind an old coastal dike. The
 storm happens while you build: water piles up against sand the moment it lands,
 overtopped dikes wear away and breach, and a breach can be plugged if you are
 quick. [floodland-proposal.md](floodland-proposal.md) explains why the game was
-rebuilt this way (phases A and B of that proposal are what is described here).
+rebuilt this way (phases A, B and C of that proposal are what is described here).
 
 ## Free play
 
@@ -21,10 +21,10 @@ The game opens live, with a gentle swell on the sea.
   height where it is dry) and a flow arrow. It works in every round.
 - **🧹 Start over** restores the landscape.
 
-## Challenge: three rounds
+## Challenge: four rounds
 
 Each round opens with a card: one sentence for the player and a 🔬 science line for
-parents. The three scores add up on the shared daily scoreboard. Storm rounds can
+parents. The four scores add up on the shared daily scoreboard. Storm rounds can
 be watched again (recorded at 15 fps, terrain included, ~28 MB) before moving on.
 
 ### Round 1: Hold the line *(water finds the lowest spot)*
@@ -84,6 +84,44 @@ Every dike has the same slopes (`dikeProfile`), which makes that exact: curves
 measured at 2.5 and 3.25 m agree. Scores: 0 at 1.5 m, 772 at 2.75 m (best),
 624 at 4 m.
 
+### Round 4: Close the gate *(decide on a forecast; the Maeslantkering)*
+
+A harbour channel (six cells wide) runs through the dike to a basin behind stone
+quays 0.8 m high; the village lies behind the south quay. A gate in the dike
+takes 3 s to swing shut or open. Ships sail in from the sea and out from the basin,
+one every 2.2 s, and score 10 points each as they pass the gate; a shut (or
+shutting) gate makes them queue. Three storm threats of 0.5, 1.6 and 2.6 m
+(shuffled) peak at 16, 34 and 52 s (5 s up, 5 s high, 5 s down); the round lasts
+62 s. Score = dry homes × 100 + ships × 10.
+
+A panel shows the forecast: the sea so far and 20 forecast members for the next
+20 s, red where they rise over the quay, with "11 of 20 forecasts: water over the
+quay!". Each member is off by its own amount, which shrinks with lead time
+(0.1 + 0.07 × seconds ahead, in metres of peak height, plus a small timing error),
+so the fan narrows as a storm comes. Deciding early risks a false alarm (ships
+wait for nothing); waiting risks closing too late.
+
+Tested: an open gate floods all 8 homes; closing for the two real threats keeps
+all dry; closing only for the big one, or closing 2 s before its peak, floods one.
+Keeping the gate shut for 15 s costs about 7 ships (70 points), less than one home.
+
+## Place names
+
+The map is a stylised piece of Zeeland: "Noordzee / North Sea / Nordsjøen" on the
+sea, "Zeeland" on the polder and "Haven / Harbour" on round 4's harbour, painted
+on the ground in perspective. The village and homes stay nameless: no real 1953
+village is shown flooding.
+
+## Sound
+
+`app/src/lib/sound.ts` synthesizes all sounds with WebAudio (no files; works
+offline) and throttles each so held buttons cannot turn it into a buzz. This game
+plays sand thuds, splashes, a breach alarm, a sound when a home floods, a countdown
+tick, the gate, ship horns, a ding per finished fragility storm and a sound per
+flooded year in the century. The shared score flow plays a fanfare and a cheer, and
+every game's `.tool-button` / `.arcade-button` clicks. The menu has the only mute
+button (games have no free corner); it is remembered on the machine.
+
 ## Explainer
 
 The shared 🔬 panel, in free play only, with the landscape (or a picture) beside it:
@@ -98,7 +136,9 @@ The shared 🔬 panel, in free play only, with the landscape (or a picture) besi
 5. **A thousand storms** — how often each storm height comes (bars; red where it
    floods homes) and the fragility curve, with a dike-height slider and "fails
    about once every N years".
-6. **This really happened** — 1953, van Dantzig, the group's Deltares project,
+6. **Forecasts get sharper** — a storm on a loop, its 20 forecasts closing in as
+   it nears; the Maeslantkering decides by itself on a 3 m forecast.
+7. **This really happened** — 1953, van Dantzig, the group's Deltares project,
    and what the game leaves out.
 
 History sources: van Dantzig was one of the founders of the Mathematisch Centrum;
@@ -109,6 +149,11 @@ cost-benefit analysis of flood protection
 ([Wikipedia](https://en.wikipedia.org/wiki/David_van_Dantzig)). His optimum for
 Central Holland was about 1 in 125 000 per year; the Delta Committee set the
 standard at 1 in 10 000, so the game does not claim the 10 000 came from him.
+The Maeslantkering closes automatically when the forecast (the BOS computer
+system) says the water will rise above 3 m NAP at Rotterdam (2.9 m at Dordrecht);
+it first closed for a real storm on 8–9 November 2007
+([Wikipedia](https://en.wikipedia.org/wiki/Maeslantkering),
+[Rijkswaterstaat](https://www.rijkswaterstaat.nl/en/projects/iconic-structures/maeslant-barrier)).
 The arcade's general explainer (`shell/about.ts`) says the Mathematisch Centrum
 "helped compute the storm surges behind the Delta Works"; that is not confirmed
 by these sources.
@@ -164,8 +209,10 @@ and layers), the calm swell (no overtopping, no erosion, pump regulation,
 boundary accounting), the round 1 plays above, the spill level, the recording
 (bounds, terrain, seeking), splashes, the pump, the sand brush (frame-rate
 independence, cap, budget, protected pond), round 2 (varied weak spots, what
-test storms reveal, right versus wrong reinforcement, budget) and round 3
-(fragility monotone and exactly shifting, U-shaped score, repeatable century).
+test storms reveal, right versus wrong reinforcement, budget), round 3
+(fragility monotone and exactly shifting, U-shaped score, repeatable century) and
+round 4 (open, well-timed, partial and late gates; forecasts narrowing onto the
+real storm).
 
 Hardware frame rate on the stand machines and child playtests remain to be done.
 

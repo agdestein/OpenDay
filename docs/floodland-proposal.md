@@ -1,14 +1,18 @@
 # Save the Netherlands: assessment and proposal
 
 An assessment of the game as it was on 23 September 2026 against
-[message.md](message.md), and a proposal for the next version. **Phases A and B are
-built** (see [floodland-remake.md](floodland-remake.md) for the game as it is now).
+[message.md](message.md), and a proposal for the next version. **Phases A, B and C
+are built** (see [floodland-remake.md](floodland-remake.md) for the game as it is now).
 Where the build differs from this plan: round 1 has a second weak spot (a road over
 the dike) and counts homes behind an open breach as lost; in round 2 building stops
 when the real storm comes, and the real storm is a fixed big one; round 3 chooses one
 height with buttons rather than painting sand, and scores the average damage rather
 than the luck of the one century shown; and the van Dantzig line below overstated the
-history (see the correction under Science lines). C is still plan. The event is on 3 October 2026, so the proposal is phased: **A** is what makes the
+history (see the correction under Science lines). In C the barrier became round 4
+(ships instead of an abstract shipping cost), place names stay geographic (sea,
+region, harbour) rather than naming a real village that floods, and sound reaches the
+other games through the shared score flow and button clicks, with the mute button on
+the menu only. The event is on 3 October 2026, so the proposal is phased: **A** is what makes the
 game meet the goals, **B** adds depth for kids who stay and the talking points for
 parents, **C** can wait until after the event.
 

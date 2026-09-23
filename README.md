@@ -84,6 +84,8 @@ Useful at the stand:
 - Outbreak!'s free play has nobody dying by default; add `?deaths` to use the
   full model there too (the challenge always has it). See
   [the remake notes](docs/outbreak-remake.md).
+- Sound: the 🔊 button on the menu mutes the whole arcade (remembered on that
+  machine); `?sound=off` starts a machine muted. All sounds are synthesized, no files.
 - Press `F` (or the corner button) for fullscreen; `Esc` returns to the menu.
 - Add `?idle` to reset a game back to the menu after 90 seconds without input
   (`?idle=120` for a different number of seconds). Off by default, so nobody
@@ -113,9 +115,9 @@ videos, and Keiwan Donyagard's [Evolution](https://keiwan.itch.io/evolution).
 Save the Netherlands (`app/src/games/floodland/`) runs a finite-volume shallow-water model
 (hydrostatic reconstruction, Rusanov fluxes, wetting and drying) live every frame, with
 erosion so overtopped dikes breach. Free play has sand, splashes, a storm button and an
-X-ray lens; the challenge has three rounds (hold the line, find the weak spots with test
-storms, choose a dike height against a century of random storms, after van Dantzig's
-1956 analysis). See [the notes](docs/floodland-remake.md).
+X-ray lens; the challenge has four rounds (hold the line, find the weak spots with test
+storms, choose a dike height against a century of random storms after van Dantzig's
+1956 analysis, and close a storm-surge gate on an ensemble forecast). See [the notes](docs/floodland-remake.md).
 
 Weather Detective (`app/src/games/detective/`) grew out of our group's project with
 [KNMI](https://www.knmi.nl/) on multi-fidelity Gaussian process regression of
