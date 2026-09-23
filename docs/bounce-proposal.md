@@ -1,10 +1,40 @@
 # Bouncy Balls: assessment and proposal
 
 An assessment of Bouncy Balls as it was on 23 September 2026 against
-[message.md](message.md), and a proposal for what it should become. Nothing here is
-built yet. The event is on 3 October 2026, so the proposal is phased like the
+[message.md](message.md), and a proposal for what it should become. The event is on
+3 October 2026, so the proposal is phased like the
 [Save the Netherlands proposal](floodland-proposal.md): **A** makes the game meet the
 goals, **B** adds depth, **C** can wait.
+
+**Phase A is built** (the game is now Ball Pit; its id stays `bounce`, so `?games=`
+and today's scores keep working). Where the build differs from this plan:
+
+- **No Brazil nut.** The golden ball does not rise when the pit is shaken, with the
+  hot plate or with whole-pit taps (tried both in node: after 30 s of shaking it still
+  sits in the lower half). The effect needs spinning, rolling balls and wall friction
+  that drives convection; this model has no spin. The big ball stays as a heavy
+  wrecking ball, and nothing in the game claims it rises. Drop the Brazil-nut fallback
+  for round 2 as well, unless the model gets rotation.
+- **History line.** "The first computer simulations of molecules (1957)" overstated it:
+  Metropolis et al. (1953) had already simulated hard disks by Monte Carlo, and Alder
+  and Wainwright's 1957 work was the first *molecular dynamics*. The game says "some of
+  the very first computer simulations of molecules, in the 1950s, were balls just like
+  these", which both support.
+- **Plinko needs air.** With pegs alone the balls skate sideways and the buckets fill
+  almost evenly (no bell curve). Soft pegs (restitution 0.3) plus sideways drag in the
+  board give a clean bell. The gold bucket sits 3 buckets off-centre, left or right at
+  random; doing nothing scores about 170–290 depending on the screen, and a first try
+  with four bumpers scored 439.
+- **Twins.** From a 0.01 px gap, twins land in different buckets only about 3 times
+  in 4. The game quietly tries up to eight twin pairs on a copy of the board and shows
+  one that parts ways; every pair shown really starts 0.01 px apart.
+- **Controls.** Heat and Cool are hold buttons (a tap gives a short burst). The
+  three model switches live in labs in delve chapters 3–5, next to the text about
+  them. The count at the top reads "N balls, each moved 240 times per second" (four
+  substeps per frame).
+- Measured after the rebuild (node, 1280×720 pit): mean overlap 0.5 %, resting pile
+  at zero speed, the neighbour grid checks ~3 000 of 17 000 pairs, Plinko physics
+  ~1.3 ms per frame with 300 balls. `npm run test:bounce` covers these.
 
 ## Assessment
 
@@ -224,6 +254,8 @@ delve chapter 6 straight into Swirl Lab.
 the first 30 seconds.
 
 ## Smaller issues noticed
+
+All fixed in phase A.
 
 - In the delve, the "✕ Close the science" button covers the top of chapter 1's state
   table (`x = …`).
