@@ -97,6 +97,11 @@ export class BallWorld {
   segments: Segment[] = [];
   hand: Hand = { x: 0, y: 0, vx: 0, vy: 0, r: 0, active: false };
   piston: Piston = { y: 0, vy: 0, mass: 1, active: false, minY: -Infinity, maxY: Infinity, py: 0, uy: 0 };
+  /**
+   * The world's dice (hot-plate kicks, splitting stacked balls). Twin worlds
+   * share a seed so they only drift apart through their own chaos.
+   */
+  rng: () => number = Math.random;
   /** Momentum delivered to the right wall since the caller last reset it (pressure). */
   rightWallImpulse = 0;
   collisions = true;
@@ -286,7 +291,7 @@ export class BallWorld {
     let d = Math.sqrt(d2);
     if (d < 1e-9) {
       // Exactly on top of each other (a fresh pour): split sideways.
-      dx = Math.random() - 0.5;
+      dx = this.rng() - 0.5;
       dy = 0;
       d = Math.abs(dx) || 0.5;
     }
@@ -471,8 +476,8 @@ export class BallWorld {
     if (floor && this.heat > 0) {
       // Hot plate: every ball touching the floor is kicked up at random.
       const k = this.heat * this.kick;
-      b.vy = Math.min(b.vy, -k * (0.4 + 0.9 * Math.random()));
-      b.vx += (Math.random() - 0.5) * 0.5 * k;
+      b.vy = Math.min(b.vy, -k * (0.4 + 0.9 * this.rng()));
+      b.vx += (this.rng() - 0.5) * 0.5 * k;
     }
   }
 
@@ -491,7 +496,7 @@ export class BallWorld {
     const vmax = 8 * Math.sqrt(Math.max(this.gravity, 1000) * (y1 - y0));
     for (const b of this.balls) {
       if (!Number.isFinite(b.x + b.y + b.vx + b.vy)) {
-        b.x = (x0 + x1) / 2 + (Math.random() - 0.5) * 20;
+        b.x = (x0 + x1) / 2 + (this.rng() - 0.5) * 20;
         b.y = y0 + b.r + 1;
         b.vx = 0;
         b.vy = 0;
@@ -505,4 +510,16 @@ export class BallWorld {
       }
     }
   }
+}
+
+/** A small seeded random generator (mulberry32), for worlds that must repeat exactly. */
+export function seededRandom(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }

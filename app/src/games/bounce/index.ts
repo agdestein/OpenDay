@@ -2,8 +2,9 @@
 // Toy: a pit of balls that opens half full; the mouse is a hand that shoves
 // them, holding the button pours more, the hot plate boils the pile into a
 // gas and the cold button settles it again, a heavy golden ball crashes in,
-// and the zoom slider blurs the balls into the smooth field a fluid
-// simulation would compute. (The golden ball does not rise when shaken, the
+// the zoom slider turns the balls into the squares a fluid simulation would
+// keep, and Twins splits the pit into two identical pits, one ball nudged a
+// thousandth of a pixel, that the player stirs at once until they part. (The golden ball does not rise when shaken, the
 // Brazil-nut effect: that needs spinning, rolling balls, which this model
 // leaves out.) Challenge: three rounds — Plinko (luck and crowds), Silo
 // (random jams) and Steam engine (temperature and pressure) — summed onto
@@ -17,10 +18,10 @@ import { sound } from '../../lib/sound';
 import { fmtNumber, pick, type Localized } from '../../lib/i18n';
 import { bounceDelve, type SwitchName } from './delve';
 import { BounceDemos } from './demos';
-import { BallWorld, type Ball, type Box } from './physics';
+import { BallWorld, seededRandom, type Ball, type Box } from './physics';
 import { drawBalls, drawFrame, label, speedColor } from './draw';
 import { averageSquares, drawGridLines, drawSquares, type Squares } from './field';
-import { makeHold, toolButton, type ButtonDef, type Round, type RoundHost } from './rounds';
+import { makeHold, setLabel, toolButton, type ButtonDef, type Round, type RoundHost } from './rounds';
 import { PlinkoRound } from './roundPlinko';
 import { SiloRound } from './roundSilo';
 import { SteamRound } from './roundSteam';
@@ -33,6 +34,10 @@ const TEXT: Localized<{
   cool: string;
   bigBall: string;
   zoom: string;
+  twins: string;
+  onePit: string;
+  twinsCaption: string;
+  twinsDiff: (px: string) => string;
   reset: string;
   challenge: string;
   full: string;
@@ -58,6 +63,10 @@ const TEXT: Localized<{
     cool: 'Cool',
     bigBall: 'Big ball',
     zoom: 'Zoom out',
+    twins: 'Twins',
+    onePit: 'One pit',
+    twinsCaption: 'Twin pits: on the right, one ball started 0.001 px to the side. Stir them!',
+    twinsDiff: (px) => `Biggest difference: ${px} px. Blue: still twins. Red: parted.`,
     reset: 'Reset',
     challenge: 'Challenge!',
     full: 'Full!',
@@ -83,6 +92,10 @@ const TEXT: Localized<{
     cool: 'Koel af',
     bigBall: 'Grote bal',
     zoom: 'Zoom uit',
+    twins: 'Tweeling',
+    onePit: 'Eén bak',
+    twinsCaption: 'Tweelingbakken: rechts begon één bal 0,001 px opzij. Roer erin!',
+    twinsDiff: (px) => `Grootste verschil: ${px} px. Blauw: nog tweeling. Rood: uit elkaar.`,
     reset: 'Reset',
     challenge: 'Uitdaging!',
     full: 'Vol!',
@@ -108,6 +121,10 @@ const TEXT: Localized<{
     cool: 'Kjøl ned',
     bigBall: 'Stor ball',
     zoom: 'Zoom ut',
+    twins: 'Tvillinger',
+    onePit: 'Én binge',
+    twinsCaption: 'Tvillingbinger: til høyre startet én ball 0,001 px til siden. Rør i dem!',
+    twinsDiff: (px) => `Største forskjell: ${px} px. Blått: fortsatt tvillinger. Rødt: skilt lag.`,
     reset: 'Nullstill',
     challenge: 'Utfordring!',
     full: 'Fullt!',
@@ -149,6 +166,9 @@ const START_FILL = 0.4;
 /** Zoom-out squares, in units: about three ball widths, so each holds a handful. */
 const FIELD_CELL = 90;
 const MARGIN = 10;
+/** Twins: how far one ball in the right pit starts from its twin (px), and the gap between pits. */
+const TWIN_NUDGE = 0.001;
+const TWIN_GAP = 24;
 const BACKGROUND = '#0b1020';
 
 interface Popup {
@@ -169,7 +189,13 @@ interface Challenge {
 class BounceInstance implements GameInstance {
   private ctx: CanvasRenderingContext2D;
   private toy!: BallWorld;
+  /** Twins mode: a second world, identical but for one nudged ball, drawn `twinShift` to the right. */
+  private twin: BallWorld | null = null;
+  private twinMode = false;
+  private twinShift = 0;
+  /** The whole pit area, and the box the physics runs in (its left half in twins mode). */
   private box: Box = { x0: 0, y0: 0, x1: 1, y1: 1 };
+  private pitBox: Box = { x0: 0, y0: 0, x1: 1, y1: 1 };
   private unit = 1;
   private switches: Record<SwitchName, boolean> = { collisions: true, friction: true, dissipate: true };
 
@@ -192,6 +218,7 @@ class BounceInstance implements GameInstance {
   private toyBar!: HTMLElement;
   private gameBar!: HTMLElement;
   private zoomInput!: HTMLInputElement;
+  private twinButton!: HTMLButtonElement;
   private hud!: HTMLElement;
   private hint!: HTMLElement;
   private delve: DelveHandle | null = null;
@@ -238,23 +265,51 @@ class BounceInstance implements GameInstance {
     if (box.x0 === this.box.x0 && box.x1 === this.box.x1 && box.y1 === this.box.y1) return;
     this.box = box;
     this.unit = clamp((box.y1 - box.y0) / 620, 0.5, 2);
+    this.layoutPit();
     if (this.toy) this.fitToy();
   }
 
+  /** One pit fills the box; twins get its left half, drawn again on the right. */
+  private layoutPit(): void {
+    const box = this.box;
+    if (!this.twinMode) {
+      this.pitBox = box;
+      this.twinShift = 0;
+      return;
+    }
+    const half = (box.x1 - box.x0 - TWIN_GAP) / 2;
+    this.pitBox = { ...box, x1: box.x0 + half };
+    this.twinShift = half + TWIN_GAP;
+  }
+
+  private worlds(): BallWorld[] {
+    return this.twin ? [this.toy, this.twin] : [this.toy];
+  }
+
   private fitToy(): void {
-    const bh = this.box.y1 - this.box.y0;
-    this.toy.box = this.box;
-    this.toy.gravity = GRAVITY * bh;
-    this.toy.kick = KICK * Math.sqrt(2 * this.toy.gravity * bh);
+    const bh = this.pitBox.y1 - this.pitBox.y0;
+    for (const world of this.worlds()) {
+      world.box = this.pitBox;
+      world.gravity = GRAVITY * bh;
+      world.kick = KICK * Math.sqrt(2 * world.gravity * bh);
+    }
   }
 
   private fillToy(): void {
     const u = this.unit;
-    this.toy = new BallWorld(this.box, 1, R_MAX * u, 1);
+    this.toy = new BallWorld(this.pitBox, 1, R_MAX * u, 1);
+    this.twin = null;
+    if (this.twinMode) {
+      // Same dice for both, so only the nudge (and chaos) can tell them apart.
+      const seed = Math.floor(Math.random() * 2 ** 31);
+      this.toy.rng = seededRandom(seed);
+      this.twin = new BallWorld(this.pitBox, 1, R_MAX * u, 1);
+      this.twin.rng = seededRandom(seed);
+    }
     this.fitToy();
     this.applySwitches();
-    const { x0, x1, y1 } = this.box;
-    const top = y1 - START_FILL * (y1 - this.box.y0);
+    const { x0, x1, y1 } = this.pitBox;
+    const top = y1 - START_FILL * (y1 - this.pitBox.y0);
     const step = 2 * R_MAX * u;
     for (let y = y1 - R_MAX * u; y > top; y -= step) {
       for (let x = x0 + R_MAX * u; x < x1 - R_MAX * u; x += step) {
@@ -262,18 +317,50 @@ class BounceInstance implements GameInstance {
       }
     }
     // Let the pile settle before anybody sees it.
-    for (let k = 0; k < 90; k++) this.toy.step(1 / 60);
+    for (let k = 0; k < 90; k++) for (const world of this.worlds()) world.step(1 / 60);
     this.toy.loudest = 0;
+    if (this.twin) {
+      // Nudge the top ball of the pile: one pressed against a wall would be pushed back.
+      const balls = this.twin.balls;
+      let top = 0;
+      for (let i = 1; i < balls.length; i++) if (balls[i].y < balls[top].y) top = i;
+      balls[top].x += TWIN_NUDGE;
+    }
   }
 
+  /** Adds the same ball to every world (both twins). */
   private addBall(x: number, y: number, vx: number, vy: number): Ball {
-    return this.toy.add({ x, y, vx, vy, r: randRange(R_MIN, R_MAX) * this.unit, hue: randRange(0, 360) });
+    const r = randRange(R_MIN, R_MAX) * this.unit;
+    const hue = randRange(0, 360);
+    const [first] = this.worlds().map((world) => world.add({ x, y, vx, vy, r, hue }));
+    return first;
   }
 
   private applySwitches(): void {
-    this.toy.collisions = this.switches.collisions;
-    this.toy.friction = this.switches.friction;
-    this.toy.dissipate = this.switches.dissipate;
+    for (const world of this.worlds()) {
+      world.collisions = this.switches.collisions;
+      world.friction = this.switches.friction;
+      world.dissipate = this.switches.dissipate;
+    }
+  }
+
+  /** The pointer in physics coordinates: in the right twin, the same spot of the left one. */
+  private pitPointer(): { x: number; y: number } {
+    const p = this.pointer;
+    return this.twin && p.x >= this.pitBox.x1 ? { x: p.x - this.twinShift, y: p.y } : { x: p.x, y: p.y };
+  }
+
+  private toggleTwins(): void {
+    this.twinMode = !this.twinMode;
+    const T = pick(TEXT);
+    setLabel(this.twinButton, this.twinMode ? T.onePit : T.twins);
+    this.twinButton.classList.toggle('active', this.twinMode);
+    // The squares view is for one pit.
+    this.zoom = 0;
+    this.zoomInput.value = '0';
+    this.zoomInput.disabled = this.twinMode;
+    this.layoutPit();
+    this.fillToy();
   }
 
   // ---- input ----
@@ -313,7 +400,8 @@ class BounceInstance implements GameInstance {
 
   private pour(count: number): void {
     const u = this.unit;
-    const { x0, y0, x1, y1 } = this.box;
+    const { x0, y0, x1, y1 } = this.pitBox;
+    const at = this.pitPointer();
     let area = 0;
     for (const b of this.toy.balls) area += Math.PI * b.r * b.r;
     const limit = FILL_LIMIT * (x1 - x0) * (y1 - y0);
@@ -326,18 +414,21 @@ class BounceInstance implements GameInstance {
         }
         return;
       }
-      const x = clamp(this.pointer.x + randRange(-18, 18) * u, x0 + R_MAX * u, x1 - R_MAX * u);
-      const y = clamp(this.pointer.y + randRange(-18, 18) * u, y0 + R_MAX * u, y1 - R_MAX * u);
+      const x = clamp(at.x + randRange(-18, 18) * u, x0 + R_MAX * u, x1 - R_MAX * u);
+      const y = clamp(at.y + randRange(-18, 18) * u, y0 + R_MAX * u, y1 - R_MAX * u);
       const b = this.addBall(x, y, randRange(-150, 150) * u, randRange(-150, 50) * u);
       area += Math.PI * b.r * b.r;
     }
   }
 
   private dropGold(): void {
-    this.toy.balls = this.toy.balls.filter((b) => !b.gold);
     const r = GOLD_R * this.unit;
-    const { x0, x1, y0 } = this.box;
-    this.toy.add({ x: randRange(x0 + r, x1 - r), y: y0 + r + 2, vx: 0, vy: 0, r, gold: true, hue: 45 });
+    const { x0, x1, y0 } = this.pitBox;
+    const x = randRange(x0 + r, x1 - r);
+    for (const world of this.worlds()) {
+      world.balls = world.balls.filter((b) => !b.gold);
+      world.add({ x, y: y0 + r + 2, vx: 0, vy: 0, r, gold: true, hue: 45 });
+    }
     sound.play('ding');
   }
 
@@ -378,20 +469,20 @@ class BounceInstance implements GameInstance {
   private stepToy(dt: number): void {
     const world = this.toy;
     this.heat = this.heating ? Math.min(1, this.heat + 0.5 * dt) : Math.max(0, this.heat - 0.8 * dt);
-    world.heat = this.heat;
-    world.cool = this.cooling ? 1 : 0;
     this.tint = this.heat > 0.02 || this.cooling ? 1 : Math.max(0, this.tint - 0.3 * dt);
 
-    const hand = world.hand;
+    // Every world gets exactly the same heat, cold and hand (twins must stay twins).
     const p = this.pointer;
-    hand.active = p.inside && p.mouse && !p.down;
-    hand.r = HAND_R * this.unit;
+    const at = this.pitPointer();
     const vmax = 4000 * this.unit;
-    hand.vx = clamp((p.x - this.lastHand.x) / Math.max(dt, 1e-3), -vmax, vmax);
-    hand.vy = clamp((p.y - this.lastHand.y) / Math.max(dt, 1e-3), -vmax, vmax);
-    hand.x = p.x;
-    hand.y = p.y;
+    const hvx = clamp((p.x - this.lastHand.x) / Math.max(dt, 1e-3), -vmax, vmax);
+    const hvy = clamp((p.y - this.lastHand.y) / Math.max(dt, 1e-3), -vmax, vmax);
     this.lastHand = { x: p.x, y: p.y };
+    for (const w of this.worlds()) {
+      w.heat = this.heat;
+      w.cool = this.cooling ? 1 : 0;
+      Object.assign(w.hand, { active: p.inside && p.mouse && !p.down, r: HAND_R * this.unit, vx: hvx, vy: hvy, x: at.x, y: at.y });
+    }
 
     if (p.down) {
       this.pourAcc += POUR_RATE * dt;
@@ -400,6 +491,7 @@ class BounceInstance implements GameInstance {
       if (n > 0) this.pour(n);
     }
 
+    this.twin?.step(dt);
     world.step(dt);
     // One collision sound per frame, for the hardest hit: pitch by size, volume by speed.
     const vref = Math.sqrt(2 * world.gravity * (this.box.y1 - this.box.y0));
@@ -413,6 +505,10 @@ class BounceInstance implements GameInstance {
   }
 
   private drawToy(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+    if (this.twin) {
+      this.drawTwins(ctx, w, h, this.twin);
+      return;
+    }
     const world = this.toy;
     const { x0, y0, x1, y1 } = this.box;
     const u = this.unit;
@@ -474,6 +570,47 @@ class BounceInstance implements GameInstance {
         label(ctx, T.pairs((n * (n - 1)) / 2, Math.round(world.pairChecks)), cx, top + 24, 14, 'rgba(238, 242, 255, 0.55)');
       }
     }
+  }
+
+  /** Both pits, every ball coloured by how far it is from its twin (log scale). */
+  private drawTwins(ctx: CanvasRenderingContext2D, w: number, h: number, twin: BallWorld): void {
+    const a = this.toy.balls;
+    const b = twin.balls;
+    const dx = this.twinShift;
+    const box = this.pitBox;
+    drawFrame(ctx, box, w, h, this.heat);
+    drawFrame(ctx, { ...box, x0: box.x0 + dx, x1: box.x1 + dx }, w, h, this.heat);
+    const far = 2 * R_MAX * this.unit;
+    let biggest = 0;
+    const colors = a.map((p, i) => {
+      const q = b[i];
+      const d = q ? Math.hypot(p.x - q.x, p.y - q.y) : far;
+      biggest = Math.max(biggest, d);
+      return speedColor(Math.log10(Math.max(d, TWIN_NUDGE) / TWIN_NUDGE) / Math.log10(far / TWIN_NUDGE));
+    });
+    for (const [balls, shift] of [[a, 0], [b, dx]] as const) {
+      balls.forEach((ball, i) => {
+        ctx.beginPath();
+        ctx.arc(ball.x + shift, ball.y, ball.r, 0, Math.PI * 2);
+        ctx.fillStyle = colors[i] ?? speedColor(1);
+        ctx.fill();
+      });
+    }
+    const hand = this.toy.hand;
+    if (hand.active) {
+      for (const shift of [0, dx]) {
+        ctx.beginPath();
+        ctx.arc(hand.x + shift, hand.y, hand.r, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(238, 242, 255, 0.45)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+    }
+    const T = pick(TEXT);
+    const cx = (this.box.x0 + this.box.x1) / 2;
+    const px = biggest < 1 ? biggest.toPrecision(2) : fmtNumber(Math.round(biggest));
+    label(ctx, T.twinsCaption, cx, this.box.y0 + 80, 18, 'rgba(238, 242, 255, 0.9)');
+    label(ctx, T.twinsDiff(px), cx, this.box.y0 + 104, 16, biggest > far ? '#fca5a5' : 'rgba(238, 242, 255, 0.75)');
   }
 
   private drawPopups(ctx: CanvasRenderingContext2D, dt: number): void {
@@ -644,6 +781,7 @@ class BounceInstance implements GameInstance {
       },
     });
     this.makeButton(this.toyBar, { emoji: '🟡', label: T.bigBall, onClick: () => this.dropGold() });
+    this.twinButton = this.makeButton(this.toyBar, { emoji: '👯', label: T.twins, onClick: () => this.toggleTwins() });
 
     // The zoom slider lives in a tool-button-shaped box (a range input can't sit in a button).
     const zoom = document.createElement('label');
@@ -697,6 +835,8 @@ class BounceInstance implements GameInstance {
       chapters: bounceDelve({
         getSwitch: (name) => this.switches[name],
         setSwitch: (name, value) => this.setSwitch(name, value),
+        hasGame: (id) => this.host.hasGame(id),
+        openGame: (id) => this.host.openGame(id),
       }),
       onChapter: (i) => this.demos.reset(i),
       onExit: () => this.closeDelve(),

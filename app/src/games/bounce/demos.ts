@@ -31,10 +31,10 @@ const CHAOS = { w: 240, h: 240, balls: 24, r: 12, speed: 60, nudge: 0.001, perio
  * Chapter 6: a dam break of ~3 000 small balls, watched through a camera that
  * starts close enough to see single balls and pulls back until they flow like
  * water while the wave still sloshes; then squares take over (from `squares`,
- * the balls fade 2 s later). Times in seconds; the camera starts `zoomIn`
+ * the balls fade a second later), with the wave still moving under them. Times in seconds; the camera starts `zoomIn`
  * times closer, aimed at the foot of the dam.
  */
-const DAM = { w: 800, h: 400, r: 2.6, fill: 0.85, open: 1.2, zoomIn: 10, zoomFrom: 2.2, zoomTo: 5.5, squares: 7, cell: 25, period: 14 };
+const DAM = { w: 800, h: 400, r: 2.6, fill: 0.85, open: 1.2, zoomIn: 10, zoomFrom: 2.2, zoomTo: 5.5, squares: 5.5, cell: 25, period: 16 };
 
 type Demo =
   | { kind: 'numbers'; x: number; y: number; vx: number; vy: number }
@@ -440,7 +440,7 @@ export class BounceDemos {
 
     // Squares fade in once zoomed out; then the balls go.
     const squaresAlpha = smoothstep((t - DAM.squares) / 1.5);
-    const ballsAlpha = 1 - smoothstep((t - DAM.squares - 2) / 1.5);
+    const ballsAlpha = 1 - smoothstep((t - DAM.squares - 1) / 1.5);
     if (squaresAlpha > 0) {
       d.squares = averageSquares(world.balls, world.box, DAM.cell, d.squares ?? undefined);
       ctx.save();
@@ -567,8 +567,12 @@ function chaosTwins(): BallWorld[] {
 /** Water behind a dam in the left third of a tank: small, slippery balls. */
 function damWorld(): BallWorld {
   const { w, h, r } = DAM;
-  const world = new BallWorld({ x0: 0, y0: 0, x1: w, y1: h }, 1800 * (h / 620), 1.1 * r, 0);
+  // Slow motion (0.2 g) and bouncy balls: the wave still sloshes back and forth
+  // at 10–11 s (in node), so the squares get to show it moving.
+  const world = new BallWorld({ x0: 0, y0: 0, x1: w, y1: h }, 0.2 * 1800 * (h / 620), 1.1 * r, 0);
   world.friction = false;
+  world.ballRestitution = 0.97;
+  world.wallRestitution = 0.95;
   const step = 2.1 * r;
   const cols = Math.floor((w / 3 - r) / step);
   const rows = Math.floor((DAM.fill * h) / step);

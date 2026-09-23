@@ -1,4 +1,4 @@
-import { BallWorld, type Box } from '../src/games/bounce/physics.ts';
+import { BallWorld, seededRandom, type Box } from '../src/games/bounce/physics.ts';
 import { PLINKO, plinkoLayout, plinkoTally } from '../src/games/bounce/plinko.ts';
 import { SILO, knock, makeSilo, recycle } from '../src/games/bounce/silo.ts';
 import { STEAM, makeSteam } from '../src/games/bounce/steam.ts';
@@ -181,3 +181,22 @@ function twins(nudge: number) {
 assert.equal(twins(0), 0, 'the physics is deterministic');
 assert.ok(twins(0.001) > 24, 'a thousandth of a pixel grows past a ball width');
 console.log('PASS: chaos twins (deterministic, and 0.001 px grows past a ball width).');
+
+// Free-play twins: same seed, same heat and hand; only the nudge tells them apart.
+function twinPits(nudge: number) {
+  const make = () => { const t = pit(); t.rng = seededRandom(7); return t; };
+  seed = 99;
+  const a = make();
+  seed = 99;
+  const b = make();
+  b.balls[0].x += nudge;
+  for (let f = 0; f < 6 * 60; f++) {
+    const heat = f < 3 * 60 ? 0.6 : 0;
+    const hand = { x: 200 + (f * 7) % 800, y: box.y1 - 80, vx: 420, vy: 0, r: 40, active: true };
+    for (const w of [a, b]) { w.heat = heat; w.hand = { ...hand }; w.step(1 / 60); }
+  }
+  return Math.max(...a.balls.map((p, i) => Math.hypot(p.x - b.balls[i].x, p.y - b.balls[i].y)));
+}
+assert.equal(twinPits(0), 0, 'identical twins stay identical, heat and hand included');
+assert.ok(twinPits(0.001) > 20, 'a 0.001 px nudge makes the twin pits part');
+console.log('PASS: twin pits (identical without the nudge; parted with it).');

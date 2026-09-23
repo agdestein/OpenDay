@@ -15,6 +15,56 @@ export type SwitchName = 'collisions' | 'friction' | 'dissipate';
 export interface BounceDelveApi {
   getSwitch(name: SwitchName): boolean;
   setSwitch(name: SwitchName, value: boolean): void;
+  hasGame(id: string): boolean;
+  openGame(id: string): void;
+}
+
+/** Chapter 6 ends with doors into the fluid games it talks about. */
+const LINKS: Localized<{ title: string; games: { id: string; label: string }[] }> = {
+  en: {
+    title: '🔭 The same idea, zoomed out:',
+    games: [
+      { id: 'windfarm', label: '🌀 Play Swirl Lab' },
+      { id: 'floodland', label: '🌊 Play Save the Netherlands' },
+    ],
+  },
+  nl: {
+    title: '🔭 Hetzelfde idee, uitgezoomd:',
+    games: [
+      { id: 'windfarm', label: '🌀 Speel Wervel-lab' },
+      { id: 'floodland', label: '🌊 Speel Red Nederland' },
+    ],
+  },
+  no: {
+    title: '🔭 Samme idé, zoomet ut:',
+    games: [
+      { id: 'windfarm', label: '🌀 Spill Virvellab' },
+      { id: 'floodland', label: '🌊 Spill Redd Nederland' },
+    ],
+  },
+};
+
+function linkExtras(api: BounceDelveApi): ((host: HTMLElement) => void) | undefined {
+  const links = pick(LINKS);
+  const games = links.games.filter((g) => api.hasGame(g.id));
+  if (games.length === 0) return undefined;
+  return (host) => {
+    const box = document.createElement('div');
+    box.className = 'delve-lab';
+    const title = document.createElement('div');
+    title.className = 'delve-lab-title';
+    title.textContent = links.title;
+    box.appendChild(title);
+    for (const g of games) {
+      const button = document.createElement('button');
+      button.className = 'arcade-button';
+      button.style.cssText = 'display:block;width:100%;margin-top:0.45rem;';
+      button.textContent = g.label;
+      button.addEventListener('click', () => api.openGame(g.id));
+      box.appendChild(button);
+    }
+    host.appendChild(box);
+  };
 }
 
 interface ChapterText {
@@ -314,8 +364,9 @@ export function bounceDelve(api: BounceDelveApi): DelveChapter[] {
     title: chapter.title,
     paragraphs: chapter.paragraphs,
     formula: chapter.formula,
-    extras:
-      LABS[i]
+    extras: i === chapters.length - 1
+      ? linkExtras(api)
+      : LABS[i]
         ? (host: HTMLElement) => {
             const labEl = document.createElement('div');
             labEl.className = 'delve-lab';

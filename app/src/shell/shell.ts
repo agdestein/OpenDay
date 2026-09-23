@@ -73,6 +73,11 @@ export class Shell {
         return dpr;
       },
       exitToMenu: () => this.showMenu(),
+      hasGame: (id) => this.games.some((g) => g.id === id),
+      openGame: (id) => {
+        const next = this.games.find((g) => g.id === id);
+        if (next) this.launch(next);
+      },
     });
 
     let raf = 0;

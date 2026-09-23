@@ -6,7 +6,7 @@ An assessment of Bouncy Balls as it was on 23 September 2026 against
 [Save the Netherlands proposal](floodland-proposal.md): **A** makes the game meet the
 goals, **B** adds depth, **C** can wait.
 
-**Phases A and B are built** (the game is now Ball Pit; its id stays `bounce`, so
+**Phases A, B and most of C are built** (the game is now Ball Pit; its id stays `bounce`, so
 `?games=` and today's scores keep working). Where the build differs from this plan:
 
 - **Round 2 is not the pillar silo.** The half-day spike on the rebuilt physics found
@@ -21,6 +21,18 @@ goals, **B** adds depth, **C** can wait.
   1.85 ball widths every silo jams (first jam after ~4 s) and knocking triples what
   comes out. The lesson: nobody can say *when* a silo jams, only *how often*, by
   simulating many.
+- **Phase C.** Chaos twins are in free play (👯 Twins: two identical pits sharing
+  one seeded set of dice, one ball nudged 0.001 px, stirred together; every ball is
+  coloured by how far it is from its twin). Delve chapter 6 ends with buttons into
+  Swirl Lab and Save the Netherlands (hidden when `?games=` leaves them out; the game
+  host gained `hasGame`/`openGame`). **The evacuation round is not built:** a spike
+  with people as balls walking to a door (drive towards the exit, friction, low
+  bounce) found neither famous effect. A pillar in front of the door made evacuation
+  worse in every setting, and pushing harder was simply faster (a three-ball door:
+  24 s at walking speed, 10 s at four times that), where the real "faster is
+  slower" and pillar effects need a dedicated crowd model with body compression and
+  sliding friction. A round built on either would teach something this simulation
+  does not show.
 - **No Brazil nut.** The golden ball does not rise when the pit is shaken, with the
   hot plate or with whole-pit taps (after 30 s of shaking it still sits in the lower
   half). The effect needs spinning, rolling balls; this model has no spin. The big

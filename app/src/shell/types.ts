@@ -14,6 +14,10 @@ export interface GameHost {
   readonly dpr: number;
   /** Leave the game and return to the menu. */
   exitToMenu(): void;
+  /** Whether another game (by id) is on this machine's menu (`?games=` may leave it out). */
+  hasGame(id: string): boolean;
+  /** Leave this game for another one, by id (its title card first). */
+  openGame(id: string): void;
 }
 
 export interface GameInstance {
