@@ -90,8 +90,8 @@ export function paintError(img: ImageData, err: Float32Array, full: number): voi
 }
 
 /**
- * Fog: pale drifting cloud whose thickness is the spread relative to the
- * prior spread (fully foggy = "no idea"). `t` animates the cloud texture.
+ * "Unknown" overlay for the 2D fallback: grey, thicker where the spread is
+ * large relative to the prior spread (fully grey = "no idea").
  */
 export function paintFog(img: ImageData, sd: Float32Array, prior: Float32Array, nx: number, t: number): void {
   const d = img.data;
@@ -102,9 +102,9 @@ export function paintFog(img: ImageData, sd: Float32Array, prior: Float32Array, 
     const x = k % nx, y = (k / nx) | 0;
     const n = 0.72 + 0.14 * Math.sin(x * 0.31 + t * 0.6) * Math.sin(y * 0.27 - t * 0.45) + 0.14 * Math.sin((x + y) * 0.13 + t * 0.3);
     const a = base * n;
-    d[o] = 214;
-    d[o + 1] = 222;
-    d[o + 2] = 236;
+    d[o] = 128;
+    d[o + 1] = 133;
+    d[o + 2] = 145;
     d[o + 3] = Math.min(245, a * 255);
   }
 }

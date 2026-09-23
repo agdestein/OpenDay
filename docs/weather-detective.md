@@ -79,15 +79,17 @@ are fixed during play.
   screen pixel with a cubic B-spline filter, so there are no visible cells.
   It draws 1 °C isotherms as thin anti-aliased lines (from `fwidth`, fading
   under fog) and a smooth coastline from the bicubically filtered land mask.
-  Uncertainty is shown as **clouds floating above the map**, not as a
-  tint. They are puffy fBm clouds, lit from the top left, that cast offset
-  shadows onto the map and the nearby sea and drift with the wind. Their
-  coverage grows with the local uncertainty: spread divided by the prior
-  spread of the local weather, leaving out the overall level, so one
-  thermometer doesn't thin the clouds nationwide. They may spill a little
-  over the coast, and the reveal wipe blows them away. Off-land cells are
-  filled from their neighbours first, so the coast doesn't bleed in 0 °C. Without WebGL2 the older 2D-canvas path (bilinear, per-cell
-  isotherms) takes over.
+  Uncertainty is shown as **"unknown here"**, not as anything that looks
+  like weather. (Clouds were tried and confused with real clouds: this is a
+  weather game.) Where the computer is unsure, the map turns grey, goes out
+  of focus (the best guess is blurred with a ring of samples) and gets a
+  faint drifting pattern of question marks. Contour lines fade out there
+  too. How unsure: spread divided by the prior spread of the local weather,
+  leaving out the overall level, so one thermometer doesn't lift the grey
+  nationwide. The reveal wipe replaces it with the real map. Off-land cells
+  are filled from their neighbours first, so the coast doesn't bleed in
+  0 °C. Without WebGL2 the older 2D-canvas path (bilinear, per-cell
+  isotherms, plain grey overlay) takes over.
 - **Speed.** Per-station columns of the Matérn part are cached per grid, so
   moving one thermometer recomputes one column. Measured with 150 stations
   (`npm run test:detective`): refit ≈ 1.5 ms, best guess ≈ 3–5 ms, spread

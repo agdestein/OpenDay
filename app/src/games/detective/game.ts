@@ -80,8 +80,6 @@ export class DetectiveGame implements GameInstance {
   /** Smooth GPU map (null: 2D fallback). */
   private gl: MapGL | null;
   private fogRel: Float32Array;
-  /** Coarse cells on or near land: clouds may drift a little over the sea. */
-  private nearLand: Float32Array;
   private layout = { ox: 0, oy: 0, s: 1, mw: 1, mh: 1, key: '' };
 
   // --- input ---
@@ -125,20 +123,6 @@ export class DetectiveGame implements GameInstance {
     this.land = landCanvas();
     this.gl = MapGL.create(this.w.fineLand, FINE_NX, FINE_NY, WIDTH_KM, HEIGHT_KM);
     this.fogRel = new Float32Array(coarse.n).fill(1);
-    this.nearLand = new Float32Array(coarse.n);
-    const R = 2;
-    for (let j = 0; j < coarse.ny; j++)
-      for (let i = 0; i < coarse.nx; i++) {
-        let landCells = 0, cells = 0;
-        for (let dj = -R; dj <= R; dj++)
-          for (let di = -R; di <= R; di++) {
-            const a = i + di, b = j + dj;
-            if (a < 0 || b < 0 || a >= coarse.nx || b >= coarse.ny) continue;
-            cells++;
-            landCells += coarse.land[b * coarse.nx + a];
-          }
-        this.nearLand[j * coarse.nx + i] = Math.min(1, (2.5 * landCells) / cells);
-      }
     this.truth = this.w.days[this.day].t;
     this.scale = this.dayScale(this.day);
     this.gp = new GP(HYPER[this.day], [half, coarse]);
@@ -619,7 +603,7 @@ export class DetectiveGame implements GameInstance {
       this.dreamer.sample(this.time, this.dream);
       frame = { ...base, field: this.layerOf(this.dream, coarse) };
     } else {
-      const fog = !showTruth || revealing ? { ...this.layerOf(this.fogRel, coarse), near: this.nearLand } : null;
+      const fog = !showTruth || revealing ? this.layerOf(this.fogRel, coarse) : null;
       frame = { ...base, field: this.layerOf(this.mean, half), fog };
     }
     if (showTruth) frame.wipe = { field: this.layerOf(this.truth, half), frac: revealing ? Math.min(1, this.revealT / 1.3) : 1 };
