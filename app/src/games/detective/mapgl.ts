@@ -1,7 +1,8 @@
 // GPU map renderer for Weather Detective: every screen pixel samples the
 // temperature grid with a smooth bicubic (B-spline) filter, draws thin
 // anti-aliased isotherms, smooth coastlines from the land mask, and
-// drifting cloud fog. The 2D-canvas path in game.ts is the fallback.
+// clouds floating above the map where it is unsure (with shadows). The
+// 2D-canvas path in game.ts is the fallback.
 import { LUT_RGBA, type Scale } from './render';
 
 /** A grid field covering the map from its north-west corner. */
@@ -21,8 +22,12 @@ export interface MapFrame {
   scale: Scale;
   errorFull?: number;
   isotherms: boolean;
-  /** Fog thickness 0..1 per cell (no NaN). */
-  fog?: FieldLayer | null;
+  /**
+   * Clouds: `data` is how unsure the computer is (spread / prior spread) per
+   * cell, `near` how close the cell is to land (0..1, so clouds may drift a
+   * little over the sea but not fill it). Neither may contain NaN.
+   */
+  fog?: (FieldLayer & { near: Float32Array }) | null;
   /** A second temperature field shown west of `frac` (the reveal wipe). */
   wipe?: { field: FieldLayer; frac: number } | null;
   time: number;
@@ -45,7 +50,7 @@ uniform vec2 uSizeA, uSizeB, uSizeFog, uSizeLand;
 uniform vec2 uExtA, uExtB, uExtFog;
 uniform vec2 uKm;
 uniform int uMode;
-uniform float uLo, uHi, uErrFull, uIso, uFogOn, uHasB, uWipe, uTime, uPx;
+uniform float uLo, uHi, uErrFull, uIso, uFogOn, uHasB, uWipe, uTime, uPx, uAspect;
 
 vec4 cubic(float v) {
   vec4 n = vec4(1.0, 2.0, 3.0, 4.0) - v;
@@ -55,6 +60,21 @@ vec4 cubic(float v) {
   float z = s.z - 4.0 * s.y + 6.0 * s.x;
   float w = 6.0 - x - y - z;
   return vec4(x, y, z, w) * (1.0 / 6.0);
+}
+
+// Cubic B-spline filtering from four bilinear taps (two channels).
+vec2 bicubic2(sampler2D tex, vec2 uv, vec2 size) {
+  vec2 tc = uv * size - 0.5;
+  vec2 f = fract(tc);
+  tc -= f;
+  vec4 xc = cubic(f.x), yc = cubic(f.y);
+  vec4 c = tc.xxyy + vec2(-0.5, 1.5).xyxy;
+  vec4 s = vec4(xc.xz + xc.yw, yc.xz + yc.yw);
+  vec4 o = (c + vec4(xc.yw, yc.yw) / s) / size.xxyy;
+  vec2 s0 = texture(tex, o.xz).rg, s1 = texture(tex, o.yz).rg;
+  vec2 s2 = texture(tex, o.xw).rg, s3 = texture(tex, o.yw).rg;
+  float sx = s.x / (s.x + s.y), sy = s.z / (s.z + s.w);
+  return mix(mix(s3, s2, sx), mix(s1, s0, sx), sy);
 }
 
 // Cubic B-spline filtering from four bilinear taps.
@@ -93,40 +113,68 @@ vec3 tempColor(float t) {
   return texture(uLut, vec2(x * (255.0 / 256.0) + 0.5 / 256.0, 0.5)).rgb;
 }
 
+// Cloud cover (0..1) at a map position: puffy fBm clouds whose coverage
+// grows with how unsure the computer is there, drifting with the wind.
+float cloudAt(vec2 uv, out float n) {
+  vec2 fr = bicubic2(uFog, uv * uExtFog, uSizeFog);
+  float unsure = clamp((fr.x - 0.35) / 0.6, 0.0, 1.0);
+  vec2 p = uv * uKm / 38.0 + vec2(uTime * 0.05, uTime * 0.02);
+  n = fbm(p);
+  float t = mix(0.9, 0.22, unsure);
+  float cover = smoothstep(t - 0.05, t + 0.07, n) * smoothstep(0.02, 0.15, unsure);
+  return cover * clamp(fr.y, 0.0, 1.0);
+}
+
 void main() {
   float land = bicubic(uLand, vUv, uSizeLand);
   float aa = fwidth(land) * 0.7 + 1e-4;
-  float alpha = smoothstep(0.5 - aa, 0.5 + aa, land);
-  if (alpha <= 0.0) discard;
+  float landA = smoothstep(0.5 - aa, 0.5 + aa, land);
 
   bool useB = uHasB > 0.5 && vUv.x < uWipe;
-  float v = useB ? bicubic(uB, vUv * uExtB, uSizeB) : bicubic(uA, vUv * uExtA, uSizeA);
-  // Fog first, so contours fade where the computer is unsure.
-  float fog = 0.0;
-  if (uFogOn > 0.5 && !useB) {
-    float rel = bicubic(uFog, vUv * uExtFog, uSizeFog);
-    float base = clamp((rel - 0.12) / 0.7, 0.0, 1.0);
-    vec2 p = vUv * uKm / 45.0;
-    float n = fbm(p + vec2(uTime * 0.06, uTime * 0.025));
-    fog = clamp(base * (0.3 + 1.05 * n), 0.0, 0.95);
-  }
-  vec3 col;
-  if (uMode == 1 && !useB) {
-    float a = clamp(v / uErrFull, 0.0, 1.0);
-    col = vec3(1.0 - 0.235 * a, 0.96 - 0.84 * a, 0.92 - 0.8 * a);
-  } else {
-    col = tempColor(v);
-    if (uIso > 0.5) {
-      // Thin anti-aliased contour every whole degree.
-      float d = abs(fract(v + 0.5) - 0.5);
-      float w = fwidth(v);
-      float line = 1.0 - smoothstep(0.6 * w, 1.6 * w, d);
-      col *= 1.0 - 0.2 * line * (1.0 - fog);
+  vec3 col = vec3(0.0);
+  if (landA > 0.0) {
+    float v = useB ? bicubic(uB, vUv * uExtB, uSizeB) : bicubic(uA, vUv * uExtA, uSizeA);
+    if (uMode == 1 && !useB) {
+      float a = clamp(v / uErrFull, 0.0, 1.0);
+      col = vec3(1.0 - 0.235 * a, 0.96 - 0.84 * a, 0.92 - 0.8 * a);
+    } else {
+      col = tempColor(v);
+      if (uIso > 0.5) {
+        // Thin anti-aliased contour every whole degree.
+        float d = abs(fract(v + 0.5) - 0.5);
+        float w = fwidth(v);
+        float line = 1.0 - smoothstep(0.6 * w, 1.6 * w, d);
+        col *= 1.0 - 0.2 * line;
+      }
     }
+    if (uHasB > 0.5 && uWipe < 1.0 && abs(vUv.x - uWipe) < 2.0 * uPx) col = vec3(1.0);
   }
-  col = mix(col, vec3(0.85, 0.88, 0.93), fog);
-  if (uHasB > 0.5 && uWipe < 1.0 && abs(vUv.x - uWipe) < 2.0 * uPx) col = vec3(1.0);
-  outColor = vec4(col * alpha, alpha);
+  // The map, premultiplied.
+  vec4 base = vec4(col * landA, landA);
+
+  if (uFogOn > 0.5) {
+    // Clouds hover above the map: the reveal wipe blows them away, and each
+    // cloud casts a soft shadow down and to the right.
+    float keep = uHasB > 0.5 ? smoothstep(uWipe, uWipe + 6.0 * uPx, vUv.x) : 1.0;
+    float n, ns;
+    float cover = cloudAt(vUv, n) * keep;
+    vec2 shadowOffset = vec2(9.0, 14.0) * uPx;
+    float shadow = cloudAt(vUv - shadowOffset, ns) * keep;
+    vec2 edgeS = min(vUv, 1.0 - vUv) / vec2(uPx, uPx * uAspect);
+    shadow *= smoothstep(0.0, 24.0, min(edgeS.x, edgeS.y));
+    base.rgb *= 1.0 - 0.38 * shadow;
+    base = base + vec4(0.0, 0.0, 0.0, 0.3 * shadow) * (1.0 - base.a);
+    // Light from the top left: brighter where the cloud thickens towards it.
+    float nl = fbm(vUv * uKm / 38.0 + vec2(uTime * 0.05, uTime * 0.02) - vec2(0.05, 0.08));
+    float lit = clamp(0.55 + (n - nl) * 5.0, 0.0, 1.0);
+    vec3 cloud = mix(vec3(0.66, 0.71, 0.8), vec3(1.0), lit);
+    // Fade out towards the canvas edges, so no cloud ends in a straight line.
+    vec2 edgePx = min(vUv, 1.0 - vUv) / vec2(uPx, uPx * uAspect);
+    float edge = smoothstep(0.0, 24.0, min(edgePx.x, edgePx.y));
+    float a = cover * 0.93 * edge;
+    base = vec4(cloud * a, a) + base * (1.0 - a);
+  }
+  outColor = base;
 }`;
 
 /** Replace NaN cells by the average of their neighbours, spreading outwards (a copy). */
@@ -214,10 +262,12 @@ export class MapGL {
       return t;
     };
     this.tex = { A: make(), B: make(), Fog: make(), Land: make(), Lut: make() };
-    for (const t of [this.tex.A, this.tex.B, this.tex.Fog]) {
+    for (const t of [this.tex.A, this.tex.B]) {
       gl.bindTexture(gl.TEXTURE_2D, t);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.R16F, 1, 1, 0, gl.RED, gl.FLOAT, new Float32Array(1));
     }
+    gl.bindTexture(gl.TEXTURE_2D, this.tex.Fog);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RG16F, 1, 1, 0, gl.RG, gl.FLOAT, new Float32Array(2));
     const bytes = new Uint8Array(land.length);
     for (let k = 0; k < land.length; k++) bytes[k] = land[k] ? 255 : 0;
     gl.bindTexture(gl.TEXTURE_2D, this.tex.Land);
@@ -241,7 +291,7 @@ export class MapGL {
     }
   }
 
-  private upload(unit: 'A' | 'B' | 'Fog', layer: FieldLayer, sizeName: string, extName: string): void {
+  private upload(unit: 'A' | 'B', layer: FieldLayer, sizeName: string, extName: string): void {
     const gl = this.gl;
     let data = layer.data;
     let cached = this.filled.get(data);
@@ -270,7 +320,18 @@ export class MapGL {
       gl.uniform1f(this.u('uWipe'), f.wipe.frac);
     }
     gl.uniform1f(this.u('uFogOn'), f.fog ? 1 : 0);
-    if (f.fog) this.upload('Fog', f.fog, 'uSizeFog', 'uExtFog');
+    if (f.fog) {
+      const { data, near, nx, ny, dx, dy } = f.fog;
+      const rg = new Float32Array(2 * nx * ny);
+      for (let k = 0; k < nx * ny; k++) {
+        rg[2 * k] = data[k];
+        rg[2 * k + 1] = near[k];
+      }
+      gl.bindTexture(gl.TEXTURE_2D, this.tex.Fog);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RG16F, nx, ny, 0, gl.RG, gl.FLOAT, rg);
+      gl.uniform2f(this.u('uSizeFog'), nx, ny);
+      gl.uniform2f(this.u('uExtFog'), this.widthKm / (nx * dx), this.heightKm / (ny * dy));
+    }
     gl.uniform2f(this.u('uSizeLand'), this.landSize[0], this.landSize[1]);
     gl.uniform2f(this.u('uKm'), this.widthKm, this.heightKm);
     gl.uniform1i(this.u('uMode'), f.mode === 'error' ? 1 : 0);
@@ -280,6 +341,7 @@ export class MapGL {
     gl.uniform1f(this.u('uIso'), f.isotherms ? 1 : 0);
     gl.uniform1f(this.u('uTime'), f.time);
     gl.uniform1f(this.u('uPx'), 1 / this.canvas.width);
+    gl.uniform1f(this.u('uAspect'), this.canvas.width / this.canvas.height);
     const units: ('A' | 'B' | 'Fog' | 'Land' | 'Lut')[] = ['A', 'B', 'Fog', 'Land', 'Lut'];
     units.forEach((name, unit) => {
       gl.activeTexture(gl.TEXTURE0 + unit);
