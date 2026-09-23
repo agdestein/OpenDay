@@ -6,35 +6,52 @@ An assessment of Bouncy Balls as it was on 23 September 2026 against
 [Save the Netherlands proposal](floodland-proposal.md): **A** makes the game meet the
 goals, **B** adds depth, **C** can wait.
 
-**Phase A is built** (the game is now Ball Pit; its id stays `bounce`, so `?games=`
-and today's scores keep working). Where the build differs from this plan:
+**Phases A and B are built** (the game is now Ball Pit; its id stays `bounce`, so
+`?games=` and today's scores keep working). Where the build differs from this plan:
 
+- **Round 2 is not the pillar silo.** The half-day spike on the rebuilt physics found
+  no pillar position that reliably beats no pillar: with a two-ball exit, no pillar
+  jammed 9 of 16 fills, the best spot 5 of 16, but its neighbours were no better and
+  the gain vanished at other exit widths and frictions; badly placed pillars clearly
+  made things worse (up to 16 of 16). A round built on the counter-intuitive pillar
+  would teach something the simulation cannot show, and the Brazil-nut fallback is out
+  too (below). Instead round 2 is **Silo**: four silos run side by side and jam at
+  random moments; click a jammed silo to knock it loose, as real silos do with
+  vibrators and air cannons. Ten knocks for about 13 jams, so you choose. At an exit of
+  1.85 ball widths every silo jams (first jam after ~4 s) and knocking triples what
+  comes out. The lesson: nobody can say *when* a silo jams, only *how often*, by
+  simulating many.
 - **No Brazil nut.** The golden ball does not rise when the pit is shaken, with the
-  hot plate or with whole-pit taps (tried both in node: after 30 s of shaking it still
-  sits in the lower half). The effect needs spinning, rolling balls and wall friction
-  that drives convection; this model has no spin. The big ball stays as a heavy
-  wrecking ball, and nothing in the game claims it rises. Drop the Brazil-nut fallback
-  for round 2 as well, unless the model gets rotation.
+  hot plate or with whole-pit taps (after 30 s of shaking it still sits in the lower
+  half). The effect needs spinning, rolling balls; this model has no spin. The big
+  ball stays as a heavy wrecking ball, and nothing in the game claims it rises.
+- **Round 3, Steam engine,** as planned, with a frictionless, bouncy gas (so it holds
+  its heat for ~2 s) and a snappy burner, so that pulsing near the flag beats holding
+  it down (~18 s above the flag against ~14.5 s over 30 s).
 - **History line.** "The first computer simulations of molecules (1957)" overstated it:
-  Metropolis et al. (1953) had already simulated hard disks by Monte Carlo, and Alder
+  Metropolis et al. (1953) had already simulated hard discs by Monte Carlo, and Alder
   and Wainwright's 1957 work was the first *molecular dynamics*. The game says "some of
   the very first computer simulations of molecules, in the 1950s, were balls just like
-  these", which both support.
-- **Plinko needs air.** With pegs alone the balls skate sideways and the buckets fill
-  almost evenly (no bell curve). Soft pegs (restitution 0.3) plus sideways drag in the
-  board give a clean bell. The gold bucket sits 3 buckets off-centre, left or right at
-  random; doing nothing scores about 170–290 depending on the screen, and a first try
-  with four bumpers scored 439.
-- **Twins.** From a 0.01 px gap, twins land in different buckets only about 3 times
-  in 4. The game quietly tries up to eight twin pairs on a copy of the board and shows
-  one that parts ways; every pair shown really starts 0.01 px apart.
-- **Controls.** Heat and Cool are hold buttons (a tap gives a short burst). The
-  three model switches live in labs in delve chapters 3–5, next to the text about
-  them. The count at the top reads "N balls, each moved 240 times per second" (four
-  substeps per frame).
-- Measured after the rebuild (node, 1280×720 pit): mean overlap 0.5 %, resting pile
-  at zero speed, the neighbour grid checks ~3 000 of 17 000 pairs, Plinko physics
-  ~1.3 ms per frame with 300 balls. `npm run test:bounce` covers these.
+  these", and delve chapter 4 tells both. *(Still worth a check before the event.)*
+- **Plinko needs air, but not too much.** With pegs alone the buckets fill almost
+  evenly (no bell). Soft pegs plus sideways drag give a clean bell, but with a lot of
+  drag single balls always return to the middle, so twins never part. The balance
+  (peg restitution 0.5, drag 3/s) keeps half the balls in the middle three buckets
+  while twins land 2–3 buckets apart in most rounds. The game quietly tries up to eight
+  twin pairs, 0.001 px apart, on a copy of the board and shows one that parts ways;
+  the board steps in fixed 1/60 s ticks so the copy and the real run agree (it is
+  chaotic, so a different frame rate sent them elsewhere). The pour waits until the
+  twins have landed.
+- **Controls.** Heat and Cool are hold buttons (a tap gives a short burst). The three
+  model switches live in one lab in delve chapter 3, next to the closure-model text.
+  The zoom-out is a slider in the toolbar; the pair counter sits under the ball count.
+- **Group claim.** Delve chapter 6 says finding better closure models, "lately also
+  with machine learning, is part of our group's research". *(Agree the wording.)*
+- Measured (node, 1280×720 pit): mean overlap 0.5 %, resting pile at zero speed, the
+  grid checks ~1 000 of 17 000 pairs per pass; Plinko ~1.3 ms per frame with 300
+  balls, four silos ~1.2 ms. Round scores land around 350–600 (Plinko), 200–800
+  (Silo) and 280–380 (Steam engine). `npm run test:bounce` covers the physics, all
+  three rounds, the floor model and the chaos twins.
 
 ## Assessment
 

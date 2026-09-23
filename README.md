@@ -120,11 +120,13 @@ storms, choose a dike height against a century of random storms after van Dantzi
 1956 analysis, and close a storm-surge gate on an ensemble forecast). See [the notes](docs/floodland-remake.md).
 
 Ball Pit (`app/src/games/bounce/`) is a position-based disc simulation (substeps, a
-neighbour grid, restitution and friction) you can shove, pour, boil into a gas and
-cool again, with Plinko, a Galton board where one ball is luck and three hundred make
-a bell curve, as its challenge. It is meant as the arcade's microscope: everything
-the other games simulate as a smooth fluid is made of balls like these. See
-[the proposal](docs/bounce-proposal.md) (`npm run test:bounce`).
+neighbour grid, restitution and friction) you can shove, pour, boil into a gas, cool
+again and zoom out of until it looks like a fluid. Its challenge has three rounds:
+Plinko (one ball is luck, three hundred make a bell curve), Silo (jams come at random;
+knock them loose) and Steam engine (hot balls lift a heavy lid). It is meant as the
+arcade's microscope: everything the other games simulate as a smooth fluid is made of
+balls like these, and its delve goes from one ball to why we write equations for the
+crowd. See [the proposal](docs/bounce-proposal.md) (`npm run test:bounce`).
 
 Weather Detective (`app/src/games/detective/`) grew out of our group's project with
 [KNMI](https://www.knmi.nl/) on multi-fidelity Gaussian process regression of

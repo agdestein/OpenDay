@@ -131,7 +131,8 @@ export class SteamRound implements Round {
     const { x0, y0, x1, y1 } = this.box;
     const u = this.host.unit;
     drawFrame(ctx, this.box, w, h);
-    const s = (y1 - y0 - 20) / STEAM.height;
+    // Below the HUD strip at the top of the screen.
+    const s = (y1 - y0 - 70) / STEAM.height;
     const ox = (x0 + x1) / 2 - (STEAM.width * s) / 2;
     const oy = y1 - STEAM.height * s;
     const X = (x: number) => ox + x * s;
@@ -142,7 +143,7 @@ export class SteamRound implements Round {
     // Flag band.
     const flagY = Y(STEAM.height * (1 - STEAM.flag));
     ctx.fillStyle = 'rgba(74, 222, 128, 0.08)';
-    ctx.fillRect(X(-60), Y(0), (STEAM.width + 120) * s, flagY - Y(0));
+    ctx.fillRect(X(-60), Y(STEAM.top), (STEAM.width + 120) * s, flagY - Y(STEAM.top));
     ctx.setLineDash([10, 8]);
     ctx.strokeStyle = 'rgba(74, 222, 128, 0.8)';
     ctx.lineWidth = 3;
@@ -163,9 +164,9 @@ export class SteamRound implements Round {
     ctx.strokeStyle = 'rgba(203, 213, 225, 0.8)';
     ctx.lineWidth = 8;
     ctx.beginPath();
-    ctx.moveTo(X(0), Y(0));
+    ctx.moveTo(X(0), Y(STEAM.top - 12));
     ctx.lineTo(X(0), Y(STEAM.height));
-    ctx.moveTo(X(STEAM.width), Y(0));
+    ctx.moveTo(X(STEAM.width), Y(STEAM.top - 12));
     ctx.lineTo(X(STEAM.width), Y(STEAM.height));
     ctx.stroke();
 

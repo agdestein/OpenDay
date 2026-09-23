@@ -18,6 +18,8 @@ export const STEAM = {
   fuel: 14,
   /** Points per second above the flag. */
   points: 20,
+  /** Highest the lid goes (from the top of the cylinder). */
+  top: 90,
 };
 
 /** The cylinder with its gas and lid, settled. DOM-free (tested in node). */
@@ -31,7 +33,8 @@ export function makeSteam(): BallWorld {
   for (let i = 0; i < STEAM.balls; i++) {
     world.add({ x: 2 * r + (i % 12) * 2.2 * r, y: H - r - Math.floor(i / 12) * 2.5 * r, vx: 0, vy: 0, r, hue: 30 });
   }
-  world.piston = { y: H * 0.6, vy: 0, mass: STEAM.lidMass * r * r, active: true, maxY: H * 0.88, py: 0, uy: 0 };
+  // The top stop leaves room above the lid for its weight.
+  world.piston = { y: H * 0.6, vy: 0, mass: STEAM.lidMass * r * r, active: true, minY: STEAM.top, maxY: H * 0.88, py: 0, uy: 0 };
   for (let k = 0; k < 90; k++) world.step(1 / 60);
   return world;
 }

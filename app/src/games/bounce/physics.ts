@@ -65,7 +65,8 @@ export interface Piston {
   vy: number;
   mass: number;
   active: boolean;
-  /** Lowest the lid can sink (a stop above the floor). */
+  /** Highest and lowest the lid can go (stops). */
+  minY: number;
   maxY: number;
   /** Solver scratch. */
   py: number;
@@ -95,7 +96,7 @@ export class BallWorld {
   pegs: Circle[] = [];
   segments: Segment[] = [];
   hand: Hand = { x: 0, y: 0, vx: 0, vy: 0, r: 0, active: false };
-  piston: Piston = { y: 0, vy: 0, mass: 1, active: false, maxY: Infinity, py: 0, uy: 0 };
+  piston: Piston = { y: 0, vy: 0, mass: 1, active: false, minY: -Infinity, maxY: Infinity, py: 0, uy: 0 };
   /** Momentum delivered to the right wall since the caller last reset it (pressure). */
   rightWallImpulse = 0;
   collisions = true;
@@ -428,7 +429,7 @@ export class BallWorld {
 
   private stopPiston(): void {
     const pis = this.piston;
-    const top = this.box.y0;
+    const top = Math.max(this.box.y0, pis.minY);
     if (pis.y < top) pis.y = top;
     if (pis.y > pis.maxY) pis.y = pis.maxY;
   }

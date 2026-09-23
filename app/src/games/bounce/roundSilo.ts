@@ -94,7 +94,8 @@ export class SiloRound implements Round {
     const tw = (x1 - x0) / SILO.count;
     const heightUnits = SILO.outlet + 90 - SILO.top;
     const s = Math.min((tw * 0.86) / SILO.width, (y1 - y0 - 10) / heightUnits);
-    return { x: x0 + tw * i + (tw - SILO.width * s) / 2, y: y0 + 6 - SILO.top * s, s, w: tw };
+    const spare = y1 - y0 - heightUnits * s;
+    return { x: x0 + tw * i + (tw - SILO.width * s) / 2, y: y0 + spare / 2 - SILO.top * s, s, w: tw };
   }
 
   down(x: number): void {

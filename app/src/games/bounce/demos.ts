@@ -313,7 +313,10 @@ export class BounceDemos {
       ctx.fillRect(x, top, 26, bottom - top);
       ctx.fillStyle = color;
       ctx.fillRect(x, bottom - (bottom - top) * frac, 26, (bottom - top) * frac);
-      label(ctx, text, x + 13, bottom + 26, 14, 'rgba(238, 242, 255, 0.85)');
+      // Emoji over the word, so neighbouring gauges' labels don't collide.
+      const [emoji, ...words] = text.split(' ');
+      label(ctx, emoji, x + 13, bottom + 24, 18, '#fff');
+      label(ctx, words.join(' '), x + 13, bottom + 44, 12, 'rgba(238, 242, 255, 0.85)');
     };
     gauge(gx, temp, '#f87171', t.thermometer);
     gauge(gx + 70, press, '#7dd3fc', t.pressure);

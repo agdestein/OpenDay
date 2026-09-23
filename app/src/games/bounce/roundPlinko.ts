@@ -1,5 +1,5 @@
 // Round 1, Plinko: drag bumpers to steer a Galton board's bell curve into the
-// gold bucket. Before the pour, two twin balls a hundredth of a pixel apart
+// gold bucket. Before the pour, two twin balls a thousandth of a pixel apart
 // part ways: one ball is luck, three hundred are predictable.
 import { sound } from '../../lib/sound';
 import { fmtNumber, pick, type Localized } from '../../lib/i18n';
@@ -25,7 +25,7 @@ const TEXT: Localized<{
     dropsIn: (s) => `Drop! (${s})`,
     hudBalls: (n) => `⚪ ${n} to go`,
     hintPlace: 'Drag the white bumpers onto the board to steer the balls into the 🥇 gold bucket!',
-    hintTwins: 'Two twin balls, dropped a hundredth of a pixel apart…',
+    hintTwins: 'Two twin balls, dropped a thousandth of a pixel apart…',
     twinsApart: (n) => `…and they land ${n} buckets apart! One ball is luck. Now watch what 300 do.`,
     twinsSame: '…one ball is luck. Now watch what 300 do.',
     hintPour: 'Keep steering: you can drag the bumpers while the balls fall.',
@@ -37,7 +37,7 @@ const TEXT: Localized<{
     dropsIn: (s) => `Los! (${s})`,
     hudBalls: (n) => `⚪ nog ${n}`,
     hintPlace: 'Sleep de witte stuiters op het bord en stuur de ballen naar het 🥇 gouden bakje!',
-    hintTwins: 'Twee tweelingballen, een honderdste pixel uit elkaar losgelaten…',
+    hintTwins: 'Twee tweelingballen, een duizendste pixel uit elkaar losgelaten…',
     twinsApart: (n) => `…en ze landen ${n} bakjes uit elkaar! Eén bal is geluk. Kijk nu wat 300 ballen doen.`,
     twinsSame: '…één bal is geluk. Kijk nu wat 300 ballen doen.',
     hintPour: 'Blijf sturen: je mag de stuiters verslepen terwijl de ballen vallen.',
@@ -49,7 +49,7 @@ const TEXT: Localized<{
     dropsIn: (s) => `Slipp! (${s})`,
     hudBalls: (n) => `⚪ ${n} igjen`,
     hintPlace: 'Dra de hvite støtfangerne inn på brettet og styr ballene til den 🥇 gylne bøtta!',
-    hintTwins: 'To tvillingballer, sluppet en hundredels piksel fra hverandre…',
+    hintTwins: 'To tvillingballer, sluppet en tusendels piksel fra hverandre…',
     twinsApart: (n) => `…og de lander ${n} bøtter fra hverandre! Én ball er flaks. Se nå hva 300 gjør.`,
     twinsSame: '…én ball er flaks. Se nå hva 300 gjør.',
     hintPour: 'Fortsett å styre: du kan dra støtfangerne mens ballene faller.',
@@ -147,7 +147,7 @@ export class PlinkoRound implements Round {
     setLabel(this.dropButton, pick(TEXT).drop);
     this.host.hint(pick(TEXT).hintTwins);
     // Try a few twin pairs on a scratch copy of the board and show one that
-    // parts ways: every pair really starts a hundredth of a pixel apart.
+    // parts ways: every pair really starts a thousandth of a pixel apart.
     let best = 0;
     let bestGap = -1;
     for (let k = 0; k < 8 && bestGap < 2; k++) {
