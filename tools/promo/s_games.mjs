@@ -8,7 +8,7 @@ export default async (h) => {
   await h.sleep(10000); await h.shot('ob_2');
   // floodland
   await open(h, 'floodland');
-  await btn(h, 'Start de storm');
+  await btn(h, 'Storm!');
   for (let t of [6, 12, 20, 30]) { await h.sleep(t === 6 ? 6000 : (t === 12 ? 6000 : (t===20?8000:10000))); await h.shot('fl_' + t); }
   // detective
   await open(h, 'detective');

@@ -7,13 +7,32 @@ export const GRID_H = 40;
 export const DX = 10;
 const G = 9.81;
 const EPS = 1e-7;
+
+/** How the ground wears away under fast water. Two layers per cell: loose sand
+ * above `hardTop`, the old ground below it (with its own resistance per cell),
+ * and nothing erodes below `floor`.
+ * Rate: dz/dt = rate · (speed − critical)², the usual excess-velocity form. */
+export interface Erosion {
+  floor: Float64Array;
+  hardTop: Float64Array;
+  sand: { critical: number; rate: number };
+  critical: Float32Array;
+  rate: Float32Array;
+  /** An undercut wall collapses: a wet cell standing more than `height` above an
+   * eroding neighbour slumps towards it at `rate` (m/s). */
+  slump: { height: number; rate: number };
+}
+
 export class FloodSim {
   readonly terrain: Float64Array;
   readonly water: Float64Array;
   readonly mx: Float64Array;
   readonly my: Float64Array;
+  /** Ground lost per physical second in the latest step (m/s); drawn as a warning. */
+  readonly wear: Float32Array;
   friction = 0.018;
-  /** Prescribe the incoming long-wave characteristic; let reflections exit. */
+  /** Open sea boundary: the incoming characteristic is that of water at rest at
+   * `seaLevel`, so the sea settles at that level while reflected waves leave. */
   waveBoundary = false;
   private dh: Float64Array;
   private du: Float64Array;
@@ -22,15 +41,15 @@ export class FloodSim {
   ocean = true;
   boundaryVolume = 0;
   pumpedVolume = 0;
-  sourceVolume = 0;
-  sourceConfig: { cells: readonly number[]; rate: number } | null = null;
   pumpConfig: { intakes: readonly number[]; outlet: number; capacity: number; minLevel?: number } | null = null;
+  erosion: Erosion | null = null;
   constructor(readonly width = GRID_W, readonly height = GRID_H) {
     const n = width * height;
     this.terrain = new Float64Array(n);
     this.water = new Float64Array(n);
     this.mx = new Float64Array(n);
     this.my = new Float64Array(n);
+    this.wear = new Float32Array(n);
     this.dh = new Float64Array(n);
     this.du = new Float64Array(n);
     this.dv = new Float64Array(n);
@@ -56,8 +75,21 @@ export class FloodSim {
     this.water[outlet] += volume / (DX * DX);
     return volume;
   }
+  /** Drop a smooth bump of water where there already is some; it spreads as a ring. */
+  splash(cx: number, cy: number, height: number, radius: number): void {
+    const reach = Math.ceil(radius * 2.5);
+    for (let y = Math.max(0, Math.floor(cy) - reach); y <= Math.min(this.height - 1, Math.floor(cy) + reach); y++) {
+      for (let x = Math.max(0, Math.floor(cx) - reach); x <= Math.min(this.width - 1, Math.floor(cx) + reach); x++) {
+        const i = y * this.width + x;
+        if (this.water[i] < .05) continue;
+        const d2 = ((x + .5 - cx) ** 2 + (y + .5 - cy) ** 2) / (radius * radius);
+        this.water[i] += height * Math.exp(-d2);
+      }
+    }
+  }
   /** Advance the requested physical duration using stable substeps. */
   advance(duration: number): void {
+    this.wear.fill(0);
     while (duration > 1e-9) {
       let speed = 0.1;
       for (let i = 0; i < this.water.length; i++) {
@@ -66,17 +98,43 @@ export class FloodSim {
       }
       const dt = Math.min(duration, 0.38 * DX / speed);
       this.step(dt);
-      if (this.sourceConfig) {
-        const { cells, rate } = this.sourceConfig;
-        const volume = rate * dt;
-        for (const i of cells) this.water[i] += volume / (cells.length * DX * DX);
-        this.sourceVolume += volume;
-      }
+      if (this.erosion) this.erode(dt);
       if (this.pumpConfig) {
         const { intakes, outlet, capacity, minLevel } = this.pumpConfig;
         this.pumpedVolume += this.pump(intakes, outlet, capacity, dt, minLevel);
       }
       duration -= dt;
+    }
+  }
+  /** Lower the bed where water runs fast over erodible ground. The depth is kept,
+   * so the water surface drops with the bed and volume is conserved. */
+  private erode(dt: number): void {
+    const { floor, hardTop, sand, critical: oldCritical, rate: oldRate } = this.erosion!;
+    for (let i = 0; i < this.terrain.length; i++) {
+      const z = this.terrain[i], h = this.water[i];
+      if (z <= floor[i] || h < .02) continue;
+      const speed = Math.hypot(this.mx[i], this.my[i]) / h;
+      const soft = z > hardTop[i];
+      const critical = soft ? sand.critical : oldCritical[i], rate = soft ? sand.rate : oldRate[i];
+      if (speed <= critical) continue;
+      const bottom = soft ? Math.max(floor[i], hardTop[i]) : floor[i];
+      const next = Math.max(bottom, z - rate * (speed - critical) ** 2 * dt);
+      this.terrain[i] = next;
+      this.wear[i] += (z - next) / dt;
+    }
+    const { width: w } = this, { height, rate } = this.erosion!.slump;
+    for (let i = 0; i < this.terrain.length; i++) {
+      const z = this.terrain[i];
+      if (z <= floor[i] || this.water[i] < .02) continue;
+      const x = i % w;
+      let target = z;
+      for (const j of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, i - w, i + w]) {
+        if (j >= 0 && j < this.terrain.length && this.wear[j] > 0) target = Math.min(target, this.terrain[j] + height);
+      }
+      if (target >= z) continue;
+      const next = Math.max(floor[i], target, z - rate * dt);
+      this.terrain[i] = next;
+      this.wear[i] += (z - next) / dt;
     }
   }
   private step(dt: number): void {
@@ -90,7 +148,7 @@ export class FloodSim {
     }
     for (let i = 0; i < this.water.length; i++) {
       this.water[i] += this.dh[i];
-      if (this.water[i] < -1e-8) throw new Error('Negative shallow-water depth');
+      if (!(this.water[i] >= -1e-8)) throw new Error('Negative shallow-water depth');
       this.water[i] = Math.max(0, this.water[i]);
       const friction = 1 / (1 + this.friction * dt);
       this.mx[i] = (this.mx[i] + this.du[i]) * friction;
@@ -112,7 +170,7 @@ export class FloodSim {
       if (sea) {
         ha = Math.max(0, this.seaLevel - za); ua = ub;
         if (this.waveBoundary) {
-          const incoming = 4 * Math.sqrt(G * ha) - 2 * Math.sqrt(G * Math.max(0, -za));
+          const incoming = 2 * Math.sqrt(G * ha);
           const outgoing = ub - 2 * Math.sqrt(G * hb);
           ua = (incoming + outgoing) / 2;
           ha = Math.max(0, (incoming - outgoing) / 4) ** 2 / G;

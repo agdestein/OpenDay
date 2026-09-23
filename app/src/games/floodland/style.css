@@ -1,69 +1,40 @@
-.delta-ui { position:absolute; inset:0; pointer-events:none; color:#eaf3ee; font-family:system-ui,sans-serif; }
-.delta-header { position:absolute; top:26px; left:90px; right:110px; display:flex; justify-content:space-between; align-items:center; gap:20px; }
-.delta-header small { font-size:11px; font-weight:800; letter-spacing:.2em; color:#9dd4ce; }
-.delta-header h1 { font-size:clamp(20px,2.6vw,34px); margin:5px 0; font-weight:750; letter-spacing:-.04em; }
-.delta-stats { font-size:14px; color:#e5e7cc; font-variant-numeric:tabular-nums; max-width:460px; line-height:1.8; }
-.delta-footer { position:absolute; bottom:20px; left:32px; right:32px; text-align:center; }
-.delta-status { font-size:15px; line-height:1.4; min-height:24px; margin:10px 0 4px; }
-.delta-inspection { font-size:13px; color:#b5dedc; min-height:18px; }
-.delta-tools { pointer-events:auto; display:flex; flex-wrap:wrap; justify-content:center; gap:8px; align-items:center; margin-top:12px; }
-.delta-tools button, .delta-tools select { font:600 13px system-ui; border:1px solid #547079; background:#203d48; color:#e7f2e9; border-radius:9px; padding:11px 13px; cursor:pointer; }
-.delta-tools button:first-child { background:#e5c579; color:#223735; border-color:#e5c579; }
-.delta-tools button[aria-pressed=true] { background:#486666; border-color:#c2e5ce; }
-.delta-tools button:hover:not(:disabled) { filter:brightness(1.18); }
-.delta-tools button:focus-visible, .delta-tools select:focus-visible { outline:3px solid #ffe0a4; outline-offset:3px; }
-.delta-tools button:disabled { opacity:.35; cursor:default; }
-.delta-tools button[hidden] { display:none; }
-.delta-tools label { display:flex; align-items:center; gap:8px; font-size:12px; color:#b6c9ca; }
-.delta-timeline { position:relative; max-width:520px; margin:auto; padding:8px 12px; font-size:11px; letter-spacing:.06em; border-bottom:3px solid #365661; background:linear-gradient(90deg,#548b8860 var(--progress),transparent var(--progress)); }
-@media(max-width:700px) { .delta-header { left:80px; top:18px; right:80px; display:block; } .delta-stats {font-size:11px;} .delta-footer {left:12px;right:12px;bottom:12px;} .delta-tools {gap:5px;margin-top:5px;} .delta-tools button,.delta-tools select {padding:8px;font-size:11px;} .delta-status {font-size:12px;} .delta-inspection {font-size:10px;} }
-/* The shared overlay enables pointer events on direct children. Only controls
-   should intercept input; drawing must reach the landscape canvas. */
-.game-overlay > .delta-ui { pointer-events:none; }
-.delta-scrubber { display:block; width:min(520px,100%); margin:4px auto 0; height:24px; pointer-events:auto; cursor:ew-resize; accent-color:#e5c579; }
-.delta-scrubber[hidden] { display:none; }
-.delta-scrubber:focus-visible { outline:2px solid #ffe0a4; outline-offset:3px; }
-.delta-tools > label[hidden] { display:none; }
-.delta-more { position:relative; text-align:left; }
-.delta-more > summary { list-style:none; font:600 13px system-ui; border:1px solid #547079; border-radius:9px; padding:11px 15px; cursor:pointer; color:#d4e5df; background:#203d48; }
-.delta-more > summary::-webkit-details-marker { display:none; }
-.delta-more > summary:focus-visible { outline:3px solid #ffe0a4; outline-offset:3px; }
-.delta-more-panel { position:absolute; right:0; bottom:calc(100% + 12px); width:340px; max-width:calc(100vw - 40px); padding:20px; border:1px solid #547079; border-radius:12px; background:#142e39; box-shadow:0 10px 40px #00101880; z-index:30; }
-.delta-more-panel p { margin:0 0 16px; color:#cbded7; font-size:13px; line-height:1.6; }
-.delta-extra-controls { display:flex; gap:8px; flex-wrap:wrap; }
-.delta-extra-controls button:first-child { background:#203d48; color:#e7f2e9; border-color:#547079; }
-.delta-header h1 { font-size:clamp(20px,2.2vw,30px); }
-.delta-status {font-size:13px;color:#c2d9d3;}
-.delta-inspection {font-size:12px;color:#9abbb7;}
-@media(max-width:700px) {
- .delta-more {position:static;}
- .delta-more-panel {right:0;left:0;margin:auto;bottom:calc(100% + 8px);width:auto;}
- .delta-more > summary {padding:8px;font-size:11px;}
+/* Save the Netherlands: game-specific pieces on top of the shared toolbar, HUD and cards. */
+.delta-toolbar { flex-wrap: wrap; justify-content: center; width: max-content; max-width: calc(100vw - 32px); }
+.delta-toolbar[hidden], .delta-hud[hidden], .delta-hint[hidden], .delta-inspection[hidden] { display: none; }
+.delta-hud { gap: 1.4rem; align-items: center; }
+.delta-hud-item { display: inline-flex; align-items: center; gap: .35rem; font-variant-numeric: tabular-nums; }
+.delta-hud-item.bad { color: #ff9d8a; }
+.delta-sand-bar { display: inline-block; width: 5.5rem; height: .75rem; border-radius: .4rem; background: #2c3e46; overflow: hidden; }
+.delta-sand-bar > span { display: block; height: 100%; background: linear-gradient(90deg, #c99a45, #ecc877); }
+.delta-hint { bottom: 7.2rem; font-size: 1.15rem; }
+.delta-inspection {
+  position: absolute; bottom: 9.4rem; width: 100%; margin: 0; text-align: center;
+  font-size: .9rem; color: #b5dedc; font-variant-numeric: tabular-nums;
+  pointer-events: none !important; text-shadow: 0 1px 4px rgba(0, 0, 0, .9);
 }
-.delta-timeline { border:0; background:none; padding:4px; }
-.delta-scrubber { appearance:none; height:6px; margin:12px auto; border-radius:8px; background:linear-gradient(to right,#e5c579 var(--progress),#365661 var(--progress)); }
-.delta-scrubber::-webkit-slider-thumb { appearance:none; width:18px; height:18px; border-radius:50%; background:#e5c579; }
-.delta-scrubber::-moz-range-thumb { width:18px;height:18px;border:0;border-radius:50%;background:#e5c579; }
-.delta-playback { gap:0; margin:8px auto; }
-.delta-playback[hidden] { display:none; }
-.delta-playback button { min-width:50px; font-size:19px; border-radius:0; padding:6px 12px; }
-.delta-playback button:first-child { background:#203d48;color:#e7f2e9;border-color:#547079;border-radius:10px 0 0 10px; }
-.delta-playback button:last-child { border-radius:0 10px 10px 0; }
-/* Explicit centering overrides the arcade's global margin reset. */
-.delta-storm-dialog { position:fixed; inset:0; margin:auto; box-sizing:border-box; width:680px; max-width:calc(100vw - 32px); max-height:calc(100dvh - 32px); overflow:auto; pointer-events:auto; color:#eaf3ee; background:#142e39; border:1px solid #547079; border-radius:22px; padding:36px; text-align:center; }
-.delta-storm-dialog::backdrop { background:#05151cb0; backdrop-filter:blur(5px); }
-.delta-storm-dialog h2 { margin:0 0 28px; font-size:22px; font-weight:500; }
-.delta-storm-choices { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
-.delta-storm-dialog button { color:inherit; font:inherit; cursor:pointer; }
-.delta-storm-choices button { display:flex; flex-direction:column; justify-content:center; gap:18px; min-height:220px; padding:30px 24px; background:#1c3943; border:1px solid #49636a; border-radius:16px; text-align:left; transition:background .2s,border-color .2s; }
-.delta-storm-choices button:hover { background:#264851; border-color:#a1c7bf; }
-.delta-storm-choices strong { font-size:24px; font-weight:550; letter-spacing:-.03em; }
-.delta-storm-choices span { color:#b9d0cb; font-size:14px; line-height:1.65; }
-.delta-storm-dialog > button { margin:24px auto 0; padding:10px 24px; background:transparent; border:0; color:#b9d0cb; font-size:14px; }
-.delta-storm-dialog button:focus-visible { outline:2px solid #e5c579;outline-offset:4px; }
-@media(max-width:560px) {
- .delta-storm-dialog {padding:24px;}
- .delta-storm-choices {grid-template-columns:1fr;gap:12px;}
- .delta-storm-choices button {min-height:150px;padding:24px;gap:12px;}
- .delta-storm-choices strong {font-size:22px;}
+.delta-banner {
+  position: absolute; top: 22%; left: 50%; transform: translate(-50%, -50%) scale(.8);
+  padding: .5rem 1.6rem; border-radius: 1rem; background: #b3261ee6; color: #fff;
+  font-size: 2.2rem; font-weight: 900; letter-spacing: -.02em;
+  opacity: 0; transition: opacity .25s ease, transform .25s ease;
+  pointer-events: none !important;
+}
+.delta-banner.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+.delta-card { max-width: 32rem; }
+.delta-card p { margin: 1rem 0 0; font-size: 1.1rem; line-height: 1.5; opacity: .9; }
+.delta-breakdown { margin: .3rem 0 0; font-size: 1rem; opacity: .8; }
+.delta-scrub-row { flex-basis: 100%; display: flex; justify-content: center; }
+.delta-scrubber {
+  appearance: none; width: min(560px, 80vw); height: 8px; margin: 6px auto 4px; border-radius: 8px; cursor: ew-resize;
+  background: linear-gradient(to right, #e5c579 var(--progress), #365661 var(--progress));
+}
+.delta-scrubber::-webkit-slider-thumb { appearance: none; width: 20px; height: 20px; border-radius: 50%; background: #e5c579; }
+.delta-scrubber::-moz-range-thumb { width: 20px; height: 20px; border: 0; border-radius: 50%; background: #e5c579; }
+.delta-scrubber:focus-visible { outline: 2px solid #ffe0a4; outline-offset: 3px; }
+@media (max-width: 700px) {
+  .delta-hud { gap: .8rem; font-size: 1rem; }
+  .delta-sand-bar { width: 3rem; }
+  .delta-hint { bottom: 6rem; font-size: .9rem; }
+  .delta-inspection { bottom: 7.6rem; font-size: .75rem; }
+  .delta-banner { font-size: 1.5rem; }
 }

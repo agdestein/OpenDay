@@ -9,7 +9,7 @@ export default async (h) => {
     await btn(h, 'Computer');
     for (let i = 0; i < 4; i++) { await h.sleep(5000); await style(h, 'button,.game-toolbar{visibility:hidden!important}'); await h.shot(`h_farm_${k}${i}`); await style(h, ''); }
     await open(h, 'floodland', s, w, hh);
-    await btn(h, 'Start de storm'); await h.sleep(500); await btn(h, 'Drie golven');
+    await btn(h, 'Storm!');
     await style(h, CANVAS_ONLY);
     await h.sleep(13000);
     for (let i = 0; i < 5; i++) { await h.shot(`h_flood_${k}${i}`); await h.sleep(1500); }

@@ -1,7 +1,11 @@
-import { FloodRecording, RECORD_FPS } from '../src/games/floodland/recording.ts';
+import { LiveRecording, RECORD_FPS } from '../src/games/floodland/recording.ts';
 import { FloodSim, GRID_W as W, GRID_H as H } from '../src/games/floodland/water.ts';
-import { makeScene, resetWater, dikePlan, surge, STORM_DURATION, HOMES, BUDGET, totalDuration, scenarioBudget, POOL, PUMP, placeSand, SAND_RATE } from '../src/games/floodland/scene.ts';
+import {
+  makeScene, resetWater, placeSand, seaLevelAt, stormStrength, floodedHomes, countBits, spillLevel, homeSpillLevels, CALM_SEA,
+  HOMES, BUDGET, POOL, PUMP, SAND_RATE, SILL, ROAD, ROUND, ROUND_LENGTH, STORM_LENGTH, TIME_SCALE, type Point,
+} from '../src/games/floodland/scene.ts';
 import assert from 'node:assert/strict';
+
 // Closed basin with varying bed: hydrostatic equilibrium and conservation.
 const lake = new FloodSim(16,12); lake.ocean = false;
 for (let i=0;i<lake.water.length;i++) {lake.terrain[i]=Math.sin(i)*.4; lake.water[i]=2-lake.terrain[i];}
@@ -16,49 +20,118 @@ const v=dam.volume(); dam.advance(40);
 assert.ok(dam.water.every(h=>Number.isFinite(h)&&h>=0));
 assert.ok(dam.water[6*32+18]>.01);
 assert.ok(Math.abs(dam.volume()-v)<1e-6);
-function run(crest?:number) {
- const s=makeScene();
- if(crest!==undefined) {
-  const p=dikePlan(s,[{x:22.5,y:15},{x:22.5,y:25}],crest);
-  const cost=[...p.values()].reduce((a,b)=>a+b,0); assert.ok(cost<BUDGET);
-  for(const [i,dh] of p) s.terrain[i]+=dh;
-  resetWater(s);
- }
- const initial=s.volume(); const flooded=new Set<number>();
- for(let k=1;k<=STORM_DURATION*30;k++) {
-  s.seaLevel=surge(k/30); s.advance(24/30);
-  HOMES.forEach(([x,y],j)=>{if(s.water[y*W+x]>.3)flooded.add(j);});
- }
- assert.ok(s.water.every(h=>Number.isFinite(h)&&h>=0));
- assert.ok(Math.abs(s.volume()-initial-s.boundaryVolume-s.sourceVolume)<1e-5);
- return {flooded:flooded.size,water:s.water};
-}
-const open=run(), high=run(2.4), low=run(1);
-assert.ok(open.flooded>=6, `Open gap floods ${open.flooded}`);
-assert.equal(high.flooded,0,'High dike protects every home');
-assert.ok(low.flooded>0,'Low dike overtops');
-const replay=run(2.4); assert.deepEqual(replay.water,high.water);
-assert.equal(makeScene().terrain.length,W*H);
-console.log(`PASS: lake at rest; closed-basin volume; wet/dry dam break; boundary accounting; replay. Homes flooded: open ${open.flooded}, low ${low.flooded}, high ${high.flooded}.`);
+console.log('PASS: lake at rest, closed-basin volume, wet/dry dam break.');
 
-// The timeline restores all dynamic fields and historical damage, not just water.
-const recordingScene = makeScene();
-const recording = new FloodRecording(recordingScene.terrain, W, H);
-assert.ok(recording.values.byteLength < 64 * 1024 * 1024);
-assert.equal(recording.restore(STORM_DURATION, recordingScene), 255);
-assert.ok(recordingScene.water.every((h,i)=>Math.abs(h-open.water[i])<1e-6));
-recording.restore(18.123, recordingScene);
-const middle = [recordingScene.water.slice(),recordingScene.mx.slice(),recordingScene.my.slice()];
-assert.equal(recording.restore(0, recordingScene), 0);
-assert.equal(recordingScene.seaLevel,0);
-assert.equal(recordingScene.water[20*W+40],0);
-assert.ok(recording.maximumThrough(0)[20*W+40]===0);
-recording.restore(18.123, recordingScene);
-assert.deepEqual(recordingScene.water,middle[0]);
-assert.deepEqual(recordingScene.mx,middle[1]);
-assert.deepEqual(recordingScene.my,middle[2]);
-assert.equal(recording.frames, totalDuration('surge')*RECORD_FPS+1);
-console.log('PASS: recording memory bound, full-run agreement, backward/forward seeking, momentum, historical damage and flood extent.');
+// Erosion: still water never erodes; a dam break over erodible ground keeps its
+// water volume, never cuts below the floor, and wears loose sand before old ground.
+function erodible(sim: FloodSim, oldCritical: number) {
+  const n = sim.terrain.length;
+  sim.erosion = {
+    floor: new Float64Array(n).fill(-1), hardTop: sim.terrain.slice(),
+    sand: { critical: 1, rate: .01 }, critical: new Float32Array(n).fill(oldCritical), rate: new Float32Array(n).fill(.01),
+    slump: { height: 1, rate: .01 },
+  };
+}
+const still = new FloodSim(16,12); still.ocean=false;
+for (let i=0;i<still.water.length;i++) {still.terrain[i]=Math.sin(i)*.4; still.water[i]=2-still.terrain[i];}
+erodible(still, .1); const stillBed=still.terrain.slice(); still.advance(60);
+assert.deepEqual(still.terrain, stillBed, 'Water at rest does not erode');
+const scour = new FloodSim(32,12); scour.ocean=false;
+for(let y=0;y<12;y++) for(let x=0;x<32;x++) scour.terrain[y*32+x] = x>=12&&x<=14 ? .5 : 0;
+erodible(scour, 100);
+for(let y=0;y<12;y++) { for(let x=12;x<=14;x++) scour.terrain[y*32+x] += .6; for(let x=0;x<8;x++) scour.water[y*32+x]=3; }
+const scourVolume = scour.volume(); scour.advance(120);
+assert.ok(Math.abs(scour.volume()-scourVolume)<1e-6, 'Erosion conserves water');
+assert.ok(scour.terrain.every((z,i)=>z>=scour.erosion!.floor[i]));
+assert.ok(scour.terrain.some((z,i)=>z<scour.erosion!.hardTop[i]+.6-1e-3), 'Fast water wears the sand');
+assert.ok(scour.terrain.every((z,i)=>z>=scour.erosion!.hardTop[i]-1e-12), 'Sturdy old ground under the sand holds');
+console.log('PASS: no erosion at rest, volume conserved, floor and layer respected.');
+
+// The storm and the sea boundary.
+assert.equal(stormStrength(-1),0); assert.equal(stormStrength(STORM_LENGTH+1),0); assert.equal(stormStrength(15),1);
+for (let t=0;t<30;t+=.1) assert.ok(Math.abs(seaLevelAt(t,null))<=.1+1e-12, 'Calm sea is a gentle swell');
+const calm=makeScene(), calmInitial=calm.volume();
+assert.ok(POOL.every(i=>calm.water[i]>0));
+for (let t=0;t<150;t+=1/30) { calm.seaLevel=seaLevelAt(t,null); calm.advance(TIME_SCALE/30); }
+assert.ok(calm.pumpedVolume>100,'Automatic pump runs without a storm');
+assert.ok(POOL.every(i=>Math.abs(calm.terrain[i]+calm.water[i]-PUMP.targetLevel)<.03),'...and holds the pond at its target level');
+assert.ok(POOL.every(i=>calm.water[i]>.4),'Pump retains the pond');
+assert.ok(HOMES.every(([x,y])=>calm.water[y*W+x]<.001),'The swell stays outside');
+assert.ok(Math.abs(calm.volume()-calmInitial-calm.boundaryVolume)<1e-5,'Boundary accounts for all water');
+assert.ok(calm.terrain.every((z,i)=>Math.abs(z-makeScene().terrain[i])<1e-12),'The swell does not erode the dike');
+console.log('PASS: storm profile, calm swell, pump regulation, boundary accounting, no calm erosion.');
+
+// The challenge, played headlessly at 60 frames per second.
+const crestOf = (s: FloodSim, r: {y0:number;y1:number}) => {
+  let m = Infinity; for (let y=r.y0;y<=r.y1;y++) { let c=-Infinity; for(let x=20;x<=24;x++) c=Math.max(c,s.terrain[y*W+x]); m=Math.min(m,c); } return m;
+};
+function raise(s: FloodSim, r: {y0:number;y1:number}, crest: number) {
+  const points: Point[] = []; for (let y=r.y0-1;y<=r.y1+1;y+=.25) points.push({x:22.5,y});
+  let used = 0; for (let k=0;k<400 && crestOf(s,r)<crest;k++) used += placeSand(s,points,.02,Infinity);
+  return used;
+}
+function play(prepare: (s: FloodSim)=>number, hold: (t: number)=>Point|null = () => null) {
+  const s = makeScene(); let budget = BUDGET - prepare(s), mask = 0, worst = 0;
+  for (let f=1; f<=ROUND_LENGTH*60; f++) {
+    const t = f/60, p = hold(t);
+    if (p) budget -= placeSand(s,[p],SAND_RATE/60,budget);
+    s.seaLevel = seaLevelAt(t, ROUND.warning);
+    const start = performance.now(); s.advance(TIME_SCALE/60); worst = Math.max(worst, performance.now()-start);
+    mask |= floodedHomes(s);
+    assert.ok(s.water.every(h=>Number.isFinite(h)&&h>=0));
+  }
+  // As in the game: homes behind a breach cut below the calm sea are lost too.
+  homeSpillLevels(s.terrain).forEach((level, k) => { if (level < CALM_SEA) mask |= 1 << k; });
+  return { flooded: countBits(mask), budget, sill: crestOf(s,SILL), road: crestOf(s,ROAD), worst };
+}
+const nothing = play(() => 0);
+assert.ok(nothing.flooded>=6, `Undefended: ${nothing.flooded} homes flood`);
+assert.ok(nothing.sill<0, 'The overtopped sill breaches');
+const sillOnly = play(s => raise(s,SILL,3.1));
+assert.ok(sillOnly.flooded>0 && sillOnly.road<.5, 'Water finds the next low spot: the road breaches');
+const both = play(s => raise(s,SILL,2.9)+raise(s,ROAD,2.9));
+assert.equal(both.flooded,0,'Closing both gaps keeps every home dry');
+assert.ok(both.budget>BUDGET/3,'...with sand to spare');
+const sweep = (y0:number,y1:number,t:number) => { const u=(t*2)%1; return {x:22.5,y:y0+(y1-y0)*(u<.5?2*u:2-2*u)}; };
+const rescue = play(() => 0, t => t>12&&t<18 ? sweep(16,23,t) : t>22&&t<26 ? sweep(5,9,t) : null);
+assert.equal(rescue.flooded,0,'Sandbagging during the storm, in time, saves everyone');
+console.log(`PASS: challenge outcomes. Flooded: nothing ${nothing.flooded}, sill only ${sillOnly.flooded}, both ${both.flooded} (sand left ${both.budget.toFixed(0)}), live rescue ${rescue.flooded}. Worst solver frame ${Math.max(nothing.worst,both.worst).toFixed(1)} ms.`);
+
+// Spill level: the lowest sea level that can reach a home.
+const spillScene = makeScene();
+assert.equal(spillLevel(spillScene.terrain), SILL.profile[2]);
+raise(spillScene,SILL,3.1); assert.equal(spillLevel(spillScene.terrain), ROAD.profile[2]);
+raise(spillScene,ROAD,3.1); assert.ok(Math.abs(spillLevel(spillScene.terrain)-3.1)<.05);
+
+// Live recording: bounded memory, exact at frame times, interpolated between.
+const rec = new LiveRecording(W*H, ROUND_LENGTH+1);
+assert.ok(rec.bytes < 64*1024*1024);
+const live = makeScene(), frames: Float64Array[][] = [];
+for (let f=0; f<=96; f++) {
+  const t = f/60;
+  if (f) { live.seaLevel = seaLevelAt(t, 0); live.advance(TIME_SCALE/60); placeSand(live,[{x:30.5,y:10.5}],SAND_RATE/60,Infinity); }
+  rec.capture(t, live, f>45 ? 3 : 0);
+  if (f % 4 === 0) frames.push([live.terrain.slice(), live.water.slice()]);
+}
+assert.ok(Math.abs(rec.duration-1.6)<1e-9);
+const view = makeScene();
+assert.equal(rec.restore(1.6, view), 3);
+assert.ok(view.terrain.every((z,i)=>Math.abs(z-live.terrain[i])<1e-5),'Terrain (sand) is recorded');
+assert.ok(view.water.every((h,i)=>Math.abs(h-live.water[i])<1e-5));
+assert.equal(rec.restore(0, view), 0);
+assert.ok(view.water.every((h,i)=>Math.abs(h-frames[0][1][i])<1e-6));
+rec.restore(.1, view); const a = view.water.slice();
+rec.restore(.1, view); assert.deepEqual(view.water, a, 'Seeking is repeatable');
+assert.equal(RECORD_FPS, 15);
+console.log('PASS: spill level, recording bounds, sand in recordings, seeking.');
+
+// Splash: a bump only where water already is, spreading as a wave.
+const pond = makeScene(), dry = pond.water.slice();
+pond.splash(8, 20, .9, 1.6); pond.splash(40, 20, .9, 1.6);
+assert.ok(pond.water[20*W+8] > dry[20*W+8] + .5);
+assert.equal(pond.water[20*W+40], 0, 'No splash on dry land');
+pond.advance(10); assert.ok(Math.hypot(pond.mx[20*W+11], pond.my[20*W+11]) > .01, 'The bump spreads');
+console.log('PASS: splash.');
 
 // Pump capacity, availability, momentum removal and explicit outlet accounting.
 const pump = new FloodSim(8,8); pump.ocean=false;pump.water[10]=.5;pump.mx[10]=1;
@@ -67,60 +140,22 @@ assert.equal(pump.pump([10],20,10,2),20);
 assert.equal(pump.water[10],.3);assert.equal(pump.mx[10],.6);assert.equal(pump.water[20],.2);
 assert.equal(pump.pump([10],20,100,2),30);assert.equal(pump.water[10],0);
 assert.equal(pump.pump([10],20,100,2),0);assert.ok(Math.abs(pump.volume()-pumpVolume)<1e-9);
-function polderVolume(sim: FloodSim) {
- let volume=0;for(let y=0;y<H;y++)for(let x=25;x<W;x++)volume+=sim.water[y*W+x]*100;return volume;
-}
-recording.restore(STORM_DURATION,recordingScene);const startRecovery=polderVolume(recordingScene);
-recording.restore(recording.duration,recordingScene);const cleared=polderVolume(recordingScene);
-assert.ok(cleared < startRecovery*.08, `Recovery remaining ${cleared/startRecovery}`);
-assert.ok(recording.pumpedAt(recording.duration)>startRecovery-cleared,'Pump removes the retained floodwater');
-assert.ok(recording.pumpedAt(2)>0,'Pump operates before the flood arrives');
-assert.ok(recording.pumpRates.every(rate=>rate>=0&&rate<=35.00001));
-const initialVolume=makeScene().volume();
-assert.ok(Math.abs(recordingScene.volume()-initialVolume-recording.boundary.at(-1)!-recording.sources.at(-1)!)<.1,'Pump transfer preserves total volume');
-
-const unpumpedScene=makeScene();const unpumped=new FloodRecording(unpumpedScene.terrain,W,H,'surge',false);
-unpumped.restore(unpumped.duration,unpumpedScene);
-assert.ok(polderVolume(unpumpedScene)>cleared*5,'Recovery is caused by the pump, not a hidden sink');
-const waveScene=makeScene('waves');const waves=new FloodRecording(waveScene.terrain,W,H,'waves');
-assert.ok(waves.values.byteLength<64*1024*1024);
-const amounts:number[]=[];
-for(const time of [0,25,42,62]){waves.restore(time,waveScene);amounts.push(polderVolume(waveScene));}
-for(let i=1;i<amounts.length;i++)assert.ok(amounts[i]-amounts[i-1]>3000,`Wave ${i} overtopping adds water`);
-assert.ok(amounts[3]<startRecovery*.7,'Pulses deliver limited flood volume');
-waves.restore(20,waveScene);const arrival=waveScene.water[20*W+40];waves.restore(30,waveScene);
-assert.ok(arrival-waveScene.water[20*W+40]>.1,'A pulse passes the village rather than simply filling it');
-waves.restore(waves.duration,waveScene);assert.ok(polderVolume(waveScene)<amounts[3]*.2);
-assert.ok(Math.abs(waveScene.volume()-makeScene('waves').volume()-waves.boundary.at(-1)!-waves.sources.at(-1)!)<.1,'Wave boundary and recovery account for all water');
-const defense=dikePlan(waveScene,[{x:22.5,y:11},{x:22.5,y:29}],2.4);
-assert.ok([...defense.values()].reduce((a,b)=>a+b,0)<=scenarioBudget('waves'));
-for(const[i,rise]of defense)waveScene.terrain[i]+=rise;
-const defendedWaves=new FloodRecording(waveScene.terrain,W,H,'waves');
-assert.equal(defendedWaves.restore(defendedWaves.duration,waveScene),0,'Affordable defense protects against all three waves');
-console.log('PASS: conservative regulated pump; capacity and availability; recovery versus pump-off; three overtopping pulses; traveling front; affordable wave defense; recovery seek and bounded storage.');
-
-// The permanent sill separates the calm sea from a wet, regulated drainage system.
-const calm=makeScene(), calmInitial=calm.volume();
-assert.ok(calm.terrain[20*W+22]>0);
-assert.ok(POOL.every(i=>calm.water[i]>0));
-calm.advance(3600);
-assert.ok(calm.pumpedVolume>1000,'Automatic pump runs before any storm');
-assert.ok(POOL.every(i=>calm.water[i]>.4),'Pump retains the pond');
-assert.ok(POOL.every(i=>Math.abs(calm.terrain[i]+calm.water[i]-PUMP.targetLevel)<.03));
-assert.ok(HOMES.every(([x,y])=>calm.water[y*W+x]<.001));
-assert.ok(Math.abs(calm.volume()-calmInitial-calm.boundaryVolume-calm.sourceVolume)<1e-5);
 const regulated=new FloodSim(8,8);regulated.terrain[10]=-2;regulated.water[10]=1.5;
 assert.equal(regulated.pump([10],20,100,10,-1),50);
 assert.equal(regulated.water[10],1);
+assert.equal(PUMP.capacity, 35);
+
 // Hold duration controls height, with a hard height cap and a partial final layer.
 const brushPoint=[{x:22.5,y:20.5}];
 function paint(fps:number){const sim=makeScene();let budget=210;for(let k=0;k<fps;k++)budget-=placeSand(sim,brushPoint,SAND_RATE/fps,budget);return {sim,budget};}
 const brush30=paint(30),brush120=paint(120);
 assert.ok(brush30.sim.terrain.every((h,i)=>Math.abs(h-brush120.sim.terrain[i])<1e-12));
 assert.ok(Math.abs(brush30.budget-brush120.budget)<1e-10);
-assert.ok(Math.abs(brush30.sim.terrain[20*W+22]-(.7+SAND_RATE))<1e-10);
+assert.ok(Math.abs(brush30.sim.terrain[20*W+22]-(SILL.profile[2]+SAND_RATE))<1e-10);
 const limited=makeScene();assert.equal(placeSand(limited,brushPoint,10,.5),.5);
 const before=limited.terrain.slice();assert.equal(placeSand(limited,brushPoint,10,0),0);assert.deepEqual(limited.terrain,before);
 placeSand(limited,brushPoint,100,1000);assert.equal(limited.terrain[20*W+22],4);
-const pond=limited.terrain.slice();placeSand(limited,[{x:51.5,y:31.5}],10,1000);assert.ok(POOL.every(i=>limited.terrain[i]===pond[i]));
-console.log('PASS: calm isolated polder, permanent pond, automatic level control, source accounting, progressive sand, frame-rate independence, height cap and limited budget.');
+const pondBed=limited.terrain.slice();placeSand(limited,[{x:51.5,y:31.5}],10,1000);assert.ok(POOL.every(i=>limited.terrain[i]===pondBed[i]));
+const reset = makeScene(); reset.water.fill(9); resetWater(reset); assert.ok(HOMES.every(([x,y])=>reset.water[y*W+x]===0));
+assert.equal(makeScene().terrain.length, W*H);
+console.log('PASS: pump, progressive sand, frame-rate independence, height cap, limited budget, protected pond, water reset.');

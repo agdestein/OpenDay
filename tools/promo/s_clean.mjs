@@ -27,7 +27,7 @@ export default async (h) => {
   }
   if (want('flood')) {
     await open(h, 'floodland');
-    await btn(h, 'Start de storm'); await h.sleep(500); await btn(h, 'Drie golven');
+    await btn(h, 'Storm!');
     await style(h, CANVAS_ONLY);
     for (const t of [13500, 1500, 1500, 1500, 3000]) { await h.sleep(t); await h.shot('c_flood_' + Date.now() % 100000); }
   }
