@@ -10,7 +10,8 @@
     "check": "tsc",
     "test:floodland": "node tests/run-floodland.mjs",
     "test:outbreak": "node tests/run-outbreak.mjs",
-    "test:detective": "node tests/run-detective.mjs"
+    "test:detective": "node tests/run-detective.mjs",
+    "test:bounce": "node tests/run-bounce.mjs"
   },
   "devDependencies": {
     "typescript": "^7.0.2",

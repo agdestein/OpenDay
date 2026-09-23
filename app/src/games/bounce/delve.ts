@@ -1,7 +1,8 @@
-// Delve chapters for Bouncy Balls, in the shared chaptered style
+// Delve chapters for Ball Pit, in the shared chaptered style
 // (shell/delve.ts): text in the card on the left, one live illustration per
-// chapter drawn by the game on its canvas (index.ts drawDelve). The chapter-5
-// lab drives the very same physics switches as the game toolbar.
+// chapter drawn by the game on its canvas (demos.ts). The switch labs in
+// chapters 3–5 are the only place to change the model: they switch
+// collisions, friction and heat loss in the ball pit itself.
 import type { DelveChapter } from '../../shell/delve';
 import { pick, type Localized } from '../../lib/i18n';
 
@@ -43,14 +44,14 @@ const CHAPTERS: Localized<ChapterText[]> = {
       paragraphs: [
         'Two balls touch — now what? Real balls squash, thud, maybe squeak. Our model throws all that away and keeps one rule: push them apart along the line joining their centers, never sideways. That single rule is enough for believable glancing hits, pile-ups and stacks.',
         'The pushes are equal and opposite (Newton’s third law), but the kicks are not: acceleration = force ÷ mass. Mass here grows with area, so the big ball barely notices the little one ricocheting off it.',
-        'Press the 🎱 button to switch collisions off, and balls sail through each other like ghosts. Nothing in a simulation happens “by itself” — every rule was written down by someone.',
+        'Switch 🎱 collisions off below and go back to the pit: balls sail through each other like ghosts. Nothing in a simulation happens “by itself” — every rule was written down by someone.',
       ],
       formula: 'F₁ = −F₂   (Newton III)\nm ∝ r²',
     },
     {
       title: 'Friction: every slide pays a toll',
       paragraphs: [
-        'Wherever a ball rubs along floor or wall, roughness shaves a slice off its sliding speed at every touch. Watch the arcs shrink on the right: each bounce lands a bit shorter, until the ball stops travelling and simply plops straight down.',
+        'Wherever a ball rubs along the floor, a wall or another ball, roughness shaves a slice off its sliding speed at every touch. Watch the arcs shrink on the right: each bounce lands a bit shorter, until the ball stops travelling and simply plops straight down.',
         'While it rolls, millions of microscopic bumps keep braking it — wait long enough and even rolling grinds to a halt. That is why the ball pile settles into calm instead of shivering forever.',
         'Nobody simulates those billions of microscopic bumps one by one. They are compressed into a single honest shortcut: multiply sliding speed by 0.96 at every wall touch. Choosing which shortcuts to take is half of modeling.',
       ],
@@ -90,14 +91,14 @@ const CHAPTERS: Localized<ChapterText[]> = {
       paragraphs: [
         'Twee ballen raken elkaar — en nu? Echte ballen vervormen, ploffen, piepen misschien. Ons model gooit dat allemaal weg en houdt één regel over: duw ze uit elkaar langs de lijn die hun middelpunten verbindt, nooit zijwaarts. Die ene regel is genoeg voor geloofwaardige raketslagen, stapels en botsingen.',
         'De duwkrachten zijn even groot en tegengesteld (de derde wet van Newton), maar de schoppen niet: versnelling = kracht ÷ massa. Massa groeit hier met de oppervlakte, dus de grote bal merkt de kleine die ervanaf kaatst nauwelijks op.',
-        'Druk op de 🎱-knop om botsingen uit te zetten, en ballen varen als geesten door elkaar heen. Niets in een simulatie gebeurt “zomaar” — iedere regel is ooit door iemand opgeschreven.',
+        'Zet hieronder 🎱 botsingen uit en ga terug naar de bak: ballen varen als geesten door elkaar heen. Niets in een simulatie gebeurt “zomaar” — iedere regel is ooit door iemand opgeschreven.',
       ],
       formula: 'F₁ = −F₂   (Newton III)\nm ∝ r²',
     },
     {
       title: 'Wrijving: elke glijbeweging betaalt tol',
       paragraphs: [
-        'Waar een bal over de vloer of langs een wand schuurt, snapt de ruwheid bij elk contact een hapje uit zijn glijdende snelheid. Kijk hoe de bogen rechts krimpen: elke stuiter landt weer wat korter, tot de bal niet meer vooruit komt en er gewoon recht onderin plonst.',
+        'Waar een bal over de vloer, langs een wand of langs een andere bal schuurt, snapt de ruwheid bij elk contact een hapje uit zijn glijdende snelheid. Kijk hoe de bogen rechts krimpen: elke stuiter landt weer wat korter, tot de bal niet meer vooruit komt en er gewoon recht onderin plonst.',
         'Terwijl hij rolt, remmen miljoenen microscopische bobbeltjes hem voortdurend af — wacht lang genoeg en zelfs het rollen sputtert stil. Daarom zakt de ballenberg in rust in plaats van eeuwig te rillen.',
         'Niemand simuleert die miljarden microscopische bobbeltjes apart. Ze worden samengeperst tot één eerlijke snelkoppeling: glij-snelheid × 0,96 bij elke wandaanraking. Kiezen welke snelkoppelingen je neemt is de helft van modelleren.',
       ],
@@ -137,14 +138,14 @@ const CHAPTERS: Localized<ChapterText[]> = {
       paragraphs: [
         'To baller treffer hverandre — og så? Ekte baller trykkes sammen, dultes, kanskje de piper. Modellen vår kaster alt dét bort og beholder én regel: dytt dem fra hverandre langs linjen mellom sentrene deres, aldri sidelengs. Den eneste regelen strekker til for troverdige skrå treff, hauger og kollisjoner.',
         'Dyttene er like store og motsatte (Newtons tredje lov), men sparkene er ikke det: akselerasjon = kraft ÷ masse. Massen vokser her med flaten, så den store ballen merker knapt den lille som rikosjetterer avgårde.',
-        'Trykk på 🎱-knappen for å slå av kollisjoner, og ballene seiler gjennom hverandre som ånder. Ingenting i en simulering skjer “av seg selv” — hver regel er skrevet ned av noen.',
+        'Slå av 🎱 kollisjoner her under og gå tilbake til binga: ballene seiler gjennom hverandre som ånder. Ingenting i en simulering skjer “av seg selv” — hver regel er skrevet ned av noen.',
       ],
       formula: 'F₁ = −F₂   (Newton III)\nm ∝ r²',
     },
     {
       title: 'Friksjon: hver glid betaler toll',
       paragraphs: [
-        'Der ballen gnir mot gulvet eller en vegg, stjeler ruheten en skive av glidefarten ved hvert kontakt. Se hvordan buene til høyre krymper: hvert sprett lander litt kortere, helt til ballen ikke reiser lenger, men bare plopper rett ned.',
+        'Der ballen gnir mot gulvet, en vegg eller en annen ball, stjeler ruheten en skive av glidefarten ved hvert kontakt. Se hvordan buene til høyre krymper: hvert sprett lander litt kortere, helt til ballen ikke reiser lenger, men bare plopper rett ned.',
         'Mens den ruller, bremser millioner av mikroskopiske ujevnheter den hele tiden — vent lenge nok, og selv rulling går bort til seg. Derfor synker ballhaugen til ro i stedet for å skjelve i evighet.',
         'Ingen simulerer de milliardene av mikroskopiske ujevnheter én for én. De presses sammen til én ærlig snarvei: multipliser glidefarten med 0,96 ved hver veggtouch. Å velge hvilke snarveier man tar er halve modelleringsjobben.',
       ],
@@ -171,6 +172,7 @@ const LAB: Localized<{
   friction: string;
   dissipate: string;
   note: string;
+  notePit: string;
 }> = {
   en: {
     title: '🧪 Try it live',
@@ -180,6 +182,7 @@ const LAB: Localized<{
     friction: '🧤 Wall friction',
     dissipate: '🔥 Heat loss',
     note: '🔥 and 🧤 act on the demo instantly; all three also change the game you return to.',
+    notePit: 'This changes the ball pit you return to.',
   },
   nl: {
     title: '🧪 Probeer het zelf',
@@ -189,6 +192,7 @@ const LAB: Localized<{
     friction: '🧤 Wrijving',
     dissipate: '🔥 Warmteverlies',
     note: '🔥 en 🧤 werken direct op de demo; alle drie veranderen ze ook het spel waarnaar je terugkeert.',
+    notePit: 'Dit verandert de ballenbak waar je naar terugkeert.',
   },
   no: {
     title: '🧪 Prøv det live',
@@ -198,6 +202,7 @@ const LAB: Localized<{
     friction: '🧤 Friksjon',
     dissipate: '🔥 Varmetap',
     note: '🔥 og 🧤 virker med én gang på demoen; alle tre endrer også spillet du kommer tilbake til.',
+    notePit: 'Dette endrer ballbinga du kommer tilbake til.',
   },
 };
 
@@ -240,6 +245,14 @@ export const DELVE_CAPTIONS: Localized<{
   },
 };
 
+const LAB_SWITCHES: (SwitchName[] | undefined)[] = [
+  undefined,
+  undefined,
+  ['collisions'],
+  ['friction'],
+  ['collisions', 'friction', 'dissipate'],
+];
+
 export function bounceDelve(api: BounceDelveApi): DelveChapter[] {
   const chapters = pick(CHAPTERS);
   const lab = pick(LAB);
@@ -247,9 +260,9 @@ export function bounceDelve(api: BounceDelveApi): DelveChapter[] {
     title: chapter.title,
     paragraphs: chapter.paragraphs,
     formula: chapter.formula,
-    // Only chapter 5 (index 4) has a lab: the three physics switches.
+    // Chapters 3–5 each get a lab with the switches they talk about.
     extras:
-      i === 4
+      LAB_SWITCHES[i]
         ? (host: HTMLElement) => {
             const labEl = document.createElement('div');
             labEl.className = 'delve-lab';
@@ -272,13 +285,11 @@ export function bounceDelve(api: BounceDelveApi): DelveChapter[] {
               sync();
               labEl.appendChild(row);
             };
-            mk('collisions', lab.collisions);
-            mk('friction', lab.friction);
-            mk('dissipate', lab.dissipate);
+            for (const name of LAB_SWITCHES[i]!) mk(name, lab[name]);
 
             const note = document.createElement('p');
             note.className = 'delve-lab-note';
-            note.textContent = lab.note;
+            note.textContent = i === 4 ? lab.note : lab.notePit;
             labEl.appendChild(note);
             host.appendChild(labEl);
           }
