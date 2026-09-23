@@ -38,7 +38,11 @@ export function scoreFlow(opts: {
   score: number;
   /** Formatted score with units, e.g. "12 345 kJ". */
   scoreLabel: string;
-  /** When set (e.g. "CPU"), skips the initials entry and posts directly. */
+  /**
+   * When set (e.g. "CPU"), skips the initials entry and posts directly. Such
+   * a player keeps only its best score on the board, so repeat computer
+   * rounds don't fill the board and leave no room for the kids.
+   */
   presetInitials?: string;
   actions: ScoreFlowAction[];
 }): ScoreFlowHandle {
@@ -61,8 +65,12 @@ export function scoreFlow(opts: {
 
   const showBoard = (initials: string) => {
     removeKeys();
-    const list = addScore(opts.gameId, initials, opts.score);
-    const rank = list.findIndex((e) => e.initials === initials && e.score === opts.score);
+    const bestOnly = opts.presetInitials !== undefined;
+    const list = addScore(opts.gameId, initials, opts.score, bestOnly);
+    // A best-only player that didn't beat its record: highlight its standing entry.
+    const rank = bestOnly
+      ? list.findIndex((e) => e.initials === initials)
+      : list.findIndex((e) => e.initials === initials && e.score === opts.score);
 
     const title = document.createElement('p');
     title.className = 'score-board-title';
