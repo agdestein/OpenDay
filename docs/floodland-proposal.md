@@ -1,8 +1,10 @@
 # Save the Netherlands: assessment and proposal
 
-An assessment of the current game ([floodland-remake.md](floodland-remake.md)) against
-[message.md](message.md), and a proposal for the next version. Nothing here is built
-yet. The event is on 3 October 2026, so the proposal is phased: **A** is what makes the
+An assessment of the game as it was on 23 September 2026 against
+[message.md](message.md), and a proposal for the next version. **Phase A is built**
+(see [floodland-remake.md](floodland-remake.md) for the game as it is now, including
+where it differs from this plan: the challenge landscape has a second weak spot, a road
+over the dike, and homes behind an open breach count as lost). B and C are still plan. The event is on 3 October 2026, so the proposal is phased: **A** is what makes the
 game meet the goals, **B** adds depth for kids who stay and the talking points for
 parents, **C** can wait until after the event.
 

@@ -1,130 +1,102 @@
-# Save the Netherlands: playable diorama
+# Save the Netherlands
 
-A fixed isometric Dutch landscape replaces the national heat map.
-The numerical model remains two-dimensional; visible height is exaggerated.
-English, Dutch and Norwegian controls are provided.
+A live shallow-water diorama of a Dutch polder behind an old coastal dike. The
+storm happens while you build: water piles up against sand the moment it lands,
+overtopped dikes wear away and breach, and a breach can be plugged if you are
+quick. [floodland-proposal.md](floodland-proposal.md) explains why the game was
+rebuilt this way (phase A of that proposal is what is described here).
 
-## Playing and reading the water
+## Free play
 
-Hold to add sand in either view: height increases at 1.4 m per second, up to 4 m.
-A tap adds a small layer; slow dragging builds a higher ridge. Hovering previews the next layer.
-Drawing near the existing ridge snaps to its centreline.
-The final layer uses the remaining budget proportionally; undo restores the entire stroke.
-The pond and homes are protected from sand placement.
-Send the storm opens a modal chooser. Both storm forcings use the current landscape
-and preserve the player’s sand placement and remaining budget.
-Construction is paused during a run so comparisons remain repeatable.
+The game opens live, with a gentle swell on the sea.
 
-All water surfaces have fine cell outlines, including flooded land in the 3D view.
-Shallow films are translucent so nearly drained land reads differently from deep water.
-Two village level posts measure depth above the local ground, with metre ticks.
-Opening More in the overhead desktop view reveals a cross-section with ground, crest,
-water surface and the zero datum. Floating scene labels are omitted; inspection stays in
-the footer. More holds the system explanation and, while building, Reset.
-Playback has one progress slider and a grouped set of symbol controls: back five seconds,
-play/pause, forward five seconds and toggle four-times speed.
-Exit simulation returns to building with defenses intact.
-Pointing at a cell shows ground elevation, depth and flow speed in either view.
-The overhead model view exposes the numerical grid.
-Velocity arrows are drawn last so neighbouring water tiles cannot hide them.
+- **Hold on land** to pile up sand (1.4 m per second of holding, up to 4 m). A tap
+  adds a thin layer; dragging builds a ridge. Pointing near the old dike snaps to
+  its crest. The sides of the dike and of sand piles are clickable too.
+- **Click the sea** to drop a splash: a bump of water that spreads as a ring (with
+  a foam ring drawn at the shallow-water wave speed √(g·depth)).
+- **🌊 Storm!** sends one storm (below). Sand is unlimited; nothing is scored.
+- **🔢 Computer view** shows the grid from above with flow arrows and a readout
+  of ground, water depth and flow speed under the pointer.
+- **🧹 Start over** restores the landscape.
 
-The score is homes **kept dry**, a historical measure: pumping does not erase damage.
-The homes are fictional and the landscape is illustrative, not a Dutch hazard forecast.
+## Challenge: Hold the line
 
-## Challenges
+One round of about 43 s: 5 s warning, the storm (10 s rising, 14 s at its
+height, 10 s falling), then 4 s of calm. 150 sand. Score = dry homes × 100 + sand
+left, on the shared daily scoreboard. A home counts as flooded once more than
+0.3 m of water stands in it, and stays counted. When the round ends, homes still
+reachable by the calm sea (a breach cut below +0.1 m) also count as lost: a
+polder below sea level keeps flooding through an open hole, as in 1953. The calm
+phase asks you to close the hole. The round is recorded (15 fps, terrain included,
+~28 MB) so *Watch again* can scrub back through it.
 
-**Storm surge** starts with a permanent low sill (0.7 m crest) and a budget of 210 sand.
-The sill stands above the calm sea but overtops during the storm.
-The sea rises to 2.2 m and retreats over 42 display seconds.
-A 2.4 m defense across the opening protects the village; a 1.0 m defense overtops.
-One display second represents 24 physical seconds during the surge.
+The landscape has two low places in the old dike (3.2 m crest): a harbour sill
+(0.8 m, six cells long) and a road over the dike (1.9 m, three cells, built on
+loose sand). The storm peaks at 2.5 m with ±0.4 m waves. Calibration
+(`npm run test:floodland`, headless at 60 fps):
 
-**Three waves** applies three finite pulses to the same player-built landscape.
-The numerical regression suite also retains a dedicated wave fixture with a 1.2 m crest
-and an 85-sand defense budget; the interactive game uses the common 210-sand landscape.
-Three smooth long-wave pulses start at display times 0, 17 and 34 seconds.
-Each is a 10-second sine-squared pulse with an incident amplitude of 1.8 m.
-One display second represents four physical seconds so travel and overtopping are visible.
-The 62-second wave phase includes time for the third pulse to propagate inland.
-The pulses bring limited volumes inland, and the local depth rises and falls as a wave passes.
-An affordable raised defense keeps all eight homes dry in the reference test.
+| Play | Homes flooded | Sand left |
+|---|---|---|
+| Nothing | 8 (sill breaches ~10 s into the storm) | 150 |
+| Sill raised to 3.1 m only | 8 (the road breaches later) | — |
+| Sill and road raised to 2.9 m before the storm | 0 | 83 |
+| Nothing built, then sandbagging the sill (12–18 s) and road (22–26 s) | 0 | — |
 
-## Recovery
+## Look and feedback
 
-Both challenges include 60 recorded seconds of recovery after the forcing retreats.
-Recovery represents 120 physical seconds per recorded second.
-Normal playback switches to Fast ×4 on entering recovery to finish within the kiosk's
-90-second unattended timeout; normal speed, pause and scrubbing remain available.
+- A tide gauge at the left: the sea level against **your dike**, the lowest level
+  at which the sea can reach a home (a priority flood over the terrain, so it is
+  right wherever the player builds). It turns red when the sea is higher.
+- HUD: 🏠 dry homes, a sand bar, time left.
+- Fresh sand is yellow, washed-out ground brown; cells that are eroding pulse red.
+  A banner announces each new breach. Flooded homes show 🆘; dry homes glow when
+  the storm has passed.
+- Water is lit by its slope, so waves and splashes show as light and dark bands.
+  In the landscape view only currents faster than 0.35 m/s get arrows.
 
-The defenses, wet drainage canal, storage pond and automatic pump form one permanent
-system. No structure appears or closes after a flood. The low sill keeps the calm sea
-out while still allowing overtopping and outward flow when water levels permit it.
+## Numerical model
 
-The pond begins at -0.9 m and the pump regulates it toward -0.95 m. It operates during
-building and throughout the recorded run, removing only water above its target level.
-A small explicit background inflow of 0.3 m³/s represents ongoing drainage/seepage.
-The pump has a maximum capacity of 35 m³/s: useful for normal drainage but unable to
-keep up with the reference flood. It transfers extracted water and its proportional
-momentum out of the intake cells, adding the same water volume at the sea outlet.
-Both pumping and background inflow run on each stable solver step and have cumulative
-volume accounting. Moving pipe dashes and the rotor show pumping; its rate is available
-in the More inspection footer. The pond remains wet after recovery.
-No infiltration or evaporation sink is used.
-Water isolated from the canal by a player's defenses can remain trapped.
-The final residual films and wet canals are not promised to be perfectly dry.
+Depth and both depth-integrated momentum components evolve with first-order
+finite volumes, local Lax–Friedrichs (Rusanov) fluxes, hydrostatic
+reconstruction and matching bed-source corrections, with a two-dimensional CFL
+bound; 64 × 40 cells of 10 m, linear friction. One displayed second is 24
+physical seconds. A frame costs ~0.2 ms of solver time (worst 0.7 ms headless).
 
-## Numerical model and playback
+- **Sea boundary.** The incoming characteristic is that of water at rest at the
+  prescribed sea level, so the sea settles at that level while reflected waves
+  leave. (Prescribing it as an incident wave doubled the surge at the dike.) The
+  sea level is a swell of ±0.1 m, plus the storm's surge and ±0.4 m waves.
+- **Erosion.** dz/dt = rate · (speed − critical)² where water runs fast over
+  erodible ground. Two layers per cell: loose sand above `hardTop` (critical
+  1.1 m/s), the old ground below with its own resistance per cell (dike 1.5 m/s;
+  the road 1.1 m/s), nothing below `floor` (polder level under the dike). Water
+  depth is kept, so volume is conserved. An undercut wall collapses: a wet cell
+  more than 1 m above an eroding neighbour slumps towards it at 1 cm/s. Erosion
+  starts on the landward slope and eats back to the crest, as in real overtopping
+  failures. Sand placed under water keeps the water's depth, so the water is
+  pushed up and flows away.
+- **Pump.** The pond and pump regulate the polder toward −0.95 m (35 m³/s),
+  moving water through the pipe to the sea; it cannot keep up with a breach.
+- **Kiosk safety.** A numerical failure (negative or NaN depth) resets the water,
+  keeping the landscape.
 
-Depth and both depth-integrated momentum components evolve with first-order finite
-volumes, local Lax–Friedrichs (Rusanov) fluxes, hydrostatic reconstruction and matching
-bed-source corrections, with a conservative two-dimensional CFL bound.
-Cells are 10 m wide; small depths lose momentum and linear friction dissipates flow.
-The wave scenario uses lower friction and an incoming-characteristic ocean boundary
-that allows outgoing reflected waves to leave.
-The surge uses a prescribed sea-level boundary.
-All other exterior boundaries reflect flow.
-This is a depth-averaged long-wave model, not a resolved breaking-surf simulation.
-
-The full run is computed in cancellable batches before playback.
-A status message remains visible and the controls remain responsive during calculation.
-The solver uses Float64 arithmetic; recordings store depth and both momenta as Float32.
-At 15 recorded frames per second, the surge plus recovery uses about 45 MiB of field
-storage and the wave scenario about 54 MiB, both below the tested 64 MiB bound.
-Additional small arrays store historical house flooding, pump discharge, external inflow
-and boundary accounting.
-Playback linearly interpolates fields; it never integrates backwards.
-The backward and forward controls seek five display seconds and pause playback.
-Rewind, reset and leaving the game cancel calculations and release recordings.
-There is no previous-flood overlay.
+This is a depth-averaged long-wave model, not a resolved surf or soil-mechanics
+simulation. The homes and landscape are fictional.
 
 ## Validation
 
-Run `npm run test:floodland` and `npm run build` from `app/`.
-The numerical suite covers:
+`npm run test:floodland` (and `npm run build`) cover lake at rest, closed-basin
+conservation, the wet/dry dam break, erosion (none at rest, conservation, floor
+and layers), the calm swell (no overtopping, no erosion, pump regulation,
+boundary accounting), the four calibration plays above, the spill level, the
+recording (bounds, terrain, seeking), splashes, the pump, and the sand brush
+(frame-rate independence, cap, budget, protected pond).
 
-- Lake-at-rest balance over uneven terrain and closed-basin conservation.
-- Wet/dry dam-break spreading, stable depths and ocean boundary accounting.
-- Open, low and high defenses against the reference surge.
-- Deterministic recording, depth/momentum seeking and historical damage restoration.
-- Calm-sea isolation, a retained pond, automatic level regulation and background inflow.
-- Pump capacity, water availability and momentum removal.
-- Recovery with and without pumping, including conservation across the sea outlet.
-- Three separate overtopping pulses, a passing inland wave and affordable wave protection.
-- Bounded recording storage and progressive brush height, budget, cap and frame-rate independence.
+Hardware frame rate on the stand machines and child playtests remain to be done.
 
-Browser verification covers hover/click agreement, overhead drawing, undo, scenario
-switching, storm selection, calculation cancellation, timeline dragging, pause,
-fast playback, numerical view, pump recovery, and mobile overflow.
-Hardware performance and child playtests at the stand remain necessary.
-
-## References and scope
+## References
 
 - Audusse et al., *A Fast and Stable Well-Balanced Scheme with Hydrostatic
   Reconstruction for Shallow Water Flows*, SIAM J. Sci. Comput. 25 (2004).
 - https://www.clawpack.org/v5.9.x/riemann/Shallow_water_Riemann_solvers.html
-- https://www.rijnland.net/over-rijnland/wat-doet-rijnland/in-uw-buurt/poldergemalen/
-- https://www.deltares.nl/expertise/publicaties/infragravity-waves-in-dutch-tidal-basins-and-estuaries-implications-for-flood-risk-assessment
-
-The pond and pump are fixed infrastructure, not player-placeable tools.
-Additional landscapes, dedicated storage-area controls, selectable grid resolution,
-structural dike failure and a leaderboard remain future extensions.

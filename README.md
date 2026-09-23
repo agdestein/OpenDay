@@ -47,7 +47,8 @@ Planned first games (see [docs/plan.md](docs/plan.md) for the full implementatio
 2. **Outbreak!** — stop a simulated epidemic in a mini-city (our group has actually
    worked on epidemic simulation). An agent-based SIRD model with ages and a
    hospital; the challenge scores lives saved against simulated do-nothing futures.
-3. **Save the Netherlands** — build dikes against a storm surge, on a budget.
+3. **Save the Netherlands** — hold back a live storm surge with sand; dikes that
+   overtop wear away and breach.
 4. **Creature Lab** — build a stick creature and watch evolution teach it to walk;
    race your champion against the reigning champ of the day.
 5. **Weather Detective** — a real KNMI weather map hides under the fog; place
@@ -109,10 +110,10 @@ follows a beloved lineage: Karl Sims'
 (1994), [carykh](https://www.youtube.com/@carykh)'s Evolution Simulator
 videos, and Keiwan Donyagard's [Evolution](https://keiwan.itch.io/evolution).
 
-Save the Netherlands (`app/src/games/floodland/`) uses a finite-volume shallow-water model with hydrostatic reconstruction,
-Rusanov fluxes, wetting and drying, and an ocean boundary.
-The diorama includes dike previews, undo, scrubbable surge and three-wave challenges,
-a permanent pond with automatic pumping, hold-to-build sand, and a numerical model view. See [the remake notes](docs/floodland-remake.md) for scope and validation.
+Save the Netherlands (`app/src/games/floodland/`) runs a finite-volume shallow-water model
+(hydrostatic reconstruction, Rusanov fluxes, wetting and drying) live every frame, with
+erosion so overtopped dikes breach. Free play has sand, splashes and a storm button; the
+challenge scores dry homes and sand left. See [the notes](docs/floodland-remake.md).
 
 Weather Detective (`app/src/games/detective/`) grew out of our group's project with
 [KNMI](https://www.knmi.nl/) on multi-fidelity Gaussian process regression of
