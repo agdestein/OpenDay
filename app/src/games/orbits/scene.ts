@@ -4,6 +4,13 @@
 import type { Body, Outcome, World } from './physics';
 import { drawPlanet, drawStar } from './draw';
 
+/**
+ * How fast the skies run: simulated seconds per real second. Slower than
+ * real-time orbits would look at this scale, so there is time to plan; and
+ * while you aim (drag), time slows further, to `aiming` of that.
+ */
+export const PACE = { toy: 0.65, zone: 0.65, sling: 0.5, aiming: 0.3 };
+
 export const OUTCOME_COLOR: Record<Outcome, string> = {
   orbit: '#6ee7b7',
   far: '#fde047',

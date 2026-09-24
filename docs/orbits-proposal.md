@@ -69,6 +69,18 @@ Phase B:
 - **Bug found while playtesting:** two massless probes that touched merged into a NaN
   (0/0 mass weights), and drawing it threw and stopped the frame loop. They now meet
   halfway, and non-finite bodies are never drawn.
+- **After the first playtest:** bodies moved too fast to plan, and in Slingshot Earth
+  crashed into the Sun. Everything now runs slower than real time (simulated seconds
+  per real second: toy and Goldilocks 0.65, Slingshot 0.5), and while you drag, time
+  slows to 30 % of that, in all rounds, to aim with. Round lengths are in simulated
+  time (Goldilocks 40 s, stages at 6/12/18/24 s; Slingshot 32 s, 12 s flights), about a
+  minute each. Earth's crash was real physics: the 5 % giant sat two Hill radii from
+  Earth and dragged it off its orbit within a minute (the tests had only flown probes
+  for 14 s). In Slingshot the Sun, Earth and the giant now move on rails (known
+  circular orbits; they pull but are not pulled), the way mission planners propagate
+  a spacecraft through planetary ephemerides, and a test checks Earth is still on its
+  orbit after a round. Probes still flying when Slingshot's time is up now finish their trip (one launched with 26 s left on a long loop was cut off). Re-measured: Goldilocks one planet 250, two calm 461, three calm
+  527, six crowded 441, six at random 356; Slingshot 0–33 % of launches arrive.
 - **To verify before printing:** Artemis II flew the free return in April 2026; 2024
   YR4's 3 % (February 2025); DART changed Dimorphos's orbit by about half an hour;
   Hera arrives at the end of 2026; JUICE's Moon/Earth/Venus flybys; Oscar II's prize

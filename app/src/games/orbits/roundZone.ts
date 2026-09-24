@@ -7,7 +7,7 @@ import { sound } from '../../lib/sound';
 import { clamp, randRange } from '../../lib/util';
 import { label } from './draw';
 import { forecast, TICK } from './physics';
-import { drawBodies, drawPath, launchVelocity, Poofs, Trails, type Pt } from './scene';
+import { drawBodies, drawPath, launchVelocity, PACE, Poofs, Trails, type Pt } from './scene';
 import type { Round, RoundHost } from './rounds';
 import { ZONE, ZoneSim } from './zone';
 
@@ -96,7 +96,7 @@ export class ZoneRound implements Round {
 
   hud(): string {
     const T = pick(TEXT);
-    return [T.time(Math.max(0, Math.ceil(ZONE.seconds - this.sim.time))), T.left(this.sim.left)].join('   ·   ');
+    return [T.time(Math.max(0, Math.ceil((ZONE.seconds - this.sim.time) / PACE.zone))), T.left(this.sim.left)].join('   ·   ');
   }
 
   private velocity(d: Drag): Pt {
@@ -138,7 +138,8 @@ export class ZoneRound implements Round {
       return;
     }
     const u = sim.u;
-    for (const e of sim.step(dt)) {
+    // Slower than real time, and slower still while aiming.
+    for (const e of sim.step(dt * PACE.zone * (this.drag ? PACE.aiming : 1))) {
       if (e.type === 'stage') {
         this.host.popup(e.body.x, e.body.y - 18 * u, `${LIFE[e.stage]} +${e.points}`, GREEN);
         sound.play('ding', { pitch: 0.8 + 0.15 * e.stage });

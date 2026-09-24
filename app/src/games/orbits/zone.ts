@@ -8,7 +8,8 @@
 import { SUN_R, TICK, World, type Body, type Kind } from './physics';
 
 export const ZONE = {
-  seconds: 50,
+  /** Simulated seconds (at PACE.zone ≈ a minute of play). */
+  seconds: 40,
   planets: 6,
   /** The zone, as fractions of the scene's half-size R. */
   inner: 0.3,
@@ -19,8 +20,8 @@ export const ZONE = {
   giantMass: 0.005,
   planetMass: 0.001,
   planetR: 7,
-  /** Seconds in the zone for each stage of life, and what a planet at that stage is worth. */
-  stages: [8, 16, 24, 32],
+  /** Simulated seconds in the zone for each stage of life, and what a planet at that stage is worth. */
+  stages: [6, 12, 18, 24],
   worth: [25, 75, 150, 250],
 };
 

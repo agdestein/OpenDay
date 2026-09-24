@@ -2,13 +2,17 @@
 // a heavy giant further out, and a golden ring beyond both. Probes launched
 // from Earth are too slow to reach the ring on their own (the launch is
 // capped below what a direct flight needs); only a close pass behind the
-// moving giant throws them out far enough — a gravity assist. Pure (no DOM);
-// tests/orbits.test.ts checks that no direct shot arrives and that, for any
-// position of the giant, some shots do.
+// moving giant throws them out far enough — a gravity assist. The Sun, Earth
+// and the giant move on rails (known circular orbits) and only the probes are
+// simulated, as mission planners do: with everything free, the heavy giant
+// dragged Earth off its orbit within a minute and into the Sun. Pure (no
+// DOM); tests/orbits.test.ts checks that no direct shot arrives, that for any
+// position of the giant some shots do, and that Earth stays put.
 import { SUN_R, TICK, World, type Body, type Kind } from './physics';
 
 export const SLING = {
-  seconds: 60,
+  /** Simulated seconds (at PACE.sling ≈ a minute of play). */
+  seconds: 32,
   probes: 5,
   /** Orbits, as fractions of the scene's half-size R. */
   earthAt: 0.3,
@@ -18,8 +22,8 @@ export const SLING = {
   earthMass: 0.0005,
   /** Largest launch speed, relative to Earth, as a fraction of Earth's orbital speed. */
   cap: 0.16,
-  /** A probe still flying after this long is lost. */
-  flight: 14,
+  /** A probe still flying after this long (simulated seconds) is lost. */
+  flight: 12,
   /** Passing the giant within this many of its radii takes a photo. */
   photoRange: 4,
   arrive: 200,
@@ -54,12 +58,13 @@ export class SlingSim {
   constructor(cx: number, cy: number, readonly R: number, readonly u: number, earthAngle: number, giantAngle: number) {
     const gm = 100 * R * R;
     this.world = new World(cx, cy, u, gm);
-    this.world.reach = 8 * R;
-    this.world.add({ kind: 'star', sun: true, x: cx, y: cy, vx: 0, vy: 0, gm, r: SUN_R * u * 0.85, hue: 45 });
+    this.world.reach = -1; // everything heavy is on rails: nothing to re-centre
+    this.world.add({ kind: 'star', sun: true, x: cx, y: cy, vx: 0, vy: 0, gm, r: SUN_R * u * 0.85, hue: 45, rail: { cx, cy, r: 0, w: 0, phase: 0 } });
     const circle = (kind: Kind, f: number, a: number, mass: number, r: number, hue: number) => {
       const d = f * R;
       const v = Math.sqrt(gm / d);
-      return this.world.add({ kind, x: cx + d * Math.cos(a), y: cy + d * Math.sin(a), vx: -v * Math.sin(a), vy: v * Math.cos(a), gm: mass * gm, r, hue });
+      const rail = { cx, cy, r: d, w: v / d, phase: a };
+      return this.world.add({ kind, x: cx + d * Math.cos(a), y: cy + d * Math.sin(a), vx: -v * Math.sin(a), vy: v * Math.cos(a), gm: mass * gm, r, hue, rail });
     };
     this.earthId = circle('planet', SLING.earthAt, earthAngle, SLING.earthMass, 9 * u, 212).id;
     this.giantId = circle('giant', SLING.giantAt, giantAngle, SLING.giantMass, 17 * u, 28).id;
@@ -81,8 +86,9 @@ export class SlingSim {
     return this.world.bodies.find((b) => b.sun) ?? { x: this.world.cx, y: this.world.cy };
   }
 
+  /** No more launches once time is up or the probes are spent; probes in flight still finish. */
   get over(): boolean {
-    return this.time >= SLING.seconds || (this.left === 0 && this.probes.size === 0);
+    return (this.time >= SLING.seconds || this.left === 0) && this.probes.size === 0;
   }
 
   /** The largest launch speed (relative to Earth). */

@@ -7,6 +7,7 @@ import { sound } from '../../lib/sound';
 import { Defense, DEFENSE, stepRock, type Rock } from './defense';
 import { arrow, drawEarth, drawStar, label } from './draw';
 import { setLabel, type Round, type RoundHost } from './rounds';
+import { PACE } from './scene';
 
 const TEXT: Localized<{
   title: string;
@@ -243,7 +244,8 @@ export class DefenseRound implements Round {
     this.flash = Math.max(0, this.flash - dt);
     if (!m.over) {
       const perStep = DEFENSE.yearSeconds / DEFENSE.stepsPerYear;
-      this.acc += dt;
+      // Time slows while a push is being aimed.
+      this.acc += dt * (this.drag ? PACE.aiming : 1);
       while (this.acc >= perStep && !m.over) {
         this.acc -= perStep;
         m.advance();

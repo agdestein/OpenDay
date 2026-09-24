@@ -8,7 +8,7 @@ import { sound } from '../../lib/sound';
 import { randRange } from '../../lib/util';
 import { arrow, label } from './draw';
 import { TICK } from './physics';
-import { drawBodies, drawPath, Poofs, Trails } from './scene';
+import { drawBodies, drawPath, PACE, Poofs, Trails } from './scene';
 import type { Round, RoundHost } from './rounds';
 import { SLING, SlingSim, type SlingOutcome } from './sling';
 
@@ -113,7 +113,7 @@ export class SlingRound implements Round {
   hud(): string {
     const T = pick(TEXT);
     const s = this.sim;
-    return [T.time(Math.max(0, Math.ceil(SLING.seconds - s.time))), T.left(s.left), T.arrived(s.arrived)].join('   ·   ');
+    return [T.time(Math.max(0, Math.ceil((SLING.seconds - s.time) / PACE.sling))), T.left(s.left), T.arrived(s.arrived)].join('   ·   ');
   }
 
   private launchVector(d: Drag): { dvx: number; dvy: number } {
@@ -129,7 +129,7 @@ export class SlingRound implements Round {
   }
 
   down(x: number, y: number): void {
-    if (this.sim.left <= 0 || this.sim.over) return;
+    if (this.sim.left <= 0 || this.sim.time >= SLING.seconds) return;
     this.drag = { x0: x, y0: y, x, y };
   }
 
@@ -149,6 +149,8 @@ export class SlingRound implements Round {
     if (this.sim.left === 0) this.host.hint(pick(TEXT).hintNone);
   }
 
+  private timeUp = false;
+
   step(dt: number): void {
     this.clock += dt;
     if (this.finished) return;
@@ -164,7 +166,13 @@ export class SlingRound implements Round {
     }
     const T = pick(TEXT);
     const u = sim.u;
-    for (const e of sim.step(dt)) {
+    if (sim.time >= SLING.seconds && !this.timeUp) {
+      this.timeUp = true;
+      this.drag = null;
+      this.host.hint(T.hintNone);
+    }
+    // Slower than real time, and slower still while aiming.
+    for (const e of sim.step(dt * PACE.sling * (this.drag ? PACE.aiming : 1))) {
       if (e.type === 'arrive') {
         this.host.popup(e.x, e.y - 16 * u, `🎯 +${SLING.arrive}`, GOLD);
         sound.play('cheer');

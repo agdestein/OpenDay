@@ -31,6 +31,21 @@ export interface Body {
   hue: number;
   /** The first star: never grabbed, reseeded if lost. */
   sun?: boolean;
+  /**
+   * A body on rails: it follows this circle (angular speed w, radians per
+   * second) whatever pulls on it, but still pulls on everything else — the
+   * way mission planners fly a spacecraft through planets whose orbits are
+   * known in advance. r = 0 pins it in place.
+   */
+  rail?: Rail;
+}
+
+export interface Rail {
+  cx: number;
+  cy: number;
+  r: number;
+  w: number;
+  phase: number;
 }
 
 /** One fixed physics step, in seconds. */
@@ -73,6 +88,8 @@ export class World {
   method: Method = 'smart';
   /** Merges since the last call to takeMerges (for flashes and sounds). */
   merges: Merge[] = [];
+  /** Simulated time (s), for bodies on rails. */
+  t = 0;
   private nextId = 1;
   private accValid = false;
 
@@ -104,6 +121,7 @@ export class World {
     w.h = this.h;
     w.method = this.method;
     w.nextId = this.nextId;
+    w.t = this.t;
     w.bodies = this.bodies.map((b) => ({ ...b }));
     w.accValid = this.accValid;
     return w;
@@ -188,6 +206,8 @@ export class World {
         b.vx += h * b.ax;
         b.vy += h * b.ay;
       }
+      this.t += h;
+      this.placeRails();
       this.accelerations();
     } else {
       for (const b of this.bodies) {
@@ -196,14 +216,30 @@ export class World {
         b.x += h * b.vx;
         b.y += h * b.vy;
       }
+      this.t += h;
+      this.placeRails();
       this.accelerations();
       for (const b of this.bodies) {
         b.vx += 0.5 * h * b.ax;
         b.vy += 0.5 * h * b.ay;
       }
+      this.placeRails();
     }
     this.collide();
     this.recentre();
+  }
+
+  /** Bodies on rails go where their circle says, at the world's time. */
+  private placeRails(): void {
+    for (const b of this.bodies) {
+      const q = b.rail;
+      if (!q) continue;
+      const a = q.phase + q.w * this.t;
+      b.x = q.cx + q.r * Math.cos(a);
+      b.y = q.cy + q.r * Math.sin(a);
+      b.vx = -q.r * q.w * Math.sin(a);
+      b.vy = q.r * q.w * Math.cos(a);
+    }
   }
 
   /** Total energy, kinetic + potential, with G = 1 and gm as the mass (for tests and the step lab). */

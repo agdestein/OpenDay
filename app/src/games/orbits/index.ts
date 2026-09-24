@@ -16,7 +16,7 @@ import { orbitsDelve } from './delve';
 import { OrbitsDemos } from './demos';
 import { forecast, KINDS, SUN_R, TICK, World, type Body, type Kind, type Method, type Outcome } from './physics';
 import { drawPlanet, drawStar, label, starfield } from './draw';
-import { drawBodies, drawGravityGrid, drawPath, launchVelocity, nearestStar, OUTCOME_COLOR, Poofs, Trails } from './scene';
+import { drawBodies, drawGravityGrid, drawPath, launchVelocity, nearestStar, OUTCOME_COLOR, PACE, Poofs, Trails } from './scene';
 import { toolButton, type Area, type ButtonDef, type Round, type RoundHost } from './rounds';
 import { DefenseRound } from './roundDefense';
 import { ZoneRound } from './roundZone';
@@ -143,7 +143,7 @@ const STAR_HUES = [45, 205, 12];
 const newHue = (kind: Kind) => (kind === 'star' ? STAR_HUES[Math.floor(Math.random() * STAR_HUES.length)] : randRange(0, 360));
 
 const MAX_BODIES = 32;
-/** The step slider: step size = TICK · 2^(5·value), so from 240 down to 7.5 steps a second. */
+/** The step slider: step size = TICK · 2^(5·value), so from 240 down to 7.5 steps per simulated second (≈156 to 5 real). */
 const MAX_STEP_POWER = 5;
 /** How far the 🔮 forecast looks ahead (s), and every how many steps it keeps a point. */
 const FORECAST_SECONDS = 6;
@@ -426,7 +426,9 @@ class OrbitsInstance implements GameInstance {
 
   private stepToy(dt: number): void {
     const world = this.world;
-    this.acc = Math.min(this.acc + dt, Math.max(MAX_STEPS * TICK, world.h));
+    // Slower than real time, and slower still while aiming.
+    const pace = PACE.toy * (this.drag ? PACE.aiming : 1);
+    this.acc = Math.min(this.acc + dt * pace, Math.max(MAX_STEPS * TICK, world.h));
     while (this.acc >= world.h) {
       this.acc -= world.h;
       world.step();
@@ -523,7 +525,7 @@ class OrbitsInstance implements GameInstance {
       ctx.globalAlpha = 1;
     }
     if (world.h > TICK * 1.01 || world.method !== 'smart') {
-      const perSecond = Math.round(1 / world.h);
+      const perSecond = Math.round(PACE.toy / world.h); // per real second
       label(ctx, pick(TEXT).stepsCaption(perSecond, world.method), this.w / 2, this.hintAlpha > 0 ? 104 : 74, 18, world.method === 'smart' ? '#86efac' : '#fdba74');
     }
   }

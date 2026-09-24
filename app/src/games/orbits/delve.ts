@@ -54,7 +54,7 @@ const CHAPTERS: Localized<ChapterText[]> = {
       title: 'Nothing is lost — unless the computer cheats',
       paragraphs: [
         'A planet on a stretched orbit is like a skateboarder in a half-pipe: close to the Sun it races, far away it climbs and slows down. Speed energy and height energy trade places, but their sum never changes. Physicists call this conservation of energy, and it is one of the sharpest tests of whether a simulation tells the truth.',
-        'A computer cannot fly a smooth curve. It plays a flip-book: where am I? Which way does gravity pull? Take a small straight step, and repeat — the game does 240 a second. On the right the steps are made huge so you can watch each one.',
+        'A computer cannot fly a smooth curve. It plays a flip-book: where am I? Which way does gravity pull? Take a small straight step, and repeat — the game does about 150 a second. On the right the steps are made huge so you can watch each one.',
         'The simplest recipe (Euler’s method, from 1768) has a bug you can see: every straight step lands a little outside the curve, the orbit spirals outward, and the energy line climbs — the computer invents energy out of nothing. Smarter recipes, called symplectic, take the step so that the energy trade stays fair: same steps, and the orbit stays closed.',
         'Cleverness beats brute force: to stay as close to the true orbit for five laps, the simple recipe needs about a hundred times as many steps, and the longer you simulate, the worse it gets. Designing step recipes that keep energy honest — for wind and turbulence rather than planets — is part of our group’s research.',
       ],
@@ -113,7 +113,7 @@ const CHAPTERS: Localized<ChapterText[]> = {
       title: 'Niets gaat verloren — tenzij de computer vals speelt',
       paragraphs: [
         'Een planeet in een uitgerekte baan is als een skateboarder in een halfpipe: dicht bij de Zon racet hij, ver weg klimt hij en vertraagt. Bewegingsenergie en hoogte-energie ruilen van plaats, maar hun som verandert nooit. Natuurkundigen noemen dit behoud van energie, en het is een van de scherpste manieren om te checken of een simulatie de waarheid vertelt.',
-        'Een computer kan geen vloeiende kromme vliegen. Hij speelt een flipboekje: waar ben ik? Welke kant trekt de zwaartekracht op? Zet een klein recht stapje, en herhaal — het spel doet er 240 per seconde. Rechts worden de stappen reusachtig gemaakt zodat je ze een voor een kunt zien.',
+        'Een computer kan geen vloeiende kromme vliegen. Hij speelt een flipboekje: waar ben ik? Welke kant trekt de zwaartekracht op? Zet een klein recht stapje, en herhaal — het spel doet er zo’n 150 per seconde. Rechts worden de stappen reusachtig gemaakt zodat je ze een voor een kunt zien.',
         'Het simpelste recept (de methode van Euler, uit 1768) heeft een bug die je kunt zien: elke rechte stap komt net buiten de kromme uit, de baan spiraliseert naar buiten, en de energielijn klimt — de computer verzint energie uit het niets. Slimmere recepten, symplectisch genoemd, zetten de stap zo dat de energieruil eerlijk blijft: dezelfde stappen, en de baan blijft gesloten.',
         'Slim wint van hard werken: om vijf rondjes even dicht bij de echte baan te blijven heeft het simpele recept ongeveer honderd keer zoveel stappen nodig, en hoe langer je rekent, hoe erger het wordt. Stapmethodes ontwerpen die de energie eerlijk houden — voor wind en turbulentie in plaats van planeten — is deel van het onderzoek van onze groep.',
       ],
@@ -172,7 +172,7 @@ const CHAPTERS: Localized<ChapterText[]> = {
       title: 'Ingenting går tapt — med mindre datamaskinen jukser',
       paragraphs: [
         'En planet i en strukket bane er som en skateboarder i en halfpipe: nær Solen suser den, langt unna klatrer den og bremser opp. Bevegelsesenergi og høydeenergi bytter plass, men summen endrer seg aldri. Fysikere kaller dette bevaring av energi, og det er en av de skarpeste testene på om en simulering snakker sant.',
-        'En datamaskin kan ikke fly en jevn kurve. Den spiller en tegneseriebok: hvor er jeg? Hvilken vei trekker tyngdekraften? Ta et lite rett steg, og gjenta — spillet tar 240 i sekundet. Til høyre er stegene gjort enorme så du kan se hvert eneste ett.',
+        'En datamaskin kan ikke fly en jevn kurve. Den spiller en tegneseriebok: hvor er jeg? Hvilken vei trekker tyngdekraften? Ta et lite rett steg, og gjenta — spillet tar rundt 150 i sekundet. Til høyre er stegene gjort enorme så du kan se hvert eneste ett.',
         'Den enkleste oppskriften (Eulers metode, fra 1768) har en feil du kan se: hvert rette steg lander litt utenfor kurven, banen spiraler utover, og energilinjen klatrer — datamaskinen finner opp energi ut av ingenting. Smartere oppskrifter, kalt symplektiske, tar steget slik at energibyttet forblir rettferdig: samme steg, og banen holder seg lukket.',
         'Smart slår hardt arbeid: for å holde seg like nær den ekte banen i fem runder trenger den enkle oppskriften omtrent hundre ganger så mange steg, og jo lenger du regner, jo verre blir det. Å lage stegoppskrifter som holder energien ærlig — for vind og turbulens i stedet for planeter — er en del av forskningen i gruppen vår.',
       ],

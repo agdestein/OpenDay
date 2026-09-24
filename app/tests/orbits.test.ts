@@ -232,6 +232,11 @@ console.log('   ' + rows.join('\n   '));
     }
     return ok / n;
   };
+  // Earth and the giant are on rails: a whole round later, Earth is still on its orbit.
+  const calm = new SlingSim(640, 300, R, 1, 0.5, 2);
+  while (calm.time < SLING.seconds) calm.step(1 / 60);
+  const e = calm.earth!, sun = calm.sun;
+  assert.ok(Math.abs(Math.hypot(e.x - sun.x, e.y - sun.y) - SLING.earthAt * R) < 1e-6, 'Earth stays on its orbit through the round');
   const alone = new SlingSim(640, 300, R, 1, 0, 0);
   alone.world.remove(alone.giant!);
   assert.equal(tries(alone), 0, 'no probe reaches the ring without the giant');
@@ -255,5 +260,14 @@ console.log('   ' + rows.join('\n   '));
   sim.launch(...best!);
   while (sim.probes.size > 0) sim.step(1 / 60);
   assert.equal(sim.arrived, 1, 'the forecast arrival really arrives');
-  console.log(`PASS: Slingshot — no direct shot reaches the ring; with the giant ${rates.join(' ')} of launches arrive (longest wait ${worstWait.toFixed(2)} s); a forecast arrival arrives (${sim.score} points).`);
+  // A probe still flying when time is up gets to finish its trip.
+  const late = new SlingSim(640, 300, R, 1, 0.3, 2.1);
+  while (late.time < SLING.seconds - 0.05) late.step(1 / 60);
+  let lateShot: [number, number] | null = null;
+  for (let a = 0; a < 144 && !lateShot; a++) for (const f of [1, 0.85, 0.7]) { const ang = (a / 144) * 2 * Math.PI; const v: [number, number] = [f * late.dvMax * Math.cos(ang), f * late.dvMax * Math.sin(ang)]; if (late.forecast(...v).outcome === 'arrive') { lateShot = v; break; } }
+  assert.ok(lateShot, 'found a last-second launch that arrives');
+  assert.ok(late.launch(...lateShot!), 'a last-second launch');
+  while (!late.over) late.step(1 / 60);
+  assert.equal(late.arrived, 1, 'a probe in flight at the buzzer still arrives');
+  console.log(`PASS: Slingshot — no direct shot reaches the ring; with the giant ${rates.join(' ')} of launches arrive (longest wait ${worstWait.toFixed(2)} s); a forecast arrival arrives (${sim.score} points), also when launched at the buzzer.`);
 }
