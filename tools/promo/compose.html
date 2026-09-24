@@ -45,12 +45,13 @@ if (design === 'mosaic') {
   const src = { farm: `shots/f_${portrait ? 'P2' : 'L2'}.png`, flood: `shots/h_flood_${portrait ? 'P' : 'L'}2.png`, street: `shots/h_street_${portrait ? 'P' : 'L'}.png` }[design];
   const pos = { farm: portrait ? '50% 0%' : '50% 50%', flood: portrait ? '50% 50%' : '50% 60%', street: '0% 50%' }[design];
   const scale = { farm: portrait ? 1.12 : 1.0, flood: portrait ? 1.1 : 1.25, street: 1.0 }[design];
-  const shift = design === 'flood' && portrait ? 'translateY(6%) ' : '';
+  const tt = q.get('tt'), sh = q.get('sh'); // logo band: title top (%), image pushed down (%)
+  const shift = sh ? `translateY(${sh}%) ` : design === 'flood' && portrait ? 'translateY(6%) ' : '';
   const top = design !== 'farm';
   root.innerHTML = `<div class="hero">
     <img src="${src}" style="object-position:${pos};transform:${shift}scale(${scale});transform-origin:${pos}">
-    ${text ? `<div class="shade" style="background:linear-gradient(${top ? '180deg' : '0deg'},rgba(6,10,24,.92) 0%,rgba(6,10,24,.55) ${portrait ? 24 : 30}%,rgba(6,10,24,0) ${portrait ? 40 : 50}%,rgba(6,10,24,0) ${portrait ? 82 : 75}%,rgba(6,10,24,.8) 100%)"></div>
-    <div class="text" style="${top ? 'top' : 'bottom'}:${portrait ? 6 : 5}%;padding:0 5%">
+    ${text ? `<div class="shade" style="background:linear-gradient(${top ? '180deg' : '0deg'},rgba(6,10,24,.92) ${tt ? tt - 2 : 0}%,rgba(6,10,24,.55) ${(portrait ? 24 : 30) + (tt ? tt - 6 : 0)}%,rgba(6,10,24,0) ${(portrait ? 40 : 50) + (tt ? tt - 6 : 0)}%,rgba(6,10,24,0) ${portrait ? 82 : 75}%,rgba(6,10,24,.8) 100%)"></div>
+    <div class="text" style="${top ? 'top' : 'bottom'}:${tt ?? (portrait ? 6 : 5)}%;padding:0 5%">
       ${head(portrait ? 10 : 7, portrait ? 4.4 : 3.2)}
     </div>
     <div class="sub tag" style="position:absolute;${top ? 'bottom' : 'top'}:${portrait ? 6 : 8}%;left:5%;right:5%;text-align:center;font-weight:600;font-size:${portrait ? 2.4 : 2.2}em;color:#dfe5fb;white-space:nowrap">${T.tag}</div>

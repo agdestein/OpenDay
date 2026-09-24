@@ -21,3 +21,7 @@ cp compose.html build/ && node cdp.mjs ./s_compose.mjs   # -> build/out/*.png
 Simulations are random, so reruns differ; the file names picked in `crop.sh` and
 `compose.html` (e.g. which storm frame) were chosen by eye and may need re-picking.
 `s_all.mjs` just opens every game, for a quick look.
+
+For a band of free space at the top (for event logos), pass `tt` (title top, % of
+height) and `sh` (push the image down, %): the A3 sent for the 2026 poster was
+`compose.html?d=street&s=P&tt=15&sh=8`.

@@ -1,4 +1,4 @@
 .claude/worktrees/
 
 # Promo images (regenerate with tools/promo)
-promo/
+/promo/
