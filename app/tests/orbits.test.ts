@@ -1,8 +1,9 @@
 import { World, forecast, KINDS, SUN_R, TICK, type Kind } from '../src/games/orbits/physics.ts';
 import { Defense, DEFENSE } from '../src/games/orbits/defense.ts';
-import { ZoneSim, ZONE } from '../src/games/orbits/zone.ts';
-import { SlingSim, SLING } from '../src/games/orbits/sling.ts';
+import { ZoneSim, ZONE, CPU_ZONE } from '../src/games/orbits/zone.ts';
+import { SlingSim, SLING, candidates, bestRoute, CPU_SLING } from '../src/games/orbits/sling.ts';
 import { gravitySheet } from '../src/games/orbits/scene.ts';
+import { preset, PRESET_ORDER } from '../src/games/orbits/presets.ts';
 import assert from 'node:assert/strict';
 
 // ---- the toy's N-body world, on a 1280×720 screen like the game's ----
@@ -316,4 +317,73 @@ console.log('   ' + rows.join('\n   '));
   const ms = performance.now() - t0;
   assert.ok(ms < 8, `gravity view takes ${ms.toFixed(1)} ms`);
   console.log(`PASS: gravity view with 24 bodies: ${n} sheet points in ${ms.toFixed(1)} ms.`);
+}
+
+// ---- presets: each ready-made sky lives on for a minute, on screen ----
+for (const name of PRESET_ORDER) {
+  const w = new World(W / 2, H / 2, u, GM);
+  w.reach = 3 * W;
+  for (const b of preset(name, W / 2, H / 2, M, u, GM)) w.add(b);
+  const n = w.bodies.length;
+  let far = 0;
+  for (let i = 0; i < 240 * 60; i++) {
+    w.step();
+    for (const b of w.bodies) far = Math.max(far, Math.hypot(b.x - W / 2, b.y - H / 2));
+  }
+  assert.equal(w.bodies.length, n, `${name}: nobody merges or is lost in a minute`);
+  assert.ok(far < 0.5 * H, `${name}: stays on screen (farthest ${far.toFixed(0)} px)`);
+  console.log(`PASS: preset ${name}: all ${n} bodies live a minute, farthest ${far.toFixed(0)} px from the centre.`);
+}
+
+// ---- the computer's turn: what it scores in each round (it plays as the rounds do) ----
+{
+  const R = 245;
+  const zone: number[] = [], sling: number[] = [], defense: number[] = [];
+  let searchMs = 0, searches = 0;
+  for (let seed = 1; seed <= 6; seed++) {
+    // Goldilocks: two calm planets at the planned times and radii.
+    const z = new ZoneSim(640, 300, R, 1, seed * 1.7);
+    let next = 0;
+    while (!z.over) {
+      if (next < CPU_ZONE.times.length && z.time >= CPU_ZONE.times[next]) {
+        const t = z.cpuThrow(CPU_ZONE.radii[next++]);
+        if (t) z.throw(t.x, t.y, t.vx, t.vy);
+      }
+      z.step(1 / 60);
+    }
+    zone.push(z.score);
+    // Slingshot: search, fly the gentlest arrival, wait a little, again.
+    const sl = new SlingSim(640, 300, R, 1, seed * 0.9, seed * 2.3);
+    let wait = 0.3;
+    while (!sl.over) {
+      wait -= 1 / 60;
+      if (wait <= 0 && sl.left > 0 && sl.time < SLING.seconds) {
+        const t0 = performance.now();
+        const tried = candidates(sl, CPU_SLING.dirs, CPU_SLING.strengths);
+        const best = bestRoute(tried.map((c) => sl.forecast(c.dvx, c.dvy)));
+        searchMs += performance.now() - t0; searches += tried.length / 192;
+        if (best) { sl.launch(best.dvx, best.dvy); wait = CPU_SLING.pause; } else wait = 0.6;
+      }
+      sl.step(1 / 60);
+    }
+    sling.push(sl.score);
+    // Save the Earth: look twice, then the smallest push that clears the cloud, plus a quarter.
+    const d = new Defense(seed * 101);
+    const spy = DEFENSE.stepsPerYear;
+    while (d.looks < 2) { while (!d.canLook) d.advance(); for (let i = 0; i < 0.1 * spy; i++) d.advance(); d.look(); }
+    let push = { dvx: 0, dvy: 0 };
+    for (const c of d.pushCandidates()) { push = c; if (d.forecast(c.dvx, c.dvy).every((h) => !h)) break; }
+    const f = Math.min(1.25, DEFENSE.dvMax / Math.hypot(push.dvx, push.dvy));
+    d.push(push.dvx * f, push.dvy * f);
+    while (!d.over) d.advance();
+    defense.push(d.score());
+  }
+  const mean = (a: number[]) => a.reduce((x, y) => x + y, 0) / a.length;
+  const total = mean(zone) + mean(sling) + mean(defense);
+  assert.ok(mean(zone) > 300, `computer's Goldilocks ${mean(zone)}`);
+  assert.ok(mean(sling) >= 600, `computer's Slingshot ${mean(sling)}`);
+  assert.ok(defense.filter((x) => x >= 400).length >= 5, `computer saves Earth: ${defense.join(' ')}`);
+  const perRoute = searchMs / searches / 192;
+  assert.ok(perRoute * Math.ceil(192 / 40) < 16, `the player's search would take ${(perRoute * 5).toFixed(1)} ms a frame`);
+  console.log(`PASS: the computer's turn — Goldilocks ${zone.join(' ')}, Slingshot ${sling.join(' ')}, Save the Earth ${defense.join(' ')}; about ${Math.round(total)} in all (a search: ${(searchMs / searches).toFixed(0)} ms, ${perRoute.toFixed(2)} ms a route; asking the computer for help tries 5 routes a frame).`);
 }

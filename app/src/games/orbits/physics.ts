@@ -31,6 +31,8 @@ export interface Body {
   hue: number;
   /** The first star: never grabbed, reseeded if lost. */
   sun?: boolean;
+  /** A label drawn under the body (the solar-system preset's planets). */
+  name?: string;
   /**
    * A body on rails: it follows this circle (angular speed w, radians per
    * second) whatever pulls on it, but still pulls on everything else — the

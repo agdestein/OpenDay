@@ -9,7 +9,7 @@ import { label } from './draw';
 import { forecast, TICK } from './physics';
 import { drawBodies, drawPartner, drawPath, launchVelocity, PACE, Poofs, Trails, type Pt } from './scene';
 import type { Round, RoundHost } from './rounds';
-import { ZONE, ZoneSim } from './zone';
+import { CPU_ZONE, ZONE, ZoneSim } from './zone';
 
 const LIFE = ['🌱', '🌿', '🌳', '🦕'];
 const FORECAST_SECONDS = 10;
@@ -24,6 +24,7 @@ const TEXT: Localized<{
   time: (s: number) => string;
   left: (n: number) => string;
   melted: (n: number) => string;
+  cpu: string;
   summary: (stages: string, n: number) => string;
 }> = {
   en: {
@@ -35,6 +36,7 @@ const TEXT: Localized<{
     time: (s) => `⏱ ${s} s`,
     left: (n) => `🪐 ${n} left`,
     melted: (n) => `💥 life melted −${n}`,
+    cpu: '🤖 The computer plans two calm orbits, well apart, and waits for life to grow.',
     summary: (stages, n) =>
       `Life on your planets: ${stages || 'none yet'} (${n} ${n === 1 ? 'planet' : 'planets'} in the zone at the end). Planets pull on each other, so a crowded zone falls apart: a few calm orbits beat many. Astronomers look for planets in this zone around other stars — often by the wobble they give their star.`,
   },
@@ -47,6 +49,7 @@ const TEXT: Localized<{
     time: (s) => `⏱ ${s} s`,
     left: (n) => `🪐 nog ${n}`,
     melted: (n) => `💥 leven gesmolten −${n}`,
+    cpu: '🤖 De computer plant twee rustige banen, ver uit elkaar, en wacht tot het leven groeit.',
     summary: (stages, n) =>
       `Leven op je planeten: ${stages || 'nog niets'} (${n} ${n === 1 ? 'planeet' : 'planeten'} in de zone aan het eind). Planeten trekken aan elkaar, dus een volle zone valt uit elkaar: een paar rustige banen winnen van veel. Sterrenkundigen zoeken planeten in deze zone rond andere sterren — vaak aan de wiebel die ze hun ster geven.`,
   },
@@ -59,6 +62,7 @@ const TEXT: Localized<{
     time: (s) => `⏱ ${s} s`,
     left: (n) => `🪐 ${n} igjen`,
     melted: (n) => `💥 livet smeltet −${n}`,
+    cpu: '🤖 Datamaskinen planlegger to rolige baner, godt fra hverandre, og venter på at livet vokser.',
     summary: (stages, n) =>
       `Liv på planetene dine: ${stages || 'ingenting ennå'} (${n} ${n === 1 ? 'planet' : 'planeter'} i sonen på slutten). Planeter trekker i hverandre, så en full sone faller fra hverandre: noen få rolige baner slår mange. Astronomer leter etter planeter i denne sonen rundt andre stjerner — ofte ved vaklingen de gir stjernen sin.`,
   },
@@ -81,13 +85,42 @@ export class ZoneRound implements Round {
   private endTimer = 0;
   private finished = false;
   private clock = 0;
+  /** The computer's turn: which throw is next, and the aim it is drawing (real seconds). */
+  private cpuNext = 0;
+  private cpuAim: { tx: number; ty: number; age: number } | null = null;
 
   constructor(private host: RoundHost) {
     const a = host.area();
     const R = (Math.min(a.x1 - a.x0, a.y1 - a.y0) / 2) * 0.97;
     this.sim = new ZoneSim((a.x0 + a.x1) / 2, (a.y0 + a.y1) / 2, R, host.unit(), randRange(0, 2 * Math.PI));
     host.buttons([]);
-    host.hint(pick(TEXT).hint);
+    host.hint(host.auto() ? pick(TEXT).cpu : pick(TEXT).hint);
+  }
+
+  /** The computer's turn: aim each planned throw like a player would (so its forecast shows), then let go. */
+  private cpuStep(dt: number): void {
+    const sim = this.sim;
+    if (this.cpuAim && this.drag) {
+      const a = this.cpuAim;
+      a.age += dt;
+      const k = Math.min(1, a.age / 0.7);
+      this.drag.x = this.drag.x0 + (a.tx - this.drag.x0) * k;
+      this.drag.y = this.drag.y0 + (a.ty - this.drag.y0) * k;
+      if (a.age > 1.2) {
+        this.cpuAim = null;
+        this.up();
+      }
+      return;
+    }
+    if (this.cpuNext >= CPU_ZONE.times.length || sim.time < CPU_ZONE.times[this.cpuNext]) return;
+    const t = sim.cpuThrow(CPU_ZONE.radii[this.cpuNext]);
+    this.cpuNext++;
+    if (!t) return;
+    // Invert launchVelocity: drag vector = velocity / k.
+    const m = 2 * sim.R;
+    const k = Math.sqrt(sim.world.refGm / (0.35 * m)) / (0.3 * m);
+    this.drag = { x0: t.x, y0: t.y, x: t.x, y: t.y };
+    this.cpuAim = { tx: t.x + t.vx / k, ty: t.y + t.vy / k, age: 0 };
   }
 
   get score(): number {
@@ -96,7 +129,7 @@ export class ZoneRound implements Round {
 
   hud(): string {
     const T = pick(TEXT);
-    return [T.time(Math.max(0, Math.ceil((ZONE.seconds - this.sim.time) / PACE.zone))), T.left(this.sim.left)].join('   ·   ');
+    return [T.time(Math.max(0, Math.ceil((ZONE.seconds - this.sim.time) / (PACE.zone * this.host.speed())))), T.left(this.sim.left)].join('   ·   ');
   }
 
   private velocity(d: Drag): Pt {
@@ -104,7 +137,7 @@ export class ZoneRound implements Round {
   }
 
   down(x: number, y: number): void {
-    if (this.sim.left <= 0 || this.sim.over) return;
+    if (this.sim.left <= 0 || this.sim.over || this.host.auto()) return;
     this.drag = { x0: x, y0: y, x, y };
   }
 
@@ -124,7 +157,7 @@ export class ZoneRound implements Round {
     sound.play('whoosh', { pitch: 1.1 });
     const T = pick(TEXT);
     const left = this.sim.left;
-    this.host.hint(left === 1 ? T.hintLast : left === 0 ? T.hintNone : T.hint);
+    if (!this.host.auto()) this.host.hint(left === 1 ? T.hintLast : left === 0 ? T.hintNone : T.hint);
   }
 
   step(dt: number): void {
@@ -138,6 +171,7 @@ export class ZoneRound implements Round {
       return;
     }
     const u = sim.u;
+    if (this.host.auto()) this.cpuStep(dt);
     // Slower than real time, and slower still while aiming.
     for (const e of sim.step(dt * PACE.zone * (this.drag ? PACE.aiming : 1))) {
       if (e.type === 'stage') {

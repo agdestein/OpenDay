@@ -56,9 +56,11 @@ export class Trails {
   /** `dots`: mark every point (with big steps each point is one step of the computer). */
   draw(ctx: CanvasRenderingContext2D, world: World, u: number, dots = false): void {
     const CHUNKS = 6;
+    // A lone Sun barely moves: no trail. In a binary or the star dance it gets one like the rest.
+    const loneSun = world.bodies.filter((b) => b.kind === 'star').length === 1;
     for (const b of world.bodies) {
       const trail = this.map.get(b.id);
-      if (!trail || trail.length < 2 || b.sun) continue;
+      if (!trail || trail.length < 2 || (b.sun && loneSun)) continue;
       const n = trail.length;
       for (let c = 0; c < CHUNKS; c++) {
         const i0 = Math.floor((c * (n - 1)) / CHUNKS);

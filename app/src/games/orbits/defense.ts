@@ -253,6 +253,22 @@ export class Defense {
     this.hits = this.forecast();
   }
 
+  /**
+   * The computer's push: the gentlest push along (or against) the asteroid's
+   * motion that clears the whole cloud, from `sizes` (fractions of dvMax).
+   * Returns the candidates in the order to try them (smallest first).
+   */
+  pushCandidates(sizes = [0.04, 0.07, 0.1, 0.14, 0.2, 0.28, 0.4, 0.55, 0.75, 1]): { dvx: number; dvy: number }[] {
+    const t = this.truth;
+    const m = this.cloud.reduce((a, c) => ({ vx: a.vx + c.vx, vy: a.vy + c.vy }), { vx: 0, vy: 0 });
+    const v = Math.hypot(m.vx, m.vy) || Math.hypot(t.vx, t.vy);
+    const ux = (m.vx || t.vx) / v;
+    const uy = (m.vy || t.vy) / v;
+    const out: { dvx: number; dvy: number }[] = [];
+    for (const f of sizes) for (const sgn of [1, -1]) out.push({ dvx: sgn * f * DEFENSE.dvMax * ux, dvy: sgn * f * DEFENSE.dvMax * uy });
+    return out;
+  }
+
   /** Round score: saving Earth is worth 400, and pushing no harder than needed up to 600 more. */
   score(): number {
     if (this.truthHit) return 50;

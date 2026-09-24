@@ -27,11 +27,48 @@ export const SLING = {
   /** Passing the giant within this many of its radii takes a photo. */
   photoRange: 4,
   arrive: 200,
+  /** An arrival flown by the computer when the player asked it to. */
+  arriveHelped: 100,
   photo: 50,
 };
 
+/**
+ * How hard the computer searches: in its own turn it tries fewer routes and
+ * waits longer between launches (so a good player can beat it); flying a
+ * probe for the player it tries them all.
+ */
+export const CPU_SLING = { dirs: 24, strengths: [1, 0.75], pause: 2 };
+export const HELP_SLING = { dirs: 48, strengths: [1, 0.85, 0.7, 0.55] };
+
+export interface Route {
+  dvx: number;
+  dvy: number;
+  pts: { x: number; y: number }[];
+  outcome: SlingOutcome;
+}
+
+/** The launches the computer tries: `dirs` directions round the compass, at a few strengths. */
+export function candidates(sim: SlingSim, dirs = 48, strengths = [1, 0.85, 0.7, 0.55]): { dvx: number; dvy: number }[] {
+  const out: { dvx: number; dvy: number }[] = [];
+  for (let i = 0; i < dirs; i++) {
+    const a = (i / dirs) * 2 * Math.PI;
+    for (const f of strengths) out.push({ dvx: f * sim.dvMax * Math.cos(a), dvy: f * sim.dvMax * Math.sin(a) });
+  }
+  return out;
+}
+
+/** Of the routes tried, the one that arrives with the gentlest launch (or null). */
+export function bestRoute(routes: Route[]): Route | null {
+  let best: Route | null = null;
+  for (const r of routes) {
+    if (r.outcome !== 'arrive') continue;
+    if (!best || Math.hypot(r.dvx, r.dvy) < Math.hypot(best.dvx, best.dvy)) best = r;
+  }
+  return best;
+}
+
 export type SlingEvent =
-  | { type: 'arrive'; x: number; y: number }
+  | { type: 'arrive'; x: number; y: number; points: number }
   | { type: 'photo'; x: number; y: number }
   | { type: 'crash'; x: number; y: number; into: Kind }
   | { type: 'lost'; x: number; y: number };
@@ -41,6 +78,8 @@ export type SlingOutcome = 'arrive' | 'crash' | 'short';
 interface Probe {
   t: number;
   photo: boolean;
+  /** Flown by the computer for the player: its arrival scores less. */
+  helped: boolean;
 }
 
 export class SlingSim {
@@ -49,6 +88,8 @@ export class SlingSim {
   time = 0;
   left = SLING.probes;
   arrived = 0;
+  /** Arrivals the computer flew for the player. */
+  helpedArrived = 0;
   photos = 0;
   probes = new Map<number, Probe>();
   readonly earthId: number;
@@ -113,11 +154,11 @@ export class SlingSim {
     return dv > max ? { dvx: (dvx * max) / dv, dvy: (dvy * max) / dv } : { dvx, dvy };
   }
 
-  launch(dvx: number, dvy: number): boolean {
+  launch(dvx: number, dvy: number, helped = false): boolean {
     if (this.left <= 0 || this.time >= SLING.seconds || !this.earth) return false;
     const c = this.clampLaunch(dvx, dvy);
     const b = this.world.add(this.probe(c.dvx, c.dvy));
-    this.probes.set(b.id, { t: 0, photo: false });
+    this.probes.set(b.id, { t: 0, photo: false, helped });
     this.left--;
     return true;
   }
@@ -161,8 +202,10 @@ export class SlingSim {
       }
       if (this.distFromSun(b) > SLING.targetAt * this.R) {
         this.arrived++;
-        this.score += SLING.arrive;
-        events.push({ type: 'arrive', x: b.x, y: b.y });
+        if (p.helped) this.helpedArrived++;
+        const points = p.helped ? SLING.arriveHelped : SLING.arrive;
+        this.score += points;
+        events.push({ type: 'arrive', x: b.x, y: b.y, points });
         world.remove(b);
         this.probes.delete(id);
       } else if (p.t > SLING.flight) {
@@ -175,10 +218,12 @@ export class SlingSim {
   }
 
   /** Fly a would-be launch ahead in a copy of the world: its path and how it ends. */
-  forecast(dvx: number, dvy: number, every = 6): { pts: { x: number; y: number }[]; outcome: SlingOutcome } {
-    if (!this.earth) return { pts: [], outcome: 'short' };
+  forecast(dvx: number, dvy: number, every = 6): Route {
+    if (!this.earth) return { dvx, dvy, pts: [], outcome: 'short' };
     const c = this.clampLaunch(dvx, dvy);
     const w = this.world.clone();
+    // Other probes are massless: they can't bend this one's path, so leave them out (much faster).
+    w.bodies = w.bodies.filter((o) => o.gm > 0);
     const b = w.add(this.probe(c.dvx, c.dvy, -1));
     const pts = [{ x: b.x, y: b.y }];
     const steps = Math.round(SLING.flight / TICK); // the whole flight: the forecast is the probe's fate
@@ -188,15 +233,15 @@ export class SlingSim {
       const merged = w.takeMerges().find((m) => m.gone.id === b.id);
       if (merged) {
         pts.push({ x: merged.x, y: merged.y });
-        return { pts, outcome: 'crash' };
+        return { dvx, dvy, pts, outcome: 'crash' };
       }
       if (i % every === 0) pts.push({ x: b.x, y: b.y });
       const s = w.bodies.find((x) => x.sun) ?? { x: w.cx, y: w.cy };
       if (Math.hypot(b.x - s.x, b.y - s.y) > target) {
         pts.push({ x: b.x, y: b.y });
-        return { pts, outcome: 'arrive' };
+        return { dvx, dvy, pts, outcome: 'arrive' };
       }
     }
-    return { pts, outcome: 'short' };
+    return { dvx, dvy, pts, outcome: 'short' };
   }
 }

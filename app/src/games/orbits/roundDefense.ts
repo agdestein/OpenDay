@@ -31,6 +31,7 @@ const TEXT: Localized<{
   safe: string;
   summarySafe: (power: string, looks: number) => string;
   summaryHit: string;
+  cpu: string;
 }> = {
   en: {
     title: '☄️ Save the Earth',
@@ -56,6 +57,7 @@ const TEXT: Localized<{
       `You pushed with ${power} of the rocket's power${looks > 0 ? `, after ${looks} ${looks === 1 ? 'look' : 'looks'}` : ''}. Looking first shows how little push you need, and a tiny push years ahead beats a huge one at the last minute. NASA's DART mission did exactly this to a real asteroid in 2022.`,
     summaryHit:
       'Earth was hit. Next time: look first to see which way it is really going, then push early — a tiny push years ahead beats a huge one at the last minute.',
+    cpu: '🤖 The computer looks twice, then tries pushes from small to large until the whole cloud misses Earth.',
   },
   nl: {
     title: '☄️ Red de Aarde',
@@ -81,6 +83,7 @@ const TEXT: Localized<{
       `Je duwde met ${power} van de kracht van de raket${looks > 0 ? `, na ${looks} keer kijken` : ''}. Eerst kijken laat zien hoe weinig duw je nodig hebt, en een piepklein duwtje jaren van tevoren wint van een enorme duw op het laatste moment. NASA's DART-missie deed precies dit bij een echte planetoïde in 2022.`,
     summaryHit:
       'De Aarde is geraakt. Volgende keer: kijk eerst welke kant hij echt op gaat, en duw dan vroeg — een piepklein duwtje jaren van tevoren wint van een enorme duw op het laatste moment.',
+    cpu: '🤖 De computer kijkt twee keer, en probeert dan duwen van klein naar groot tot de hele wolk de Aarde mist.',
   },
   no: {
     title: '☄️ Redd Jorden',
@@ -106,6 +109,7 @@ const TEXT: Localized<{
       `Du dyttet med ${power} av rakettens kraft${looks > 0 ? `, etter ${looks} ${looks === 1 ? 'titt' : 'titter'}` : ''}. Å se først viser hvor lite dytt du trenger, og et lite dytt flere år i forveien slår et enormt dytt i siste liten. NASAs DART-oppdrag gjorde akkurat dette med en ekte asteroide i 2022.`,
     summaryHit:
       'Jorden ble truffet. Neste gang: se først hvilken vei den egentlig går, og dytt tidlig — et lite dytt flere år i forveien slår et enormt dytt i siste liten.',
+    cpu: '🤖 Datamaskinen ser to ganger, og prøver så dytt fra små til store til hele skyen bommer på Jorden.',
   },
 };
 
@@ -132,11 +136,55 @@ export class DefenseRound implements Round {
   private announced = false;
   private truthTrail: { x: number; y: number }[] = [];
   private time = 0;
+  /** The computer's turn: a pause before each move, its push plan, and the push it is aiming. */
+  private cpuWait = 0;
+  private cpuPlan: { dvx: number; dvy: number }[] | null = null;
+  private cpuAim: { dvx: number; dvy: number; age: number } | null = null;
 
   constructor(private host: RoundHost, seed = Math.floor(Math.random() * 1e9)) {
     this.model = new Defense(seed);
     [this.lookButton] = host.buttons([{ emoji: '🔭', label: pick(TEXT).look, onClick: () => this.look() }]);
-    host.hint(pick(TEXT).hintStart);
+    host.hint(host.auto() ? pick(TEXT).cpu : pick(TEXT).hintStart);
+  }
+
+  /** The computer's turn: look twice, then try pushes smallest first (one a frame) until the cloud clears; aim it like a player; let go. */
+  private cpuStep(dt: number): void {
+    const m = this.model;
+    if (m.over || m.pushed) return;
+    const u = this.host.unit();
+    if (this.cpuAim && this.drag) {
+      const a = this.cpuAim;
+      a.age += dt;
+      const k = Math.min(1, a.age / 0.8);
+      const len = (FULL_DRAG * u) / DEFENSE.dvMax;
+      this.drag.x = this.drag.x0 + a.dvx * len * k;
+      this.drag.y = this.drag.y0 + a.dvy * len * k;
+      if (a.age > 1.4) {
+        this.cpuAim = null;
+        this.up();
+      }
+      return;
+    }
+    this.cpuWait += dt;
+    if (this.cpuWait < 0.8) return;
+    if (m.looks < 2) {
+      if (m.canLook) {
+        this.look();
+        this.cpuWait = 0;
+      }
+      return;
+    }
+    if (!this.cpuPlan) this.cpuPlan = m.pushCandidates();
+    const c = this.cpuPlan.shift();
+    const clears = c ? m.forecast(c.dvx, c.dvy).every((h) => !h) : false;
+    if (!c || clears || this.cpuPlan.length === 0) {
+      // A little margin on top of the smallest push that clears (or the biggest there is).
+      const pick = c ?? { dvx: 0, dvy: DEFENSE.dvMax };
+      const f = Math.min(1.25, DEFENSE.dvMax / Math.max(1e-9, Math.hypot(pick.dvx, pick.dvy)));
+      const { cx, cy } = this.view();
+      this.drag = { x0: cx, y0: cy, x: cx, y: cy };
+      this.cpuAim = { dvx: pick.dvx * f, dvy: pick.dvy * f, age: 0 };
+    }
   }
 
   get score(): number {
@@ -193,7 +241,7 @@ export class DefenseRound implements Round {
     const { cx, cy, s } = this.view();
     const a = this.anchor();
     this.host.popup(cx + s * a.x, cy + s * a.y - 20, pick(TEXT).looked, '#7dd3fc');
-    if (this.canPush()) this.host.hint(pick(TEXT).hintLooked(pct(this.model.chance)));
+    if (this.canPush() && !this.host.auto()) this.host.hint(pick(TEXT).hintLooked(pct(this.model.chance)));
   }
 
   private pushVector(d: { x0: number; y0: number; x: number; y: number }): { dvx: number; dvy: number } {
@@ -209,7 +257,7 @@ export class DefenseRound implements Round {
   }
 
   down(x: number, y: number): void {
-    if (!this.canPush()) return;
+    if (!this.canPush() || this.host.auto()) return;
     this.drag = { x0: x, y0: y, x, y };
     this.preview = null;
     this.previewAge = PREVIEW_FRAMES;
@@ -233,7 +281,7 @@ export class DefenseRound implements Round {
     const { cx, cy, s } = this.view();
     const a = this.anchor();
     this.host.popup(cx + s * a.x, cy + s * a.y - 20, pick(TEXT).pushed, '#fbbf24');
-    this.host.hint(pick(TEXT).hintPushed);
+    if (!this.host.auto()) this.host.hint(pick(TEXT).hintPushed);
   }
 
   // ---- time ----
@@ -241,6 +289,7 @@ export class DefenseRound implements Round {
   step(dt: number): void {
     this.time += dt;
     const m = this.model;
+    if (this.host.auto()) this.cpuStep(dt);
     this.flash = Math.max(0, this.flash - dt);
     if (!m.over) {
       const perStep = DEFENSE.yearSeconds / DEFENSE.stepsPerYear;

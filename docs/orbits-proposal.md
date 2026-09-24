@@ -6,7 +6,7 @@ An assessment of Gravity Doodle as it was on 24 September 2026 against
 [Ball Pit proposal](bounce-proposal.md): **A** makes the game meet the goals, **B** adds
 depth, **C** can wait.
 
-**Phases A and B are built** (24 September 2026). Where the build differs from this
+**Phases A, B and C are built** (24 September 2026). Where the build differs from this
 plan, phase A:
 
 - **Lighter toy masses.** Pebble 0.1 %, planet 0.5 %, giant 3 %, star 60 % of the Sun.
@@ -98,6 +98,33 @@ Phase B:
   looks 10 s ahead (fading towards the end), rings the body a throw would hit in red and
   draws that body's path to the meeting point. The toy keeps at most 24 bodies (was 32)
   so the longer forecast stays ~6 ms a frame at worst.
+
+Phase C:
+
+- **Presets** (a bar on the left of the toy): ☀️ Our Sun — Mercury, Venus, Earth and
+  Mars at their real distances (Mars at 0.45 of the screen height) with their real,
+  tiny mass ratios, labelled, so Kepler's third law shows (Earth's "1 year!" is a
+  year); 🌗 Two suns — a 0.6 + 0.4 binary with two circumbinary planets; ✨ Star dance —
+  the figure-8 choreography with three equal stars. Tested: every body of every
+  preset lives a minute on screen.
+- **The computer in Slingshot** comes in two forms. "🤖 Computer, fly one" spends one of
+  the player's probes: time stops, the computer forecasts 192 launches (48 directions ×
+  4 strengths) drawn as a fan of routes (green arrives, red crashes), picks the
+  gentlest arrival, shows it in gold and flies it, for 100 points instead of 200; if
+  nothing arrives at that moment it waits and searches again. And **🤖 Computer's
+  turn**, offered after a challenge as in Swirl Lab, plays all three rounds at double
+  speed through the same controls a player uses (its aims and forecasts show) and
+  posts as CPU, keeping only its best: Goldilocks — two calm planets at 0.38 and 0.5 R,
+  each at the first of 16 angles whose 10 s forecast is a plain orbit (500 in every
+  test game); Slingshot — 48 routes per launch, a 2 s pause between launches
+  (800–1 250); Save the Earth — two looks, then pushes along the cloud's motion from
+  4 % to 100 % of full power until the whole cloud misses, plus 25 % (588–925).
+  About 2 400 in all (2 645 in a live run): above a typical run, below a strong one (up to ~2 900).
+  Searching simply solves Slingshot: with as few as 12 routes a launch the computer
+  still landed most probes, so it is left honest rather than crippled.
+- **Cost:** a forecast route is ~1.8 ms (other probes are massless and left out of
+  forecasts); the player's search forecasts 5 routes a frame (~9 ms) while time is
+  stopped, so the fan takes ~40 frames whatever its size.
 - **To verify before printing:** Artemis II flew the free return in April 2026; 2024
   YR4's 3 % (February 2025); DART changed Dimorphos's orbit by about half an hour;
   Hera arrives at the end of 2026; JUICE's Moon/Earth/Venus flybys; Oscar II's prize

@@ -26,6 +26,10 @@ export interface RoundHost {
   buttons(defs: ButtonDef[]): HTMLButtonElement[];
   /** The round is over: its score and one sentence on what it showed. */
   finish(score: number, summary: string): void;
+  /** The computer is playing this round (the "computer's turn"), not a person. */
+  auto(): boolean;
+  /** How much faster than real time the round is being stepped (the computer's turn: 2). */
+  speed(): number;
 }
 
 export interface Round {

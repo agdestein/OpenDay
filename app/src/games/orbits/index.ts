@@ -19,6 +19,7 @@ import { drawPlanet, drawStar, label, starfield } from './draw';
 import { drawBodies, drawGravityGrid, drawPartner, drawPath, launchVelocity, nearestStar, OUTCOME_COLOR, PACE, Poofs, Trails } from './scene';
 import { toolButton, type Area, type ButtonDef, type Round, type RoundHost } from './rounds';
 import { DefenseRound } from './roundDefense';
+import { preset, PRESET_EMOJI, PRESET_ORDER, type PresetName } from './presets';
 import { ZoneRound } from './roundZone';
 import { SlingRound } from './roundSling';
 
@@ -29,6 +30,8 @@ const TEXT: Localized<{
   kinds: Record<Kind, string>;
   years: (n: number) => string;
   clear: string;
+  presets: Record<PresetName, string>;
+  planetNames: string[];
   gravity: string;
   steps: string;
   smart: string;
@@ -44,6 +47,10 @@ const TEXT: Localized<{
   points: (n: number) => string;
   playAgain: string;
   freePlay: string;
+  computersTurn: string;
+  cpuDone: string;
+  cpuAgain: string;
+  cpuPlaying: string;
 }> = {
   en: {
     dragHint: 'Drag and release to launch a planet — longer drag = faster!',
@@ -58,6 +65,8 @@ const TEXT: Localized<{
     kinds: { pebble: 'Pebble', planet: 'Planet', giant: 'Giant', star: 'Star' },
     years: (n) => (n === 1 ? '1 year!' : `${n} years!`),
     clear: 'Clear',
+    presets: { sun: 'Our Sun', binary: 'Two suns', dance: 'Star dance' },
+    planetNames: ['Mercury', 'Venus', 'Earth', 'Mars'],
     gravity: 'Gravity',
     steps: 'Computer steps',
     smart: '🪄 smart',
@@ -73,6 +82,10 @@ const TEXT: Localized<{
     points: (n) => `${fmtNumber(n)} points`,
     playAgain: 'Play again',
     freePlay: 'Free play',
+    computersTurn: '🤖 Computer’s turn',
+    cpuDone: '🤖 The computer is done!',
+    cpuAgain: '🤖 Again',
+    cpuPlaying: '🤖 The computer plays',
   },
   nl: {
     dragHint: 'Sleep en laat los om een planeet te lanceren — langer slepen = sneller!',
@@ -87,6 +100,8 @@ const TEXT: Localized<{
     kinds: { pebble: 'Steentje', planet: 'Planeet', giant: 'Reus', star: 'Ster' },
     years: (n) => `${n} jaar!`,
     clear: 'Leeg',
+    presets: { sun: 'Onze Zon', binary: 'Twee zonnen', dance: 'Sterrendans' },
+    planetNames: ['Mercurius', 'Venus', 'Aarde', 'Mars'],
     gravity: 'Zwaartekracht',
     steps: 'Rekenstappen',
     smart: '🪄 slim',
@@ -102,6 +117,10 @@ const TEXT: Localized<{
     points: (n) => `${fmtNumber(n)} punten`,
     playAgain: 'Nog een keer',
     freePlay: 'Vrij spelen',
+    computersTurn: '🤖 Beurt van de computer',
+    cpuDone: '🤖 De computer is klaar!',
+    cpuAgain: '🤖 Nog een keer',
+    cpuPlaying: '🤖 De computer speelt',
   },
   no: {
     dragHint: 'Dra og slipp for å skyte opp en planet — lengre drag = raskere!',
@@ -116,6 +135,8 @@ const TEXT: Localized<{
     kinds: { pebble: 'Stein', planet: 'Planet', giant: 'Kjempe', star: 'Stjerne' },
     years: (n) => `${n} år!`,
     clear: 'Tøm',
+    presets: { sun: 'Vår sol', binary: 'To soler', dance: 'Stjernedans' },
+    planetNames: ['Merkur', 'Venus', 'Jorden', 'Mars'],
     gravity: 'Tyngdekraft',
     steps: 'Regnesteg',
     smart: '🪄 smart',
@@ -131,6 +152,10 @@ const TEXT: Localized<{
     points: (n) => `${fmtNumber(n)} poeng`,
     playAgain: 'Spill igjen',
     freePlay: 'Fri lek',
+    computersTurn: '🤖 Datamaskinens tur',
+    cpuDone: '🤖 Datamaskinen er ferdig!',
+    cpuAgain: '🤖 En gang til',
+    cpuPlaying: '🤖 Datamaskinen spiller',
   },
 };
 
@@ -168,7 +193,18 @@ interface Challenge {
   total: number;
   round: Round;
   card: HTMLElement | null;
+  /** The computer's turn: it plays every round itself, at CPU_SPEED. */
+  cpu: boolean;
+  /** How long the current round card has been up (the computer moves on by itself). */
+  cardAge: number;
+  /** The current round's score is already in `total`. */
+  banked: boolean;
 }
+
+/** The computer plays at double speed, so the queue at the stand keeps moving. */
+const CPU_SPEED = 2;
+/** Seconds a round card stays up in the computer's turn. */
+const CPU_CARD_SECONDS = 4;
 
 interface Drag {
   x0: number;
@@ -204,8 +240,11 @@ class OrbitsInstance implements GameInstance {
   private stars: ReturnType<typeof starfield> = [];
 
   private challenge: Challenge | null = null;
+  /** Set before a challenge's rounds are built, so they know who is playing. */
+  private cpuTurn = false;
   private flow: ScoreFlowHandle | null = null;
   private toyBar!: HTMLElement;
+  private presetBar!: HTMLElement;
   private gameBar!: HTMLElement;
   private kindButtons = new Map<Kind, HTMLButtonElement>();
   private gravityButton!: HTMLButtonElement;
@@ -287,6 +326,20 @@ class OrbitsInstance implements GameInstance {
     this.emptyFor = 0;
   }
 
+  /** Replace the sky with a ready-made one (presets.ts). */
+  private loadPreset(name: PresetName): void {
+    const { w, h, unit: u, gm } = this;
+    this.world = new World(w / 2, h / 2, u, gm);
+    this.world.reach = 3 * Math.max(w, h);
+    this.applySteps();
+    this.trails.clear();
+    this.laps.clear();
+    for (const b of preset(name, w / 2, h / 2, Math.min(w, h), u, gm, pick(TEXT).planetNames)) this.world.add(b);
+    this.sunlessFor = 0;
+    this.emptyFor = 0;
+    this.launched = true; // no hint over a preset
+  }
+
   private addBody(kind: Kind, x: number, y: number, vx: number, vy: number): Body {
     const k = KINDS[kind];
     return this.world.add({ kind, x, y, vx, vy, gm: k.mass * this.gm, r: k.r * this.unit, hue: newHue(kind) });
@@ -310,7 +363,7 @@ class OrbitsInstance implements GameInstance {
       // Synthetic or already-gone pointer: moves over the canvas still arrive.
     }
     if (this.challenge) {
-      this.challenge.round.down(p.x, p.y);
+      if (!this.challenge.cpu) this.challenge.round.down(p.x, p.y);
       return;
     }
     // Pressing on a planet picks it up; anywhere else starts a new throw.
@@ -415,7 +468,11 @@ class OrbitsInstance implements GameInstance {
     }
     const ch = this.challenge;
     if (ch) {
-      ch.round.step(dt);
+      ch.round.step(ch.cpu ? dt * CPU_SPEED : dt);
+      if (ch.cpu && ch.card) {
+        ch.cardAge += dt;
+        if (ch.cardAge > CPU_CARD_SECONDS) (ch.index === ROUNDS.length - 1 ? this.finishChallenge() : this.nextRound());
+      }
       ch.round.draw(ctx, w, h);
       this.updateHud(ch);
     } else {
@@ -507,6 +564,9 @@ class OrbitsInstance implements GameInstance {
     if (this.gravityView) drawGravityGrid(ctx, world, this.w, this.h, u);
     this.trails.draw(ctx, world, u, world.h > 3 * TICK);
     drawBodies(ctx, world, this.time);
+    for (const b of world.bodies) {
+      if (b.name && Number.isFinite(b.x + b.y)) label(ctx, b.name, b.x, b.y + b.r + 16 * u, 12 * u + 3, 'rgba(226, 232, 240, 0.8)');
+    }
     this.poofs.draw(ctx, u);
 
     this.drawEdgeArrows(ctx);
@@ -629,10 +689,13 @@ class OrbitsInstance implements GameInstance {
       popup: (x, y, text, color) => this.popup(x, y, text, color),
       buttons: (defs) => this.roundButtons(defs),
       finish: (score, summary) => this.roundOver(score, summary),
+      auto: () => this.cpuTurn,
+      speed: () => (this.cpuTurn ? CPU_SPEED : 1),
     };
   }
 
-  private startChallenge(): void {
+  private startChallenge(cpu = false): void {
+    this.cpuTurn = cpu;
     this.closeDelve();
     this.flow?.dispose();
     this.flow = null;
@@ -642,10 +705,11 @@ class OrbitsInstance implements GameInstance {
     this.drag = null;
     this.popups = [];
     this.toyBar.classList.add('hidden');
+    this.presetBar.classList.add('hidden');
     this.toggle.element.classList.add('hidden');
     this.hud.classList.remove('hidden');
     this.gameBar.classList.remove('hidden');
-    this.challenge = { index: 0, total: 0, round: ROUNDS[0](this.roundHost()), card: null };
+    this.challenge = { index: 0, total: 0, round: ROUNDS[0](this.roundHost()), card: null, cpu, cardAge: 0, banked: false };
   }
 
   private nextRound(): void {
@@ -653,6 +717,8 @@ class OrbitsInstance implements GameInstance {
     if (!ch) return;
     ch.card?.remove();
     ch.card = null;
+    ch.cardAge = 0;
+    ch.banked = false;
     ch.round.dispose();
     ch.index++;
     this.gameBar.classList.remove('hidden');
@@ -663,6 +729,7 @@ class OrbitsInstance implements GameInstance {
     const ch = this.challenge;
     if (!ch) return;
     ch.total += score;
+    ch.banked = true;
     const T = pick(TEXT);
     this.gameBar.classList.add('hidden');
     this.hint.textContent = '';
@@ -698,13 +765,22 @@ class OrbitsInstance implements GameInstance {
     const T = pick(TEXT);
     this.flow = scoreFlow({
       gameId: 'orbits',
-      heading: T.challengeHeading,
+      heading: ch.cpu ? T.cpuDone : T.challengeHeading,
       score: ch.total,
       scoreLabel: T.points(ch.total),
-      actions: [
-        { label: T.playAgain, onClick: () => this.startChallenge() },
-        { label: T.freePlay, onClick: () => this.exitToToy() },
-      ],
+      // The computer posts under CPU and keeps only its best, as in Swirl Lab.
+      presetInitials: ch.cpu ? 'CPU' : undefined,
+      actions: ch.cpu
+        ? [
+            { label: T.playAgain, onClick: () => this.startChallenge(false) },
+            { label: T.cpuAgain, onClick: () => this.startChallenge(true) },
+            { label: T.freePlay, onClick: () => this.exitToToy() },
+          ]
+        : [
+            { label: T.playAgain, onClick: () => this.startChallenge(false) },
+            { label: T.computersTurn, onClick: () => this.startChallenge(true) },
+            { label: T.freePlay, onClick: () => this.exitToToy() },
+          ],
     });
     this.host.overlay.appendChild(this.flow.element);
   }
@@ -721,6 +797,7 @@ class OrbitsInstance implements GameInstance {
     this.popups = [];
     this.gameBar.classList.add('hidden');
     this.toyBar.classList.remove('hidden');
+    this.presetBar.classList.remove('hidden');
     this.toggle.element.classList.remove('hidden');
     this.hud.classList.add('hidden');
     this.hint.textContent = '';
@@ -729,8 +806,9 @@ class OrbitsInstance implements GameInstance {
   private updateHud(ch: Challenge): void {
     const T = pick(TEXT);
     const parts = [ch.round.title, ch.round.hud()];
+    if (ch.cpu) parts.unshift(T.cpuPlaying);
     if (ROUNDS.length > 1) parts.unshift(T.round(ch.index + 1, ROUNDS.length));
-    if (ch.total + ch.round.score > 0) parts.push(`⭐ ${fmtNumber(ch.total + (ch.card ? 0 : ch.round.score))}`);
+    if (ch.total + (ch.banked ? 0 : ch.round.score) > 0) parts.push(`⭐ ${fmtNumber(ch.total + (ch.banked ? 0 : ch.round.score))}`);
     const text = parts.join('   ·   ');
     if (this.hud.textContent !== text) this.hud.textContent = text;
   }
@@ -820,6 +898,12 @@ class OrbitsInstance implements GameInstance {
     this.makeButton(this.toyBar, { emoji: '🧹', label: T.clear, onClick: () => this.seed() });
     this.makeButton(this.toyBar, { emoji: '🎯', label: T.challenge, onClick: () => this.startChallenge() });
 
+    this.presetBar = document.createElement('div');
+    this.presetBar.className = 'game-toolbar orbits-presets';
+    for (const name of PRESET_ORDER) {
+      this.makeButton(this.presetBar, { emoji: PRESET_EMOJI[name], label: T.presets[name], onClick: () => this.loadPreset(name) });
+    }
+
     this.gameBar = document.createElement('div');
     this.gameBar.className = 'game-toolbar hidden';
     this.hud = document.createElement('div');
@@ -828,7 +912,7 @@ class OrbitsInstance implements GameInstance {
     this.hint.className = 'challenge-hint';
 
     this.toggle = delveToggle(() => (this.delve ? this.closeDelve() : this.openDelve()));
-    this.host.overlay.append(this.toyBar, this.gameBar, this.hud, this.hint, this.toggle.element);
+    this.host.overlay.append(this.toyBar, this.presetBar, this.gameBar, this.hud, this.hint, this.toggle.element);
   }
 
   // ---- delve layer ----
@@ -861,6 +945,7 @@ class OrbitsInstance implements GameInstance {
     this.host.overlay.appendChild(this.delve.element);
     this.toggle.setOpen(true);
     this.toyBar.classList.add('hidden');
+    this.presetBar.classList.add('hidden');
   }
 
   private closeDelve(): void {
@@ -869,7 +954,10 @@ class OrbitsInstance implements GameInstance {
     this.delve = null;
     this.demos.clear();
     this.toggle.setOpen(false);
-    if (!this.challenge) this.toyBar.classList.remove('hidden');
+    if (!this.challenge) {
+      this.toyBar.classList.remove('hidden');
+      this.presetBar.classList.remove('hidden');
+    }
   }
 }
 

@@ -5,7 +5,7 @@
 // that keeps bumping loses what it grew. Pure (no DOM), so
 // tests/orbits.test.ts plays it with bots: one planet 250, two or three calm
 // ones ≈ 400–500, six crowded together ≈ 300–400.
-import { SUN_R, TICK, World, type Body, type Kind } from './physics';
+import { forecast, SUN_R, TICK, World, type Body, type Kind } from './physics';
 
 export const ZONE = {
   /** Simulated seconds (at PACE.zone ≈ a minute of play). */
@@ -24,6 +24,9 @@ export const ZONE = {
   stages: [6, 12, 18, 24],
   worth: [25, 75, 150, 250],
 };
+
+/** The computer's plan in its turn: two calm planets, early, well apart (simulated s, fractions of R). */
+export const CPU_ZONE = { times: [0.4, 2.4], radii: [0.38, 0.5] };
 
 export type ZoneEvent =
   | { type: 'stage'; body: Body; stage: number; points: number }
@@ -97,6 +100,24 @@ export class ZoneSim {
     this.world.add(this.planet(x, y, vx, vy, hue));
     this.left--;
     return true;
+  }
+
+  /**
+   * The computer's throw: a circle at radius f·R, at the first of 16 angles
+   * whose 10 s forecast is a plain orbit (no collision).
+   */
+  cpuThrow(f: number): { x: number; y: number; vx: number; vy: number } | null {
+    const s = this.sun;
+    const r = f * this.R;
+    const v = Math.sqrt(this.world.refGm / r);
+    for (let i = 0; i < 16; i++) {
+      const a = -Math.PI / 2 + (i / 16) * 2 * Math.PI;
+      const t = { x: s.x + r * Math.cos(a), y: s.y + r * Math.sin(a), vx: -v * Math.sin(a), vy: v * Math.cos(a) };
+      const copy = this.world.clone();
+      const b = copy.add(this.planet(t.x, t.y, t.vx, t.vy, 0, -1));
+      if (forecast(copy, b.id, Math.round(10 / TICK), 30, 4 * this.R).outcome === 'orbit') return t;
+    }
+    return null;
   }
 
   /** Advance by dt (fixed physics ticks inside); returns what happened. */
