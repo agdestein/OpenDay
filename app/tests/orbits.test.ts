@@ -1,5 +1,7 @@
 import { World, forecast, KINDS, SUN_R, TICK, type Kind } from '../src/games/orbits/physics.ts';
 import { Defense, DEFENSE } from '../src/games/orbits/defense.ts';
+import { ZoneSim, ZONE } from '../src/games/orbits/zone.ts';
+import { SlingSim, SLING } from '../src/games/orbits/sling.ts';
 import assert from 'node:assert/strict';
 
 // ---- the toy's N-body world, on a 1280×720 screen like the game's ----
@@ -157,4 +159,94 @@ console.log('   ' + rows.join('\n   '));
   const ms = performance.now() - t0;
   assert.ok(ms < 12, `preview takes ${ms.toFixed(1)} ms`);
   console.log(`PASS: the push preview flies 100 asteroids to the end in ${ms.toFixed(1)} ms.`);
+}
+
+// ---- the step lens: big steps show the difference between the recipes ----
+{
+  const orbit = (h: number, method: 'smart' | 'simple', seconds: number) => {
+    const w = new World(W / 2, H / 2, u, GM);
+    w.reach = -1; // no re-centring: compare the pure recipes
+    w.h = h;
+    w.method = method;
+    w.add({ kind: 'star', sun: true, x: W / 2, y: H / 2, vx: 0, vy: 0, gm: GM, r: 1, hue: 45 });
+    const r = 0.25 * M, v = Math.sqrt(GM / r);
+    const p = w.add({ kind: 'pebble', x: W / 2 + r, y: H / 2, vx: 0, vy: v, gm: 0, r: 1, hue: 0 });
+    let worst = 0;
+    for (let i = 0; i < Math.round(seconds / h); i++) { w.step(); worst = Math.max(worst, Math.abs(Math.hypot(p.x - w.bodies[0].x, p.y - w.bodies[0].y) / r - 1)); }
+    return worst;
+  };
+  const bigSmart = orbit(32 * TICK, 'smart', 20), bigSimple = orbit(32 * TICK, 'simple', 20), tinySimple = orbit(TICK, 'simple', 60), tinySmart = orbit(TICK, 'smart', 60);
+  assert.ok(bigSmart < 0.05, `big smart steps keep the orbit (${bigSmart})`);
+  assert.ok(bigSimple > 0.5, `big simple steps spiral out (${bigSimple})`);
+  assert.ok(tinySimple > 0.05 && tinySmart < 0.005, `even tiny simple steps drift in a minute (${tinySimple} vs ${tinySmart})`);
+  console.log(`PASS: step lens — at 7.5 steps/s smart steps stay within ${(100 * bigSmart).toFixed(1)} % of the circle, simple ones drift ${(100 * bigSimple).toFixed(0)} %; at 240 steps/s simple steps still drift ${(100 * tinySimple).toFixed(0)} % in a minute (smart: ${(100 * tinySmart).toFixed(2)} %).`);
+}
+
+// ---- Goldilocks: calm beats crowded ----
+{
+  const R = 245;
+  const play = (radii: number[], seed: number, noise: number) => {
+    let s = seed; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+    const z = new ZoneSim(640, 300, R, 1, rnd() * 6.28);
+    let next = 0.5, i = 0;
+    while (!z.over) {
+      if (z.time >= next && i < radii.length) {
+        const r = radii[i++] * R, a = rnd() * 6.28, v = Math.sqrt(z.world.refGm / r) * (1 + noise * (rnd() - 0.5));
+        const sun = z.sun;
+        z.throw(sun.x + r * Math.cos(a), sun.y + r * Math.sin(a), -v * Math.sin(a), v * Math.cos(a));
+        next += 2;
+      }
+      z.step(1 / 60);
+    }
+    return z.score;
+  };
+  const mean = (radii: (sd: number) => number[]) => {
+    let sum = 0, n = 0;
+    for (const noise of [0.03, 0.1]) for (let sd = 1; sd <= 8; sd++) { sum += play(radii(sd), sd * 7919, noise); n++; }
+    return sum / n;
+  };
+  const rr = (k: number, seed: number) => { let q = seed * 31; return Array.from({ length: k }, () => 0.32 + 0.24 * ((q = (q * 16807) % 2147483647) / 2147483647)); };
+  const one = mean(() => [0.44]), two = mean(() => [0.36, 0.5]), three = mean(() => [0.34, 0.44, 0.54]);
+  const crowd = mean(() => Array(ZONE.planets).fill(0.44)), random = mean((sd) => rr(ZONE.planets, sd));
+  assert.equal(one, ZONE.worth[3], 'one calm planet grows all the way to 🦕');
+  assert.ok(Math.min(two, three) > Math.max(crowd, random), `calm (${two.toFixed(0)}, ${three.toFixed(0)}) beats crowded (${crowd.toFixed(0)}, ${random.toFixed(0)})`);
+  console.log(`PASS: Goldilocks — one planet ${one}, two calm ${two.toFixed(0)}, three calm ${three.toFixed(0)}, six crowded ${crowd.toFixed(0)}, six at random ${random.toFixed(0)}.`);
+}
+
+// ---- Slingshot: impossible alone, possible with the giant, whenever you launch ----
+{
+  const R = 245;
+  const tries = (sim: SlingSim) => {
+    let ok = 0, n = 0;
+    for (let a = 0; a < 36; a++) for (const f of [0.7, 1]) {
+      n++;
+      const ang = (a / 36) * 2 * Math.PI;
+      if (sim.forecast(f * sim.dvMax * Math.cos(ang), f * sim.dvMax * Math.sin(ang)).outcome === 'arrive') ok++;
+    }
+    return ok / n;
+  };
+  const alone = new SlingSim(640, 300, R, 1, 0, 0);
+  alone.world.remove(alone.giant!);
+  assert.equal(tries(alone), 0, 'no probe reaches the ring without the giant');
+  // Any moment of the round: some launch works within a couple of seconds of waiting.
+  let worstWait = 0;
+  const rates: string[] = [];
+  for (let k = 0; k < 8; k++) {
+    const sim = new SlingSim(640, 300, R, 1, 0.3 * k, 2.1 * k);
+    let waited = 0, rate = tries(sim);
+    rates.push(`${(100 * rate).toFixed(0)}%`);
+    while (rate === 0 && waited < 5) { for (let i = 0; i < 15; i++) sim.step(1 / 60); waited += 0.25; rate = tries(sim); }
+    assert.ok(rate > 0, `setup ${k}: some launch arrives within 5 s of waiting`);
+    worstWait = Math.max(worstWait, waited);
+  }
+  // A probe launched along its forecast really arrives, and scores.
+  const sim = new SlingSim(640, 300, R, 1, 0.3, 2.1);
+  let best: [number, number] | null = null;
+  for (let a = 0; a < 72 && !best; a++) for (const f of [1, 0.85, 0.7]) { const ang = (a / 72) * 2 * Math.PI; const v: [number, number] = [f * sim.dvMax * Math.cos(ang), f * sim.dvMax * Math.sin(ang)]; if (sim.forecast(...v).outcome === 'arrive') { best = v; break; } }
+  if (!best) { for (let i = 0; i < 120; i++) sim.step(1 / 60); }
+  assert.ok(best, 'found a launch that arrives');
+  sim.launch(...best!);
+  while (sim.probes.size > 0) sim.step(1 / 60);
+  assert.equal(sim.arrived, 1, 'the forecast arrival really arrives');
+  console.log(`PASS: Slingshot — no direct shot reaches the ring; with the giant ${rates.join(' ')} of launches arrive (longest wait ${worstWait.toFixed(2)} s); a forecast arrival arrives (${sim.score} points).`);
 }

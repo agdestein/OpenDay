@@ -8,6 +8,14 @@
 
 export type Kind = 'pebble' | 'planet' | 'giant' | 'star';
 
+/**
+ * How the computer steps time forward: 'smart' is velocity Verlet (kick,
+ * drift, kick: symplectic, so energy wobbles but never drifts); 'simple' is
+ * Euler's method from 1768 (move with the old speed, then update the speed
+ * with the old pull), which invents energy and spirals outward.
+ */
+export type Method = 'smart' | 'simple';
+
 export interface Body {
   id: number;
   kind: Kind;
@@ -60,6 +68,9 @@ export class World {
   refGm: number;
   /** Bodies farther than this from the centre don't count for the re-centring. */
   reach = 4000;
+  /** Step size (s) and recipe: the game's are TICK and 'smart'; the step lab changes them. */
+  h = TICK;
+  method: Method = 'smart';
   /** Merges since the last call to takeMerges (for flashes and sounds). */
   merges: Merge[] = [];
   private nextId = 1;
@@ -90,6 +101,8 @@ export class World {
   clone(): World {
     const w = new World(this.cx, this.cy, this.unit, this.refGm);
     w.reach = this.reach;
+    w.h = this.h;
+    w.method = this.method;
     w.nextId = this.nextId;
     w.bodies = this.bodies.map((b) => ({ ...b }));
     w.accValid = this.accValid;
@@ -163,23 +176,50 @@ export class World {
     this.accValid = true;
   }
 
-  /** One fixed step: kick, drift, kick; then merges; then the gentle re-centring. */
+  /** One step of size h (kick–drift–kick, or Euler); then merges; then the gentle re-centring. */
   step(): void {
     if (!this.accValid) this.accelerations();
-    const h = TICK;
-    for (const b of this.bodies) {
-      b.vx += 0.5 * h * b.ax;
-      b.vy += 0.5 * h * b.ay;
-      b.x += h * b.vx;
-      b.y += h * b.vy;
-    }
-    this.accelerations();
-    for (const b of this.bodies) {
-      b.vx += 0.5 * h * b.ax;
-      b.vy += 0.5 * h * b.ay;
+    const h = this.h;
+    if (this.method === 'simple') {
+      // Euler: move with the old velocity, then change it with the old pull.
+      for (const b of this.bodies) {
+        b.x += h * b.vx;
+        b.y += h * b.vy;
+        b.vx += h * b.ax;
+        b.vy += h * b.ay;
+      }
+      this.accelerations();
+    } else {
+      for (const b of this.bodies) {
+        b.vx += 0.5 * h * b.ax;
+        b.vy += 0.5 * h * b.ay;
+        b.x += h * b.vx;
+        b.y += h * b.vy;
+      }
+      this.accelerations();
+      for (const b of this.bodies) {
+        b.vx += 0.5 * h * b.ax;
+        b.vy += 0.5 * h * b.ay;
+      }
     }
     this.collide();
     this.recentre();
+  }
+
+  /** Total energy, kinetic + potential, with G = 1 and gm as the mass (for tests and the step lab). */
+  energy(): number {
+    const B = this.bodies;
+    const s2 = (4 * this.unit) ** 2;
+    let e = 0;
+    for (let i = 0; i < B.length; i++) {
+      const a = B[i];
+      e += 0.5 * a.gm * (a.vx * a.vx + a.vy * a.vy);
+      for (let j = i + 1; j < B.length; j++) {
+        const b = B[j];
+        e -= (a.gm * b.gm) / Math.sqrt((b.x - a.x) ** 2 + (b.y - a.y) ** 2 + s2);
+      }
+    }
+    return e;
   }
 
   private collide(): void {
@@ -247,7 +287,7 @@ export class World {
       vy += b.gm * b.vy;
     }
     if (m === 0) return;
-    const k = 0.004; // per step: ~1/e in a second
+    const k = Math.min(0.5, (0.004 * this.h) / TICK); // ~1/e in a second, whatever the step
     const sx = k * (this.cx - x / m);
     const sy = k * (this.cy - y / m);
     const svx = -k * (vx / m);

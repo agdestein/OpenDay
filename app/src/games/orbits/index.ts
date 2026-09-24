@@ -14,10 +14,13 @@ import { sound } from '../../lib/sound';
 import { fmtNumber, pick, type Localized } from '../../lib/i18n';
 import { orbitsDelve } from './delve';
 import { OrbitsDemos } from './demos';
-import { forecast, KINDS, SUN_R, TICK, World, type Body, type Kind, type Outcome } from './physics';
+import { forecast, KINDS, SUN_R, TICK, World, type Body, type Kind, type Method, type Outcome } from './physics';
 import { drawPlanet, drawStar, label, starfield } from './draw';
+import { drawBodies, drawGravityGrid, drawPath, launchVelocity, nearestStar, OUTCOME_COLOR, Poofs, Trails } from './scene';
 import { toolButton, type Area, type ButtonDef, type Round, type RoundHost } from './rounds';
 import { DefenseRound } from './roundDefense';
+import { ZoneRound } from './roundZone';
+import { SlingRound } from './roundSling';
 
 const TEXT: Localized<{
   dragHint: string;
@@ -26,6 +29,11 @@ const TEXT: Localized<{
   kinds: Record<Kind, string>;
   years: (n: number) => string;
   clear: string;
+  gravity: string;
+  steps: string;
+  smart: string;
+  simple: string;
+  stepsCaption: (perSecond: number, method: Method) => string;
   challenge: string;
   stop: string;
   round: (i: number, n: number) => string;
@@ -50,6 +58,11 @@ const TEXT: Localized<{
     kinds: { pebble: 'Pebble', planet: 'Planet', giant: 'Giant', star: 'Star' },
     years: (n) => (n === 1 ? '1 year!' : `${n} years!`),
     clear: 'Clear',
+    gravity: 'Gravity',
+    steps: 'Computer steps',
+    smart: '🪄 smart',
+    simple: '📐 simple',
+    stepsCaption: (n, m) => `🧮 The computer now takes ${n} ${m === 'smart' ? 'smart' : 'simple (Euler)'} steps a second${m === 'smart' ? '' : ' — watch the orbits drift out'}`,
     challenge: 'Challenge!',
     stop: 'Stop',
     round: (i, n) => `Round ${i}/${n}`,
@@ -74,6 +87,11 @@ const TEXT: Localized<{
     kinds: { pebble: 'Steentje', planet: 'Planeet', giant: 'Reus', star: 'Ster' },
     years: (n) => `${n} jaar!`,
     clear: 'Leeg',
+    gravity: 'Zwaartekracht',
+    steps: 'Rekenstappen',
+    smart: '🪄 slim',
+    simple: '📐 simpel',
+    stepsCaption: (n, m) => `🧮 De computer zet nu ${n} ${m === 'smart' ? 'slimme' : 'simpele (Euler-)'}stappen per seconde${m === 'smart' ? '' : ' — kijk hoe de banen naar buiten drijven'}`,
     challenge: 'Uitdaging!',
     stop: 'Stop',
     round: (i, n) => `Ronde ${i}/${n}`,
@@ -98,6 +116,11 @@ const TEXT: Localized<{
     kinds: { pebble: 'Stein', planet: 'Planet', giant: 'Kjempe', star: 'Stjerne' },
     years: (n) => `${n} år!`,
     clear: 'Tøm',
+    gravity: 'Tyngdekraft',
+    steps: 'Regnesteg',
+    smart: '🪄 smart',
+    simple: '📐 enkel',
+    stepsCaption: (n, m) => `🧮 Datamaskinen tar nå ${n} ${m === 'smart' ? 'smarte' : 'enkle (Euler-)'}steg i sekundet${m === 'smart' ? '' : ' — se banene drive utover'}`,
     challenge: 'Utfordring!',
     stop: 'Stopp',
     round: (i, n) => `Runde ${i}/${n}`,
@@ -111,15 +134,8 @@ const TEXT: Localized<{
   },
 };
 
-const ROUNDS: ((host: RoundHost) => Round)[] = [(host) => new DefenseRound(host)];
+const ROUNDS: ((host: RoundHost) => Round)[] = [(host) => new ZoneRound(host), (host) => new SlingRound(host), (host) => new DefenseRound(host)];
 
-const OUTCOME_COLOR: Record<Outcome, string> = {
-  orbit: '#6ee7b7',
-  far: '#fde047',
-  escape: '#fb923c',
-  crash: '#f87171',
-  merge: '#f472b6',
-};
 const KIND_EMOJI: Record<Kind, string> = { pebble: '🪨', planet: '🌍', giant: '🪐', star: '⭐' };
 const KIND_ORDER: Kind[] = ['pebble', 'planet', 'giant', 'star'];
 /** Hues a new star may get: golden, blue-white, red. */
@@ -127,12 +143,11 @@ const STAR_HUES = [45, 205, 12];
 const newHue = (kind: Kind) => (kind === 'star' ? STAR_HUES[Math.floor(Math.random() * STAR_HUES.length)] : randRange(0, 360));
 
 const MAX_BODIES = 32;
-const TRAIL_LENGTH = 180;
+/** The step slider: step size = TICK · 2^(5·value), so from 240 down to 7.5 steps a second. */
+const MAX_STEP_POWER = 5;
 /** How far the 🔮 forecast looks ahead (s), and every how many steps it keeps a point. */
 const FORECAST_SECONDS = 6;
 const FORECAST_EVERY = 6;
-/** Launch speed cap, as a multiple of the escape speed at the launch point. */
-const LAUNCH_CAP = 1.2;
 /** Most fixed steps per frame (the shell clamps dt to 0.05 s = 12 steps). */
 const MAX_STEPS = 16;
 /** Lap popups (with a ding) for these birthdays only. */
@@ -174,9 +189,12 @@ class OrbitsInstance implements GameInstance {
   private kind: Kind = 'planet';
   private drag: Drag | null = null;
   private pointer = { x: 0, y: 0, inside: false, mouse: true };
-  private trails = new Map<number, { x: number; y: number }[]>();
+  private trails = new Trails();
   private laps = new Map<number, { last: number; turned: number; laps: number }>();
-  private poofs: { x: number; y: number; t: number; hue: number; r: number }[] = [];
+  private poofs = new Poofs();
+  private gravityView = false;
+  private stepPower = 0;
+  private method: Method = 'smart';
   private popups: Popup[] = [];
   private launched = false;
   private hintAlpha = 1;
@@ -189,6 +207,9 @@ class OrbitsInstance implements GameInstance {
   private toyBar!: HTMLElement;
   private gameBar!: HTMLElement;
   private kindButtons = new Map<Kind, HTMLButtonElement>();
+  private gravityButton!: HTMLButtonElement;
+  private stepsInput!: HTMLInputElement;
+  private methodChip!: HTMLButtonElement;
   private hud!: HTMLElement;
   private hint!: HTMLElement;
   private delve: DelveHandle | null = null;
@@ -249,6 +270,7 @@ class OrbitsInstance implements GameInstance {
     const { w, h, unit: u, gm } = this;
     this.world = new World(w / 2, h / 2, u, gm);
     this.world.reach = 3 * Math.max(w, h);
+    this.applySteps();
     this.trails.clear();
     this.laps.clear();
     this.world.add({ kind: 'star', sun: true, x: w / 2, y: h / 2, vx: 0, vy: 0, gm, r: SUN_R * u, hue: 45 });
@@ -328,21 +350,8 @@ class OrbitsInstance implements GameInstance {
     if (!this.drag) this.pointer.inside = false;
   };
 
-  /** Drag vector → launch velocity: a comfortable drag reaches circle speed mid-screen; capped a little past escape. */
   private launchVelocity(from: { x0: number; y0: number }, to: { x: number; y: number }): { x: number; y: number } {
-    const m = Math.min(this.w, this.h);
-    const k = Math.sqrt(this.gm / (0.35 * m)) / (0.3 * m);
-    let vx = (to.x - from.x0) * k;
-    let vy = (to.y - from.y0) * k;
-    const s = this.world.stars();
-    const r = Math.max(Math.hypot(from.x0 - s.x, from.y0 - s.y), SUN_R * this.unit + 4);
-    const vMax = LAUNCH_CAP * Math.sqrt((2 * Math.max(s.gm, this.gm * 0.5)) / r);
-    const v = Math.hypot(vx, vy);
-    if (v > vMax) {
-      vx *= vMax / v;
-      vy *= vMax / v;
-    }
-    return { x: vx, y: vy };
+    return launchVelocity(this.world, Math.min(this.w, this.h), from.x0, from.y0, to.x, to.y);
   }
 
   /** The body a drag would throw, as it would enter the world. */
@@ -417,18 +426,18 @@ class OrbitsInstance implements GameInstance {
 
   private stepToy(dt: number): void {
     const world = this.world;
-    this.acc = Math.min(this.acc + dt, MAX_STEPS * TICK);
-    while (this.acc >= TICK) {
-      this.acc -= TICK;
+    this.acc = Math.min(this.acc + dt, Math.max(MAX_STEPS * TICK, world.h));
+    while (this.acc >= world.h) {
+      this.acc -= world.h;
       world.step();
     }
 
     // Merges: a flash, and a sizzle into a star or a thud between planets.
     for (const m of world.takeMerges()) {
-      this.poofs.push({ x: m.x, y: m.y, t: 0, hue: m.gone.hue, r: m.gone.r });
+      this.poofs.add(m.x, m.y, m.gone.hue, m.gone.r);
       if (m.into.kind === 'star') sound.play('sizzle');
       else sound.play('thud', { pitch: clamp((12 * this.unit) / m.into.r, 0.5, 1.5) });
-      this.trails.delete(m.gone.id);
+      this.trails.drop(m.gone.id);
       this.laps.delete(m.gone.id);
     }
 
@@ -438,7 +447,7 @@ class OrbitsInstance implements GameInstance {
       const bad = !Number.isFinite(b.x + b.y + b.vx + b.vy);
       if (bad || Math.hypot(b.x - world.cx, b.y - world.cy) > far) {
         world.remove(b);
-        this.trails.delete(b.id);
+        this.trails.drop(b.id);
         this.laps.delete(b.id);
       }
     }
@@ -450,12 +459,9 @@ class OrbitsInstance implements GameInstance {
     if (this.emptyFor > 20) this.seed();
 
     // Trails and years (laps around the stars).
+    this.trails.update(world);
     const s = world.stars();
     for (const b of world.bodies) {
-      let trail = this.trails.get(b.id);
-      if (!trail) this.trails.set(b.id, (trail = []));
-      trail.push({ x: b.x, y: b.y });
-      if (trail.length > TRAIL_LENGTH) trail.shift();
       if (b.kind === 'star' || s.gm === 0) continue;
       const angle = Math.atan2(b.y - s.y, b.x - s.x);
       const lap = this.laps.get(b.id);
@@ -477,8 +483,7 @@ class OrbitsInstance implements GameInstance {
         }
       }
     }
-    for (const f of this.poofs) f.t += dt;
-    this.poofs = this.poofs.filter((f) => f.t < 0.8);
+    this.poofs.step(dt);
     if (this.launched) this.hintAlpha = Math.max(0, this.hintAlpha - dt / 1.5);
   }
 
@@ -496,49 +501,10 @@ class OrbitsInstance implements GameInstance {
   private drawToy(ctx: CanvasRenderingContext2D): void {
     const world = this.world;
     const u = this.unit;
-
-    // Trails, fading towards their tails.
-    const CHUNKS = 6;
-    for (const b of world.bodies) {
-      const trail = this.trails.get(b.id);
-      if (!trail || trail.length < 2 || b.kind === 'star' && b.sun) continue;
-      const n = trail.length;
-      for (let c = 0; c < CHUNKS; c++) {
-        const i0 = Math.floor((c * (n - 1)) / CHUNKS);
-        const i1 = Math.floor(((c + 1) * (n - 1)) / CHUNKS);
-        if (i1 <= i0) continue;
-        ctx.beginPath();
-        ctx.moveTo(trail[i0].x, trail[i0].y);
-        for (let i = i0 + 1; i <= i1; i++) ctx.lineTo(trail[i].x, trail[i].y);
-        ctx.strokeStyle = `hsla(${b.hue}, 80%, 70%, ${(0.55 * (c + 1)) / CHUNKS})`;
-        ctx.lineWidth = Math.max(1.5, 2.5 * u);
-        ctx.stroke();
-      }
-    }
-
-    // Stars first (under the planets), then planets lit from the nearest star.
-    const starBodies = world.bodies.filter((b) => b.kind === 'star');
-    for (const b of starBodies) drawStar(ctx, b.x, b.y, b.r, b.hue, Math.sin(this.time * 2 + b.id));
-    for (const b of world.bodies) {
-      if (b.kind === 'star') continue;
-      const light = this.nearestStar(b.x, b.y, starBodies);
-      drawPlanet(ctx, b.x, b.y, b.r, b.hue, light.x, light.y, b.kind === 'giant');
-    }
-
-    for (const f of this.poofs) {
-      const k = f.t / 0.8;
-      ctx.beginPath();
-      ctx.arc(f.x, f.y, f.r + k * 70 * u, 0, Math.PI * 2);
-      ctx.strokeStyle = `hsla(${f.hue}, 90%, 75%, ${0.8 * (1 - k)})`;
-      ctx.lineWidth = 4 * u;
-      ctx.stroke();
-      if (k < 0.25) {
-        ctx.beginPath();
-        ctx.arc(f.x, f.y, f.r * 1.6, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255, 247, 214, ${0.8 * (1 - k / 0.25)})`;
-        ctx.fill();
-      }
-    }
+    if (this.gravityView) drawGravityGrid(ctx, world, this.w, this.h, u);
+    this.trails.draw(ctx, world, u, world.h > 3 * TICK);
+    drawBodies(ctx, world, this.time);
+    this.poofs.draw(ctx, u);
 
     this.drawEdgeArrows(ctx);
 
@@ -556,19 +522,10 @@ class OrbitsInstance implements GameInstance {
       label(ctx, pick(TEXT).dragHint, this.w / 2, 74, 20, 'rgba(238, 242, 255, 0.9)');
       ctx.globalAlpha = 1;
     }
-  }
-
-  private nearestStar(x: number, y: number, stars: Body[]): { x: number; y: number } {
-    let best = { x: this.w / 2, y: this.h / 2 };
-    let bd = Infinity;
-    for (const s of stars) {
-      const d = (s.x - x) ** 2 + (s.y - y) ** 2;
-      if (d < bd) {
-        bd = d;
-        best = s;
-      }
+    if (world.h > TICK * 1.01 || world.method !== 'smart') {
+      const perSecond = Math.round(1 / world.h);
+      label(ctx, pick(TEXT).stepsCaption(perSecond, world.method), this.w / 2, this.hintAlpha > 0 ? 104 : 74, 18, world.method === 'smart' ? '#86efac' : '#fdba74');
     }
-    return best;
   }
 
   private hoveredBody(): Body | null {
@@ -584,7 +541,7 @@ class OrbitsInstance implements GameInstance {
     const hue = body?.hue ?? this.nextHue;
     if (kind === 'star') drawStar(ctx, x, y, r, hue);
     else {
-      const light = this.nearestStar(x, y, this.world.bodies.filter((b) => b.kind === 'star'));
+      const light = nearestStar(x, y, this.world.bodies.filter((b) => b.kind === 'star'), { x: this.w / 2, y: this.h / 2 });
       drawPlanet(ctx, x, y, r, hue, light.x, light.y, kind === 'giant');
     }
   }
@@ -624,7 +581,9 @@ class OrbitsInstance implements GameInstance {
     const copy = this.world.clone();
     const body = copy.add(this.thrown(d, v, d.grab ? undefined : -1));
     const limit = 2 * Math.max(this.w, this.h);
-    const { pts, outcome } = forecast(copy, body.id, Math.round(FORECAST_SECONDS / TICK), FORECAST_EVERY, limit);
+    const h = this.world.h;
+    const every = Math.max(1, Math.round((FORECAST_EVERY * TICK) / h));
+    const { pts, outcome } = forecast(copy, body.id, Math.round(FORECAST_SECONDS / h), every, limit);
     const color = OUTCOME_COLOR[outcome];
 
     ctx.beginPath();
@@ -633,31 +592,7 @@ class OrbitsInstance implements GameInstance {
     ctx.strokeStyle = 'rgba(238, 242, 255, 0.45)';
     ctx.lineWidth = 1.5;
     ctx.stroke();
-
-    if (pts.length > 1) {
-      ctx.beginPath();
-      ctx.moveTo(pts[0].x, pts[0].y);
-      for (const p of pts) ctx.lineTo(p.x, p.y);
-      ctx.setLineDash([8, 8]);
-      ctx.lineDashOffset = -this.time * 40;
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 3 * this.unit;
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.lineDashOffset = 0;
-    }
-    if (outcome === 'crash' || outcome === 'merge') {
-      const end = pts[pts.length - 1];
-      const k = 8 * this.unit;
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.moveTo(end.x - k, end.y - k);
-      ctx.lineTo(end.x + k, end.y + k);
-      ctx.moveTo(end.x + k, end.y - k);
-      ctx.lineTo(end.x - k, end.y + k);
-      ctx.stroke();
-    }
+    drawPath(ctx, pts, color, this.unit, this.time, outcome === 'crash' || outcome === 'merge');
 
     this.drawGhost(ctx, d.x0, d.y0, d.grab ?? undefined);
     label(ctx, pick(TEXT).outcomeLabel[outcome], d.x0 + 16 * this.unit, d.y0 - 16 * this.unit, 16 * this.unit + 4, color, 'left');
@@ -813,6 +748,25 @@ class OrbitsInstance implements GameInstance {
     return buttons;
   }
 
+  private setGravityView(on: boolean): void {
+    this.gravityView = on;
+    this.gravityButton.classList.toggle('active', on);
+  }
+
+  private setMethod(method: Method): void {
+    this.method = method;
+    this.methodChip.textContent = method === 'smart' ? pick(TEXT).smart : pick(TEXT).simple;
+    this.applySteps();
+  }
+
+  /** The step lens applies to the toy's world, and so to its forecast too. */
+  private applySteps(): void {
+    if (!this.world) return;
+    this.world.h = TICK * 2 ** (MAX_STEP_POWER * this.stepPower);
+    this.world.method = this.method;
+    this.acc = 0;
+  }
+
   private setKind(kind: Kind): void {
     this.kind = kind;
     this.nextHue = newHue(kind);
@@ -827,6 +781,38 @@ class OrbitsInstance implements GameInstance {
       this.kindButtons.set(kind, this.makeButton(this.toyBar, { emoji: KIND_EMOJI[kind], label: T.kinds[kind], onClick: () => this.setKind(kind) }));
     }
     this.setKind('planet');
+    this.gravityButton = this.makeButton(this.toyBar, { emoji: '🕸', label: T.gravity, onClick: () => this.setGravityView(!this.gravityView) });
+
+    // The step lens: how big the computer's time steps are, and which recipe.
+    // A slider can't sit in a button, so this is a label shaped like one.
+    const steps = document.createElement('label');
+    steps.className = 'tool-button';
+    const icon = document.createElement('span');
+    icon.className = 'tool-emoji';
+    icon.textContent = '🧮';
+    this.stepsInput = document.createElement('input');
+    this.stepsInput.type = 'range';
+    this.stepsInput.min = '0';
+    this.stepsInput.max = '1';
+    this.stepsInput.step = '0.01';
+    this.stepsInput.value = '0';
+    this.stepsInput.setAttribute('aria-label', T.steps);
+    this.stepsInput.style.cssText = 'width:6.5rem;margin:0.1rem 0 0;accent-color:#fdba74;';
+    this.stepsInput.addEventListener('input', () => {
+      this.stepPower = Number(this.stepsInput.value);
+      this.applySteps();
+    });
+    this.methodChip = document.createElement('button');
+    this.methodChip.className = 'tool-label';
+    this.methodChip.style.cssText = 'border:0;background:none;color:inherit;font:inherit;cursor:pointer;padding:0;text-decoration:underline dotted;';
+    this.methodChip.addEventListener('click', (e) => {
+      e.preventDefault();
+      this.setMethod(this.method === 'smart' ? 'simple' : 'smart');
+    });
+    steps.append(icon, this.stepsInput, this.methodChip);
+    this.toyBar.appendChild(steps);
+    this.setMethod('smart');
+
     this.makeButton(this.toyBar, { emoji: '🧹', label: T.clear, onClick: () => this.seed() });
     this.makeButton(this.toyBar, { emoji: '🎯', label: T.challenge, onClick: () => this.startChallenge() });
 
@@ -852,8 +838,10 @@ class OrbitsInstance implements GameInstance {
       chapters: orbitsDelve({
         getIntegrator: () => this.demos.integrator,
         setIntegrator: (kind) => {
+          // The lab switches the demo beside it and the toy behind it.
           this.demos.integrator = kind;
-          this.demos.reset(3);
+          this.demos.reset(2);
+          this.setMethod(kind === 'euler' ? 'simple' : 'smart');
         },
       }),
       onChapter: (i) => this.demos.reset(i),
