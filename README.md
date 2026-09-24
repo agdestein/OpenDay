@@ -131,9 +131,13 @@ crowd. See [the proposal](docs/bounce-proposal.md) (`npm run test:bounce`).
 Gravity Doodle (`app/src/games/orbits/`) is an N-body toy: fling pebbles, planets,
 giants or a second star around the Sun, and every body pulls on every other; bodies
 that touch merge. While you aim, the 🔮 forecast runs a copy of the same simulation
-ahead (fixed steps, so it is exactly what will happen). Its challenge, Save the Earth,
-shows an asteroid nobody knows exactly as a cloud of possible asteroids: look through
-the telescope to shrink the cloud, then push it once, early. See
+ahead (fixed steps, so it is exactly what will happen). Two lenses: a rubber-sheet
+gravity view, and a step slider that makes the computer's time steps huge and swaps
+smart (symplectic) steps for Euler's, which spiral out. Its challenge has three rounds:
+Goldilocks (keep planets in the water zone; life grows on calm ones, crashes melt it),
+Slingshot (reach the golden ring by a flyby of the giant) and Save the Earth (an
+asteroid nobody knows exactly is a cloud of possible asteroids; look to shrink it, then
+push once, early). The delve ends in chaos twins and clouds of possible futures. See
 [the proposal](docs/orbits-proposal.md) (`npm run test:orbits`).
 
 Weather Detective (`app/src/games/detective/`) grew out of our group's project with

@@ -6,7 +6,8 @@ An assessment of Gravity Doodle as it was on 24 September 2026 against
 [Ball Pit proposal](bounce-proposal.md): **A** makes the game meet the goals, **B** adds
 depth, **C** can wait.
 
-**Phase A is built** (24 September 2026). Where the build differs from this plan:
+**Phases A and B are built** (24 September 2026). Where the build differs from this
+plan, phase A:
 
 - **Lighter toy masses.** Pebble 0.1 %, planet 0.5 %, giant 3 %, star 60 % of the Sun.
   With 1 % planets and 5 % giants no opening layout survived three minutes (bodies a
@@ -19,8 +20,7 @@ depth, **C** can wait.
   throws the forecast body for real: 0 px apart after 1 440 steps. The scene is kept
   centred by a gentle uniform shift of every body, inside the step, so the forecast
   includes it. The outcome gained a fifth colour: pink, "it will smash into a planet".
-- **The challenge is one round so far,** Save the Earth; Goldilocks and Slingshot are
-  phase B. Impact is 5.5 "years" out (8 s each, ~46 s in all), not 6, so Earth starts
+- **Save the Earth** (now round 3): impact is 5.5 "years" out (8 s each, ~46 s in all), not 6, so Earth starts
   across the Sun from the "impact day" mark; asteroids that would pass Earth before the
   last half year are drawn again. After a look, the new cloud is sampled 0.4 years back
   and flown to now, so it shows as a short arc rather than a single dot. While
@@ -31,8 +31,51 @@ depth, **C** can wait.
   quarter-power push clears it for all 16. A push at the start needs 0.0004–0.0007; one
   half a year before impact needs 0.008 or cannot save Earth at all. Scores: doing
   nothing 50, a blind full push 400, looking three times then a small push ~965.
-- **Not built in A:** the gravity view and the step slider (layer 2), the delve rewrite
-  (only chapter 1's colour sentence changed), and Artemis II's tense in chapter 5.
+
+Phase B:
+
+- **Goldilocks scores the life that is alive.** The ring (30–58 % of the scene's
+  half-height) is narrow, and physics decides how many planets it holds: with the toy's
+  masses and sizes even two planets merged or were thrown out within seconds (a few
+  Hill radii apart). The round uses its own lighter, smaller worlds (planets 0.1 %,
+  7 px; the giant outside the ring 0.5 %), six planets and 50 s. Life grows with time
+  in the zone (🌱 8 s, 🌿 16 s, 🌳 24 s, 🦕 32 s, worth 25/75/150/250), and the score is
+  the life on the planets still alive, so a crash takes points away ("💥 life melted
+  −75"). Scoring every stage once reached instead let a crowd of six at one radius win
+  (850 against ~500 for two calm planets); now, measured over 16 bot games each: one
+  planet 250, two calm 455, three calm 459, six crowded 358, six at random 292.
+- **Slingshot has no mid-course fuel.** Five probes and 60 s; the launch is capped at
+  0.16 × Earth's orbital speed (relative to Earth), where no direct shot reaches the
+  golden ring (tested); with the giant (5 %, on the middle orbit) 0–21 % of launch
+  directions and speeds arrive, depending on where the giant is, and after at most a
+  quarter of a second of waiting some do. The forecast flies the whole 14 s trip, so
+  the search ("wiggle until the line turns green") is the game; a probe that falls
+  short shows only its first 4 s. Scores: 200 per arrival, 50 per photo of the giant
+  (passing within four of its radii).
+- **The step lens** is a slider (240 down to 7.5 steps a second) with a 🪄 smart /
+  📐 simple chip in the toolbar; the forecast uses the same steps, and big steps are
+  drawn as dots. Measured on a circular orbit: at 7.5 steps a second smart steps stay
+  within 2 % and simple ones drift 364 % in 20 s; even at 240 a second simple steps drift
+  62 % in a minute (smart 0.15 %). The delve's step lab switches the demo and the toy.
+- **The delve cost figure is measured:** matching 40 smart steps per orbit over five
+  orbits takes about 4 200 simple ones (104×; 22× over one orbit). The chapter says
+  "about a hundred times" and the demo prints the computed number.
+- **Chapter 4** shows Burrau's Pythagorean problem (masses 3, 4, 5 at rest on a 3-4-5
+  triangle) as chaos twins, one star nudged by 10⁻⁶: they part after ~15 s. The lab
+  switches to the figure-8 choreography, whose twins stay within 10⁻⁴. **Chapter 6**
+  runs the asteroid model with three automatic looks; every other run the real
+  asteroid alone is nudged so it just misses, and the chance climbs, then falls to
+  zero, as 2024 YR4's did. The energy/skateboard demo is gone (merged into chapter 3).
+- **Bug found while playtesting:** two massless probes that touched merged into a NaN
+  (0/0 mass weights), and drawing it threw and stopped the frame loop. They now meet
+  halfway, and non-finite bodies are never drawn.
+- **To verify before printing:** Artemis II flew the free return in April 2026; 2024
+  YR4's 3 % (February 2025); DART changed Dimorphos's orbit by about half an hour;
+  Hera arrives at the end of 2026; JUICE's Moon/Earth/Venus flybys; Oscar II's prize
+  (1889) and Poincaré's correction; Burrau (1913) and its computer solution (1967);
+  the figure-8 (Moore 1993). **Agree the wording** of chapter 3's group sentence
+  ("designing step recipes that keep energy honest — for wind and turbulence rather
+  than planets — is part of our group's research").
 
 ## Assessment
 
