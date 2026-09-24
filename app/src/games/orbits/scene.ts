@@ -26,6 +26,7 @@ export class Trails {
     for (const b of world.bodies) {
       let trail = this.map.get(b.id);
       if (!trail) this.map.set(b.id, (trail = []));
+      if (!Number.isFinite(b.x + b.y)) continue;
       const last = trail[trail.length - 1];
       if (last && last.x === b.x && last.y === b.y) continue; // big steps: one point per step
       trail.push({ x: b.x, y: b.y });
@@ -90,11 +91,13 @@ export function nearestStar(x: number, y: number, stars: Body[], fallback: Pt): 
 
 /** Stars first (under the planets), then planets lit from the nearest star; giants get rings. */
 export function drawBodies(ctx: CanvasRenderingContext2D, world: World, time: number, skip?: (b: Body) => boolean): void {
-  const stars = world.bodies.filter((b) => b.kind === 'star');
+  // A non-finite body would make the canvas throw and stop the frame loop: never draw one.
+  const ok = (b: Body) => Number.isFinite(b.x + b.y + b.r);
+  const stars = world.bodies.filter((b) => b.kind === 'star' && ok(b));
   for (const b of stars) drawStar(ctx, b.x, b.y, b.r, b.hue, Math.sin(time * 2 + b.id));
   const centre = { x: world.cx, y: world.cy };
   for (const b of world.bodies) {
-    if (b.kind === 'star' || skip?.(b)) continue;
+    if (b.kind === 'star' || skip?.(b) || !ok(b)) continue;
     const light = nearestStar(b.x, b.y, stars, centre);
     drawPlanet(ctx, b.x, b.y, b.r, b.hue, light.x, light.y, b.kind === 'giant');
   }

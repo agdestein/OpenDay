@@ -69,6 +69,13 @@ const run = (w: World, seconds: number) => { for (let i = 0; i < Math.round(seco
   assert.ok(Math.abs(b.gm - 40) < 1e-9, 'mass kept');
   assert.ok(Math.abs(b.gm * b.vx - px) < 1e-6 && Math.abs(b.gm * b.vy - py) < 1e-6, 'momentum kept');
   assert.ok(b.r >= 15 && b.r < 26, `merged radius ${b.r}`);
+  // Two massless probes that touch meet halfway (no 0/0).
+  const q = new World(W / 2, H / 2, u, GM);
+  q.reach = -1;
+  q.add({ kind: 'pebble', x: 100, y: 100, vx: 10, vy: 0, gm: 0, r: 3, hue: 0 });
+  q.add({ kind: 'pebble', x: 104, y: 100, vx: -10, vy: 0, gm: 0, r: 3, hue: 0 });
+  q.step();
+  assert.ok(q.bodies.length === 1 && q.bodies.every((p) => Number.isFinite(p.x + p.y + p.vx + p.vy)), 'massless merge stays finite');
   console.log(`PASS: a giant wobbles the Sun by ${wobble.toFixed(1)} px; touching planets merge with mass and momentum kept.`);
 }
 

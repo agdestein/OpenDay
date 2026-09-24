@@ -7,6 +7,7 @@ import { pick, type Localized } from '../../lib/i18n';
 import { sound } from '../../lib/sound';
 import { randRange } from '../../lib/util';
 import { arrow, label } from './draw';
+import { TICK } from './physics';
 import { drawBodies, drawPath, Poofs, Trails } from './scene';
 import type { Round, RoundHost } from './rounds';
 import { SLING, SlingSim, type SlingOutcome } from './sling';
@@ -76,6 +77,9 @@ const OUTCOME_COLOR: Record<SlingOutcome, string> = { arrive: '#86efac', crash: 
 const GOLD = '#fbbf24';
 /** Drag length (units) for a full-power launch. */
 const FULL_DRAG = 130;
+/** The forecast keeps a point every this many steps, and shows a short-falling probe for this long. */
+const FORECAST_EVERY = 6;
+const SHORT_SECONDS = 4;
 
 interface Drag {
   x0: number;
@@ -228,8 +232,10 @@ export class SlingRound implements Round {
     // The launch being dragged: an arrow from Earth, and the whole trip ahead.
     if (this.drag && e) {
       const { dvx, dvy } = this.launchVector(this.drag);
-      const f = sim.forecast(dvx, dvy);
-      drawPath(ctx, f.pts, OUTCOME_COLOR[f.outcome], u, this.clock, f.outcome === 'crash');
+      const f = sim.forecast(dvx, dvy, FORECAST_EVERY);
+      // A probe that falls short circles for its whole flight: show only its start.
+      const pts = f.outcome === 'short' ? f.pts.slice(0, Math.round(SHORT_SECONDS / (FORECAST_EVERY * TICK))) : f.pts;
+      drawPath(ctx, pts, OUTCOME_COLOR[f.outcome], u, this.clock, f.outcome === 'crash');
       const scale = (FULL_DRAG * u * 0.6) / sim.dvMax;
       arrow(ctx, e.x, e.y, dvx * scale, dvy * scale, '#fde68a', 3);
       label(ctx, T.outcome[f.outcome], e.x + dvx * scale + 12 * u, e.y + dvy * scale - 10 * u, 15 * u + 4, OUTCOME_COLOR[f.outcome], 'left');

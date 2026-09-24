@@ -132,6 +132,7 @@ export class SlingSim {
       this.acc -= TICK;
       world.step();
     }
+    for (const b of [...world.bodies]) if (!Number.isFinite(b.x + b.y + b.vx + b.vy)) world.remove(b);
     for (const m of world.takeMerges()) {
       if (this.probes.has(m.gone.id)) {
         this.probes.delete(m.gone.id);

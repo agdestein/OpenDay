@@ -245,10 +245,13 @@ export class World {
     const into = keepA ? a : b;
     const gone = keepA ? b : a;
     const m = a.gm + b.gm;
-    const x = (a.gm * a.x + b.gm * b.x) / m;
-    const y = (a.gm * a.y + b.gm * b.y) / m;
-    into.vx = (a.gm * a.vx + b.gm * b.vx) / m;
-    into.vy = (a.gm * a.vy + b.gm * b.vy) / m;
+    // Weights by mass; two massless bodies (probes) just meet halfway.
+    const wa = m > 0 ? a.gm / m : 0.5;
+    const wb = 1 - wa;
+    const x = wa * a.x + wb * b.x;
+    const y = wa * a.y + wb * b.y;
+    into.vx = wa * a.vx + wb * b.vx;
+    into.vy = wa * a.vy + wb * b.vy;
     into.x = x;
     into.y = y;
     const u = this.unit;

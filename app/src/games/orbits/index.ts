@@ -843,6 +843,13 @@ class OrbitsInstance implements GameInstance {
           this.demos.reset(2);
           this.setMethod(kind === 'euler' ? 'simple' : 'smart');
         },
+        getThreeBody: () => this.demos.threeBody,
+        setThreeBody: (mode) => {
+          this.demos.threeBody = mode;
+          this.demos.reset(3);
+        },
+        hasGame: (id) => this.host.hasGame(id),
+        openGame: (id) => this.host.openGame(id),
       }),
       onChapter: (i) => this.demos.reset(i),
       onExit: () => this.closeDelve(),
