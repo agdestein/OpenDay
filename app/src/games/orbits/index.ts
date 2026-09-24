@@ -1,424 +1,342 @@
-// Gravity Doodle: fling planets around a sun with drag-and-release. The drag
-// preview integrates the future path so orbits are easy to aim, and a delve
-// layer (shared chaptered panel) explains the science of celestial mechanics.
+// Gravity Doodle. Toy: fling planets (or pebbles, giants, even a second star)
+// around the Sun with drag-and-release, or grab one and throw it again. Every
+// body pulls on every other and bodies that touch merge (physics.ts), so near
+// misses bend paths, giants make the Sun wobble and a second star turns the
+// system wild. While you aim, the 🔮 forecast — the same simulation copied and
+// run ahead — shows the future exactly. Challenge: "Save the Earth"
+// (roundDefense.ts), a cloud of possible asteroids you look at and push. The
+// delve (delve.ts, demos.ts) explains the science.
 import type { ArcadeGame, GameHost, GameInstance } from '../../shell/types';
-import { pointerPos, randRange } from '../../lib/util';
-import {
-  delvePanel,
-  delveToggle,
-  type DelveHandle,
-  type DelveToggleHandle,
-} from '../../shell/delve';
-import { orbitsDelve, type Integrator } from './delve';
-import { pick, type Localized } from '../../lib/i18n';
+import { clamp, pointerPos, randRange } from '../../lib/util';
+import { delvePanel, delveToggle, type DelveHandle, type DelveToggleHandle } from '../../shell/delve';
+import { scoreFlow, type ScoreFlowHandle } from '../../shell/scoreflow';
+import { sound } from '../../lib/sound';
+import { fmtNumber, pick, type Localized } from '../../lib/i18n';
+import { orbitsDelve } from './delve';
+import { OrbitsDemos } from './demos';
+import { forecast, KINDS, SUN_R, TICK, World, type Body, type Kind, type Outcome } from './physics';
+import { drawPlanet, drawStar, label, starfield } from './draw';
+import { toolButton, type Area, type ButtonDef, type Round, type RoundHost } from './rounds';
+import { DefenseRound } from './roundDefense';
 
-interface Planet {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  r: number;
-  hue: number;
-  trail: { x: number; y: number }[];
-}
+const TEXT: Localized<{
+  dragHint: string;
+  delveHeading: string;
+  outcomeLabel: Record<Outcome, string>;
+  kinds: Record<Kind, string>;
+  years: (n: number) => string;
+  clear: string;
+  challenge: string;
+  stop: string;
+  round: (i: number, n: number) => string;
+  roundPoints: (n: number) => string;
+  nextRound: string;
+  finalScore: string;
+  challengeHeading: string;
+  points: (n: number) => string;
+  playAgain: string;
+  freePlay: string;
+}> = {
+  en: {
+    dragHint: 'Drag and release to launch a planet — longer drag = faster!',
+    delveHeading: '🔬 The science of Gravity Doodle',
+    outcomeLabel: {
+      orbit: '🔮 nice orbit!',
+      far: '🌠 a huge orbit — gone for a long while',
+      escape: '🚀 past escape speed!',
+      crash: '💥 heading into a star',
+      merge: '💥 it will smash into a planet!',
+    },
+    kinds: { pebble: 'Pebble', planet: 'Planet', giant: 'Giant', star: 'Star' },
+    years: (n) => (n === 1 ? '1 year!' : `${n} years!`),
+    clear: 'Clear',
+    challenge: 'Challenge!',
+    stop: 'Stop',
+    round: (i, n) => `Round ${i}/${n}`,
+    roundPoints: (n) => `+${fmtNumber(n)} points`,
+    nextRound: 'Next round ▶',
+    finalScore: 'Final score ▶',
+    challengeHeading: '🪐 Gravity Doodle challenge',
+    points: (n) => `${fmtNumber(n)} points`,
+    playAgain: 'Play again',
+    freePlay: 'Free play',
+  },
+  nl: {
+    dragHint: 'Sleep en laat los om een planeet te lanceren — langer slepen = sneller!',
+    delveHeading: '🔬 De wetenschap van Zwaartekracht-doodle',
+    outcomeLabel: {
+      orbit: '🔮 mooie baan!',
+      far: '🌠 een enorme baan — lang weg',
+      escape: '🚀 voorbij de ontsnappingssnelheid!',
+      crash: '💥 op weg naar een ster',
+      merge: '💥 hij botst op een planeet!',
+    },
+    kinds: { pebble: 'Steentje', planet: 'Planeet', giant: 'Reus', star: 'Ster' },
+    years: (n) => `${n} jaar!`,
+    clear: 'Leeg',
+    challenge: 'Uitdaging!',
+    stop: 'Stop',
+    round: (i, n) => `Ronde ${i}/${n}`,
+    roundPoints: (n) => `+${fmtNumber(n)} punten`,
+    nextRound: 'Volgende ronde ▶',
+    finalScore: 'Eindscore ▶',
+    challengeHeading: '🪐 Zwaartekracht-doodle-uitdaging',
+    points: (n) => `${fmtNumber(n)} punten`,
+    playAgain: 'Nog een keer',
+    freePlay: 'Vrij spelen',
+  },
+  no: {
+    dragHint: 'Dra og slipp for å skyte opp en planet — lengre drag = raskere!',
+    delveHeading: '🔬 Vitenskapen bak Tyngdekraft-doodle',
+    outcomeLabel: {
+      orbit: '🔮 fin bane!',
+      far: '🌠 en enorm bane — borte lenge',
+      escape: '🚀 forbi unnslipningshastigheten!',
+      crash: '💥 på vei inn i en stjerne',
+      merge: '💥 den krasjer i en planet!',
+    },
+    kinds: { pebble: 'Stein', planet: 'Planet', giant: 'Kjempe', star: 'Stjerne' },
+    years: (n) => `${n} år!`,
+    clear: 'Tøm',
+    challenge: 'Utfordring!',
+    stop: 'Stopp',
+    round: (i, n) => `Runde ${i}/${n}`,
+    roundPoints: (n) => `+${fmtNumber(n)} poeng`,
+    nextRound: 'Neste runde ▶',
+    finalScore: 'Sluttpoeng ▶',
+    challengeHeading: '🪐 Tyngdekraft-doodle-utfordring',
+    points: (n) => `${fmtNumber(n)} poeng`,
+    playAgain: 'Spill igjen',
+    freePlay: 'Fri lek',
+  },
+};
 
-interface Pt {
-  x: number;
-  y: number;
-}
-
-const TRAIL_LENGTH = 110;
-const SUN_RADIUS = 26;
-const MAX_PLANETS = 60;
-/** Launch speed cap, as a multiple of the escape speed at the launch point. */
-const LAUNCH_CAP = 1.2;
-
-type Outcome = 'orbit' | 'far' | 'escape' | 'crash';
+const ROUNDS: ((host: RoundHost) => Round)[] = [(host) => new DefenseRound(host)];
 
 const OUTCOME_COLOR: Record<Outcome, string> = {
   orbit: '#6ee7b7',
   far: '#fde047',
   escape: '#fb923c',
   crash: '#f87171',
+  merge: '#f472b6',
 };
+const KIND_EMOJI: Record<Kind, string> = { pebble: '🪨', planet: '🌍', giant: '🪐', star: '⭐' };
+const KIND_ORDER: Kind[] = ['pebble', 'planet', 'giant', 'star'];
+/** Hues a new star may get: golden, blue-white, red. */
+const STAR_HUES = [45, 205, 12];
+const newHue = (kind: Kind) => (kind === 'star' ? STAR_HUES[Math.floor(Math.random() * STAR_HUES.length)] : randRange(0, 360));
 
-const TEXT: Localized<{
-  dragHint: string;
-  delveHeading: string;
-  outcomeLabel: Record<Outcome, string>;
-  shapesLabels: [string, string, string, string];
-  shapesCaption: string;
-  balancePoint: string;
-  samePull: string;
-  heavyWobble: string;
-  lightBig: string;
-  closeFast: string;
-  farSlow: string;
-  energySpeed: string;
-  energyHeight: string;
-  energyTotal: string;
-  stepsTitleEuler: string;
-  stepsTitleSymplectic: string;
-  trueOrbit: string;
-  stepsEnergyEuler: string;
-  stepsEnergySymplectic: string;
-  trueEnergy: string;
-  moonGrip: string;
-  ghostFallsShort: string;
-  earth: string;
-  moon: string;
-  splashdown: string;
-  slingshot: string;
-}> = {
-  en: {
-    dragHint: 'Drag and release to launch a planet — longer drag = faster!',
-    delveHeading: '🔬 The science of Gravity Doodle',
-    outcomeLabel: {
-      orbit: 'nice orbit!',
-      far: '🌠 a huge orbit — gone for a long while',
-      escape: '🚀 past escape speed!',
-      crash: '💥 heading for the Sun',
-    },
-    shapesLabels: [
-      '35% of circle speed — falls into the Sun 💥',
-      '100% — a perfect circle',
-      '120% — an ellipse',
-      '150% (more than √2) — escapes forever 🚀',
-    ],
-    shapesCaption: 'same spot, different speed',
-    balancePoint: 'balance point',
-    samePull: 'same pull, both ways!',
-    heavyWobble: '4× the mass → small wobble',
-    lightBig: 'light → big orbit, high speed',
-    closeFast: 'close → fast! 🏎',
-    farSlow: 'far → slow… 🐢',
-    energySpeed: '🏎 speed energy',
-    energyHeight: '🪜 height energy',
-    energyTotal: 'total — never changes!',
-    stepsTitleEuler: '📐 simple steps (Euler, 1768) — watch it drift!',
-    stepsTitleSymplectic: '🪄 smart steps (symplectic) — it stays!',
-    trueOrbit: 'true orbit',
-    stepsEnergyEuler: 'energy the computer thinks it has — growing out of nothing!',
-    stepsEnergySymplectic: 'energy — wobbles, but never drifts away',
-    trueEnergy: 'true energy –',
-    moonGrip: "the Moon's grip",
-    ghostFallsShort: '👻 without the Moon: falls short!',
-    earth: '🌍 Earth',
-    moon: '🌕 Moon',
-    splashdown: '🌊 splashdown — home for free!',
-    slingshot: 'gravity slingshot!',
-  },
-  nl: {
-    dragHint: 'Sleep en laat los om een planeet te lanceren — langer slepen = sneller!',
-    delveHeading: '🔬 De wetenschap van Zwaartekracht-doodle',
-    outcomeLabel: {
-      orbit: 'mooie baan!',
-      far: '🌠 een enorme baan — lang weg',
-      escape: '🚀 voorbij de ontsnappingssnelheid!',
-      crash: '💥 op weg naar de Zon',
-    },
-    shapesLabels: [
-      '35% van de cirkelsnelheid — valt in de Zon 💥',
-      '100% — een perfecte cirkel',
-      '120% — een ellips',
-      '150% (meer dan √2) — ontsnapt voorgoed 🚀',
-    ],
-    shapesCaption: 'zelfde plek, andere snelheid',
-    balancePoint: 'zwaartepunt',
-    samePull: 'zelfde trekkracht, twee kanten op!',
-    heavyWobble: '4× de massa → kleine wiebel',
-    lightBig: 'licht → grote baan, hoge snelheid',
-    closeFast: 'dichtbij → snel! 🏎',
-    farSlow: 'ver weg → langzaam… 🐢',
-    energySpeed: '🏎 bewegingsenergie',
-    energyHeight: '🪜 hoogte-energie',
-    energyTotal: 'totaal — verandert nooit!',
-    stepsTitleEuler: '📐 simpele stappen (Euler, 1768) — kijk hem wegdrijven!',
-    stepsTitleSymplectic: '🪄 slimme stappen (symplectisch) — hij blijft!',
-    trueOrbit: 'echte baan',
-    stepsEnergyEuler: 'energie die de computer denkt te hebben — groeit uit het niets!',
-    stepsEnergySymplectic: 'energie — wiebelt, maar drijft nooit weg',
-    trueEnergy: 'echte energie –',
-    moonGrip: 'de greep van de Maan',
-    ghostFallsShort: '👻 zonder de Maan: komt tekort!',
-    earth: '🌍 Aarde',
-    moon: '🌕 Maan',
-    splashdown: '🌊 landing op zee — gratis naar huis!',
-    slingshot: 'zwaartekracht-slingerschot!',
-  },
-  no: {
-    dragHint: 'Dra og slipp for å skyte opp en planet — lengre drag = raskere!',
-    delveHeading: '🔬 Vitenskapen bak Tyngdekraft-doodle',
-    outcomeLabel: {
-      orbit: 'fin bane!',
-      far: '🌠 en enorm bane — borte lenge',
-      escape: '🚀 forbi unnslipningshastigheten!',
-      crash: '💥 på vei mot Solen',
-    },
-    shapesLabels: [
-      '35 % av sirkelfarten — faller i Solen 💥',
-      '100 % — en perfekt sirkel',
-      '120 % — en ellipse',
-      '150 % (mer enn √2) — unnslipper for godt 🚀',
-    ],
-    shapesCaption: 'samme sted, ulik fart',
-    balancePoint: 'tyngdepunkt',
-    samePull: 'samme drag, begge veier!',
-    heavyWobble: '4× massen → liten vakling',
-    lightBig: 'lett → stor bane, høy fart',
-    closeFast: 'nær → raskt! 🏎',
-    farSlow: 'langt unna → sakte… 🐢',
-    energySpeed: '🏎 bevegelsesenergi',
-    energyHeight: '🪜 høydeenergi',
-    energyTotal: 'totalt — endrer seg aldri!',
-    stepsTitleEuler: '📐 enkle steg (Euler, 1768) — se den drive utover!',
-    stepsTitleSymplectic: '🪄 smarte steg (symplektisk) — den blir værende!',
-    trueOrbit: 'ekte bane',
-    stepsEnergyEuler: 'energien datamaskinen tror den har — vokser ut av ingenting!',
-    stepsEnergySymplectic: 'energi — vakler, men driver aldri bort',
-    trueEnergy: 'ekte energi –',
-    moonGrip: 'Månens grep',
-    ghostFallsShort: '👻 uten Månen: kommer for kort!',
-    earth: '🌍 Jorden',
-    moon: '🌕 Månen',
-    splashdown: '🌊 landing i havet — gratis hjem!',
-    slingshot: 'tyngdekraft-slyngeskudd!',
-  },
-};
+const MAX_BODIES = 32;
+const TRAIL_LENGTH = 180;
+/** How far the 🔮 forecast looks ahead (s), and every how many steps it keeps a point. */
+const FORECAST_SECONDS = 6;
+const FORECAST_EVERY = 6;
+/** Launch speed cap, as a multiple of the escape speed at the launch point. */
+const LAUNCH_CAP = 1.2;
+/** Most fixed steps per frame (the shell clamps dt to 0.05 s = 12 steps). */
+const MAX_STEPS = 16;
+/** Lap popups (with a ding) for these birthdays only. */
+const LAP_POPUPS = new Set([1, 2, 3, 10, 25, 50, 100]);
+const BACKGROUND = '#05081a';
 
-// ---- delve demo worlds (fixed world coordinates, fitted to the canvas) ----
-
-interface ShapeBody {
-  f: number;
-  color: string;
-  label: string;
+interface Popup {
   x: number;
   y: number;
-  vx: number;
-  vy: number;
-  trail: Pt[];
-  alive: boolean;
-  respawn: number;
+  text: string;
+  color: string;
+  age: number;
 }
 
-type Demo =
-  | { kind: 'shapes'; bodies: ShapeBody[] }
-  | {
-      kind: 'newton';
-      b1: { x: number; y: number; vx: number; vy: number; trail: Pt[] };
-      b2: { x: number; y: number; vx: number; vy: number; trail: Pt[] };
-    }
-  | {
-      kind: 'energy';
-      x: number;
-      y: number;
-      vx: number;
-      vy: number;
-      trail: Pt[];
-      hist: { ke: number; pe: number }[];
-      sample: number;
-    }
-  | {
-      kind: 'steps';
-      x: number;
-      y: number;
-      vx: number;
-      vy: number;
-      path: Pt[];
-      energies: number[];
-      timer: number;
-    }
-  | {
-      kind: 'moon';
-      path: { x: number; y: number; vx: number; vy: number }[];
-      /** Same launch with the Moon's gravity switched off: falls short. */
-      ghost: { x: number; y: number; vx: number; vy: number }[];
-      idx: number;
-      hold: number;
-    };
+interface Challenge {
+  index: number;
+  total: number;
+  round: Round;
+  card: HTMLElement | null;
+}
 
-const SHAPES = { gm: 1.44e6, R: 170, sunR: 14 };
-const NEWTON = { s: 190, m1: 4, m2: 1, period: 9 };
-const ENERGY = { gm: 4e6, rp: 110, f: 1.25, samples: 240 };
-const STEPS = { gm: 2e6, R: 150, perOrbit: 40, maxSteps: 78, every: 0.24 };
-// f and the Moon's mass are tuned by hand so that, with this integrator and
-// dt, the path is the iconic self-crossing figure-8: out on one side, a full
-// loop around the Moon, and home on the other side in ~10 s. The Moon is
-// heavier than the real one (1/20 of Earth instead of 1/81) so the loop is
-// big enough to read from across a room. The same launch with the Moon's
-// gravity switched off turns back 4 units short of the Moon's "grip" circle.
-const MOON = { D: 420, gmE: 4e6, gmM: 4e6 / 20, r0: 45, f: 1.326, dt: 0.02 };
+interface Drag {
+  x0: number;
+  y0: number;
+  /** A body picked up to throw again (not in the world while held). */
+  grab: Body | null;
+}
 
 class OrbitsInstance implements GameInstance {
   private ctx: CanvasRenderingContext2D;
-  private planets: Planet[] = [];
-  private drag: Pt | null = null;
-  private pointer = { x: 0, y: 0 };
-  private poofs: { x: number; y: number; t: number; hue: number }[] = [];
+  private world!: World;
+  private w = 0;
+  private h = 0;
+  private unit = 1;
+  private gm = 1;
+  private acc = 0;
   private time = 0;
 
+  private kind: Kind = 'planet';
+  private drag: Drag | null = null;
+  private pointer = { x: 0, y: 0, inside: false, mouse: true };
+  private trails = new Map<number, { x: number; y: number }[]>();
+  private laps = new Map<number, { last: number; turned: number; laps: number }>();
+  private poofs: { x: number; y: number; t: number; hue: number; r: number }[] = [];
+  private popups: Popup[] = [];
+  private launched = false;
+  private hintAlpha = 1;
+  private sunlessFor = 0;
+  private emptyFor = 0;
+  private stars: ReturnType<typeof starfield> = [];
+
+  private challenge: Challenge | null = null;
+  private flow: ScoreFlowHandle | null = null;
+  private toyBar!: HTMLElement;
+  private gameBar!: HTMLElement;
+  private kindButtons = new Map<Kind, HTMLButtonElement>();
+  private hud!: HTMLElement;
+  private hint!: HTMLElement;
   private delve: DelveHandle | null = null;
   private toggle!: DelveToggleHandle;
-  private demo: Demo | null = null;
-  private integrator: Integrator = 'euler';
-
-  private onDown = (e: PointerEvent) => {
-    if (this.delve) return;
-    this.drag = pointerPos(this.host.canvas, e);
-    this.pointer = { ...this.drag };
-  };
-  private onMove = (e: PointerEvent) => {
-    this.pointer = pointerPos(this.host.canvas, e);
-  };
-  private onUp = (e: PointerEvent) => {
-    if (!this.drag) return;
-    const p = pointerPos(this.host.canvas, e);
-    const v = this.launchVelocity(this.drag, p);
-    this.launch(this.drag.x, this.drag.y, v.x, v.y);
-    this.drag = null;
-  };
+  private demos = new OrbitsDemos();
 
   constructor(private host: GameHost) {
     this.ctx = host.canvas.getContext('2d')!;
   }
 
   start(): void {
-    const { canvas } = this.host;
-    canvas.addEventListener('pointerdown', this.onDown);
-    canvas.addEventListener('pointermove', this.onMove);
-    canvas.addEventListener('pointerup', this.onUp);
-    this.toggle = delveToggle(() => (this.delve ? this.closeDelve() : this.openDelve()));
-    this.host.overlay.appendChild(this.toggle.element);
-    // Seed two planets on roughly circular orbits so the screen is alive immediately.
-    const { w, h } = this.size();
-    for (const radius of [Math.min(w, h) * 0.22, Math.min(w, h) * 0.38]) {
-      const angle = randRange(0, Math.PI * 2);
-      const speed = Math.sqrt(this.gm() / radius);
-      this.launch(
-        w / 2 + radius * Math.cos(angle),
-        h / 2 + radius * Math.sin(angle),
-        -speed * Math.sin(angle),
-        speed * Math.cos(angle),
-      );
-    }
-  }
-
-  frame(dt: number): void {
-    this.time += dt;
-    const { dpr } = this.host;
-    const { w, h } = this.size();
-    const ctx = this.ctx;
-
-    if (this.delve) {
-      this.stepDemo(dt);
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.fillStyle = '#05081a';
-      ctx.fillRect(0, 0, w, h);
-      this.drawDelve(ctx, w, h);
-      return;
-    }
-
-    const cx = w / 2;
-    const cy = h / 2;
-    const gm = this.gm();
-
-    for (const p of this.planets) {
-      const dx = cx - p.x;
-      const dy = cy - p.y;
-      const r2 = Math.max(dx * dx + dy * dy, 900);
-      const r = Math.sqrt(r2);
-      const a = gm / r2;
-      p.vx += ((a * dx) / r) * dt;
-      p.vy += ((a * dy) / r) * dt;
-      p.x += p.vx * dt;
-      p.y += p.vy * dt;
-      p.trail.push({ x: p.x, y: p.y });
-      if (p.trail.length > TRAIL_LENGTH) p.trail.shift();
-    }
-    // Planets that hit the sun burst; ones that fly far away disappear.
-    const limit = Math.max(w, h) * 2;
-    this.planets = this.planets.filter((p) => {
-      const dist = Math.hypot(p.x - cx, p.y - cy);
-      if (dist <= SUN_RADIUS + p.r) {
-        this.poofs.push({ x: p.x, y: p.y, t: 0, hue: p.hue });
-        return false;
-      }
-      return dist < limit;
-    });
-    for (const f of this.poofs) f.t += dt;
-    this.poofs = this.poofs.filter((f) => f.t < 0.6);
-
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.fillStyle = '#05081a';
-    ctx.fillRect(0, 0, w, h);
-
-    this.drawSun(ctx, cx, cy, SUN_RADIUS);
-
-    for (const p of this.planets) {
-      if (p.trail.length > 1) {
-        ctx.beginPath();
-        ctx.moveTo(p.trail[0].x, p.trail[0].y);
-        for (const t of p.trail) ctx.lineTo(t.x, t.y);
-        ctx.strokeStyle = `hsla(${p.hue}, 80%, 70%, 0.35)`;
-        ctx.lineWidth = 2;
-        ctx.stroke();
-      }
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-      ctx.fillStyle = `hsl(${p.hue}, 80%, 65%)`;
-      ctx.fill();
-    }
-
-    for (const f of this.poofs) {
-      ctx.beginPath();
-      ctx.arc(f.x, f.y, 4 + f.t * 60, 0, Math.PI * 2);
-      ctx.strokeStyle = `hsla(${f.hue}, 90%, 70%, ${0.7 * (1 - f.t / 0.6)})`;
-      ctx.lineWidth = 3;
-      ctx.stroke();
-    }
-
-    if (this.drag) this.drawLaunchPreview(ctx, cx, cy);
-
-    ctx.fillStyle = 'rgba(238, 242, 255, 0.85)';
-    ctx.font = 'bold 20px system-ui, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(pick(TEXT).dragHint, w / 2, 40);
+    const c = this.host.canvas;
+    c.addEventListener('pointerdown', this.onDown);
+    c.addEventListener('pointermove', this.onMove);
+    c.addEventListener('pointerup', this.onUp);
+    c.addEventListener('pointercancel', this.onUp);
+    c.addEventListener('pointerleave', this.onLeave);
+    this.buildUi();
+    this.measure();
+    this.seed();
   }
 
   destroy(): void {
-    const { canvas } = this.host;
-    canvas.removeEventListener('pointerdown', this.onDown);
-    canvas.removeEventListener('pointermove', this.onMove);
-    canvas.removeEventListener('pointerup', this.onUp);
+    const c = this.host.canvas;
+    c.removeEventListener('pointerdown', this.onDown);
+    c.removeEventListener('pointermove', this.onMove);
+    c.removeEventListener('pointerup', this.onUp);
+    c.removeEventListener('pointercancel', this.onUp);
+    c.removeEventListener('pointerleave', this.onLeave);
+    this.challenge?.round.dispose();
     this.delve?.dispose();
+    this.flow?.dispose();
   }
 
-  private size(): { w: number; h: number } {
-    return {
-      w: this.host.canvas.width / this.host.dpr,
-      h: this.host.canvas.height / this.host.dpr,
-    };
-  }
+  // ---- layout and seeding ----
 
-  /** Gravitational parameter tuned so nice orbits fit the screen. */
-  private gm(): number {
-    const { w, h } = this.size();
-    return 25 * Math.min(w, h) ** 2;
-  }
-
-  /**
-   * Drag vector -> launch velocity. Scaled so a comfortable drag (~30% of the
-   * screen) reaches circular speed mid-screen, and capped a little above the
-   * escape speed so planets can leave, but not at silly velocities.
-   */
-  private launchVelocity(from: Pt, to: Pt): Pt {
-    const { w, h } = this.size();
+  /** Screen size, and the scale everything is measured in (1 unit = 1 px on a 720 px tall screen). */
+  private measure(): void {
+    const { canvas, dpr } = this.host;
+    const w = canvas.width / dpr;
+    const h = canvas.height / dpr;
+    if (w === this.w && h === this.h) return;
+    this.w = w;
+    this.h = h;
     const m = Math.min(w, h);
-    const k = Math.sqrt(this.gm() / (0.35 * m)) / (0.3 * m);
-    let vx = (to.x - from.x) * k;
-    let vy = (to.y - from.y) * k;
-    const r = Math.max(Math.hypot(from.x - w / 2, from.y - h / 2), SUN_RADIUS + 4);
-    const vMax = LAUNCH_CAP * Math.sqrt((2 * this.gm()) / r);
+    this.unit = m / 720;
+    this.gm = 25 * m * m;
+    this.stars = starfield(w, h);
+    if (this.world) {
+      this.world.cx = w / 2;
+      this.world.cy = h / 2;
+      this.world.reach = 3 * Math.max(w, h);
+    }
+  }
+
+  /** The Sun and three planets on circular orbits spaced to stay stable, so the screen is alive at once. */
+  private seed(): void {
+    const { w, h, unit: u, gm } = this;
+    this.world = new World(w / 2, h / 2, u, gm);
+    this.world.reach = 3 * Math.max(w, h);
+    this.trails.clear();
+    this.laps.clear();
+    this.world.add({ kind: 'star', sun: true, x: w / 2, y: h / 2, vx: 0, vy: 0, gm, r: SUN_R * u, hue: 45 });
+    const m = Math.min(w, h);
+    const seeds: [Kind, number][] = [['pebble', 0.11], ['planet', 0.2], ['giant', 0.44]];
+    for (const [kind, f] of seeds) {
+      const r = f * m;
+      const angle = randRange(0, Math.PI * 2);
+      const speed = Math.sqrt(gm / r);
+      this.addBody(kind, w / 2 + r * Math.cos(angle), h / 2 + r * Math.sin(angle), -speed * Math.sin(angle), speed * Math.cos(angle));
+    }
+    this.sunlessFor = 0;
+    this.emptyFor = 0;
+  }
+
+  private addBody(kind: Kind, x: number, y: number, vx: number, vy: number): Body {
+    const k = KINDS[kind];
+    return this.world.add({ kind, x, y, vx, vy, gm: k.mass * this.gm, r: k.r * this.unit, hue: newHue(kind) });
+  }
+
+  private area(): Area {
+    const top = this.hud.offsetHeight ? this.hud.offsetTop + this.hud.offsetHeight + 8 : 70;
+    const bar = this.gameBar.offsetHeight || this.toyBar.offsetHeight || 70;
+    return { x0: 0, y0: top, x1: this.w, y1: this.h - bar - 60 };
+  }
+
+  // ---- input ----
+
+  private onDown = (e: PointerEvent) => {
+    if (this.delve || this.flow || this.challenge?.card) return;
+    const p = pointerPos(this.host.canvas, e);
+    Object.assign(this.pointer, p, { inside: true, mouse: e.pointerType !== 'touch' });
+    try {
+      this.host.canvas.setPointerCapture(e.pointerId);
+    } catch {
+      // Synthetic or already-gone pointer: moves over the canvas still arrive.
+    }
+    if (this.challenge) {
+      this.challenge.round.down(p.x, p.y);
+      return;
+    }
+    // Pressing on a planet picks it up; anywhere else starts a new throw.
+    let grab: Body | null = null;
+    let best = Infinity;
+    for (const b of this.world.bodies) {
+      if (b.sun) continue;
+      const d = Math.hypot(b.x - p.x, b.y - p.y);
+      if (d < b.r + 10 * this.unit && d < best) {
+        best = d;
+        grab = b;
+      }
+    }
+    if (grab) {
+      this.world.remove(grab);
+      this.drag = { x0: grab.x, y0: grab.y, grab };
+    } else {
+      this.drag = { x0: p.x, y0: p.y, grab: null };
+    }
+  };
+
+  private onMove = (e: PointerEvent) => {
+    const p = pointerPos(this.host.canvas, e);
+    Object.assign(this.pointer, p, { inside: true, mouse: e.pointerType !== 'touch' });
+    this.challenge?.round.move(p.x, p.y);
+  };
+
+  private onUp = () => {
+    this.challenge?.round.up();
+    const d = this.drag;
+    this.drag = null;
+    if (!d || this.challenge) return;
+    const v = this.launchVelocity(d, this.pointer);
+    this.throwBody(d, v);
+  };
+
+  private onLeave = () => {
+    if (!this.drag) this.pointer.inside = false;
+  };
+
+  /** Drag vector → launch velocity: a comfortable drag reaches circle speed mid-screen; capped a little past escape. */
+  private launchVelocity(from: { x0: number; y0: number }, to: { x: number; y: number }): { x: number; y: number } {
+    const m = Math.min(this.w, this.h);
+    const k = Math.sqrt(this.gm / (0.35 * m)) / (0.3 * m);
+    let vx = (to.x - from.x0) * k;
+    let vy = (to.y - from.y0) * k;
+    const s = this.world.stars();
+    const r = Math.max(Math.hypot(from.x0 - s.x, from.y0 - s.y), SUN_R * this.unit + 4);
+    const vMax = LAUNCH_CAP * Math.sqrt((2 * Math.max(s.gm, this.gm * 0.5)) / r);
     const v = Math.hypot(vx, vy);
     if (v > vMax) {
       vx *= vMax / v;
@@ -427,871 +345,532 @@ class OrbitsInstance implements GameInstance {
     return { x: vx, y: vy };
   }
 
-  private launch(x: number, y: number, vx: number, vy: number): void {
-    this.planets.push({ x, y, vx, vy, r: randRange(5, 12), hue: randRange(0, 360), trail: [] });
-    if (this.planets.length > MAX_PLANETS) this.planets.shift();
+  /** The body a drag would throw, as it would enter the world. */
+  private thrown(d: Drag, v: { x: number; y: number }, id?: number): Omit<Body, 'ax' | 'ay' | 'id'> & { id?: number } {
+    if (d.grab) {
+      const { ax: _ax, ay: _ay, ...rest } = d.grab;
+      return { ...rest, x: d.x0, y: d.y0, vx: v.x, vy: v.y };
+    }
+    const k = KINDS[this.kind];
+    return { id, kind: this.kind, x: d.x0, y: d.y0, vx: v.x, vy: v.y, gm: k.mass * this.gm, r: k.r * this.unit, hue: this.nextHue };
   }
 
-  /** Integrate the future path of a would-be launch (same physics as the game). */
-  private previewPath(
-    cx: number,
-    cy: number,
-    x: number,
-    y: number,
-    vx: number,
-    vy: number,
-  ): { pts: Pt[]; outcome: Outcome } {
-    const gm = this.gm();
-    const { w, h } = this.size();
-    const limit = Math.max(w, h) * 2;
-    const r0 = Math.max(Math.hypot(x - cx, y - cy), 1);
-    const energy = (vx * vx + vy * vy) / 2 - gm / r0;
-    let outcome: Outcome;
-    if (energy >= 0) {
-      outcome = 'escape';
-    } else {
-      // Bound orbit: find the apogee from the orbital elements. An orbit whose
-      // far end is beyond the cull limit is gone for so long it may as well be.
-      const hAng = (x - cx) * vy - (y - cy) * vx;
-      const semi = -gm / (2 * energy);
-      const ecc = Math.sqrt(Math.max(0, 1 + (2 * energy * hAng * hAng) / (gm * gm)));
-      outcome = semi * (1 + ecc) > limit ? 'far' : 'orbit';
-    }
-    const pts: Pt[] = [{ x, y }];
-    const step = 1 / 120;
-    for (let i = 0; i < 840; i++) {
-      const dx = cx - x;
-      const dy = cy - y;
-      const r2 = Math.max(dx * dx + dy * dy, 900);
-      const r = Math.sqrt(r2);
-      const a = gm / r2;
-      vx += ((a * dx) / r) * step;
-      vy += ((a * dy) / r) * step;
-      x += vx * step;
-      y += vy * step;
-      if (i % 4 === 0) pts.push({ x, y });
-      if (r < SUN_RADIUS + 6) {
-        outcome = 'crash';
-        pts.push({ x, y });
-        break;
+  /** The next new body's colour, fixed before the throw so the forecast shows it. */
+  private nextHue = randRange(0, 360);
+
+  private throwBody(d: Drag, v: { x: number; y: number }): void {
+    this.world.add(this.thrown(d, v));
+    if (!d.grab) this.nextHue = newHue(this.kind);
+    const speed = Math.hypot(v.x, v.y) / Math.sqrt(this.gm / (0.3 * Math.min(this.w, this.h)));
+    sound.play('whoosh', { pitch: clamp(0.7 + 0.5 * speed, 0.6, 1.8), volume: clamp(0.4 + 0.6 * speed, 0.3, 1) });
+    this.launched = true;
+    this.trim();
+  }
+
+  /** Too many bodies: first drop ones far off screen, then the smallest planet. */
+  private trim(): void {
+    const B = this.world.bodies;
+    while (B.length > MAX_BODIES) {
+      const off = B.find((b) => !b.sun && !this.onScreen(b, 0));
+      let victim = off;
+      if (!victim) {
+        for (const b of B) if (!b.sun && b.kind !== 'star' && (!victim || b.gm < victim.gm)) victim = b;
       }
-      if (r > limit) break;
+      if (!victim) break;
+      this.world.remove(victim);
     }
-    return { pts, outcome };
   }
 
-  private drawLaunchPreview(ctx: CanvasRenderingContext2D, cx: number, cy: number): void {
-    if (!this.drag) return;
-    const v = this.launchVelocity(this.drag, this.pointer);
-    const { pts, outcome } = this.previewPath(cx, cy, this.drag.x, this.drag.y, v.x, v.y);
-    const color = OUTCOME_COLOR[outcome];
-    const label = pick(TEXT).outcomeLabel[outcome];
+  private onScreen(b: Body, margin: number): boolean {
+    return b.x > -margin && b.x < this.w + margin && b.y > -margin && b.y < this.h + margin;
+  }
 
-    // The drag itself (thin), then the predicted path (dashed, outcome-colored).
+  // ---- frame ----
+
+  frame(dt: number): void {
+    this.time += dt;
+    const { dpr } = this.host;
+    this.measure();
+    const { w, h } = this;
+    const ctx = this.ctx;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = BACKGROUND;
+    ctx.fillRect(0, 0, w, h);
+    this.drawStarfield(ctx);
+
+    if (this.delve) {
+      this.demos.step(dt);
+      this.demos.draw(ctx, w, h);
+      return;
+    }
+    const ch = this.challenge;
+    if (ch) {
+      ch.round.step(dt);
+      ch.round.draw(ctx, w, h);
+      this.updateHud(ch);
+    } else {
+      this.stepToy(dt);
+      this.drawToy(ctx);
+    }
+    this.drawPopups(ctx, dt);
+  }
+
+  private stepToy(dt: number): void {
+    const world = this.world;
+    this.acc = Math.min(this.acc + dt, MAX_STEPS * TICK);
+    while (this.acc >= TICK) {
+      this.acc -= TICK;
+      world.step();
+    }
+
+    // Merges: a flash, and a sizzle into a star or a thud between planets.
+    for (const m of world.takeMerges()) {
+      this.poofs.push({ x: m.x, y: m.y, t: 0, hue: m.gone.hue, r: m.gone.r });
+      if (m.into.kind === 'star') sound.play('sizzle');
+      else sound.play('thud', { pitch: clamp((12 * this.unit) / m.into.r, 0.5, 1.5) });
+      this.trails.delete(m.gone.id);
+      this.laps.delete(m.gone.id);
+    }
+
+    // Kiosk guards: lost or broken bodies go; a system without a star is reseeded.
+    const far = 8 * Math.max(this.w, this.h);
+    for (const b of [...world.bodies]) {
+      const bad = !Number.isFinite(b.x + b.y + b.vx + b.vy);
+      if (bad || Math.hypot(b.x - world.cx, b.y - world.cy) > far) {
+        world.remove(b);
+        this.trails.delete(b.id);
+        this.laps.delete(b.id);
+      }
+    }
+    const starNear = world.bodies.some((b) => b.kind === 'star' && this.onScreen(b, 0.5 * Math.max(this.w, this.h)));
+    this.sunlessFor = starNear ? 0 : this.sunlessFor + dt;
+    if (this.sunlessFor > 3) this.seed();
+    // Only stars left for a while: bring planets back, so an idle screen stays alive.
+    this.emptyFor = world.bodies.some((b) => b.kind !== 'star') || this.drag ? 0 : this.emptyFor + dt;
+    if (this.emptyFor > 20) this.seed();
+
+    // Trails and years (laps around the stars).
+    const s = world.stars();
+    for (const b of world.bodies) {
+      let trail = this.trails.get(b.id);
+      if (!trail) this.trails.set(b.id, (trail = []));
+      trail.push({ x: b.x, y: b.y });
+      if (trail.length > TRAIL_LENGTH) trail.shift();
+      if (b.kind === 'star' || s.gm === 0) continue;
+      const angle = Math.atan2(b.y - s.y, b.x - s.x);
+      const lap = this.laps.get(b.id);
+      if (!lap) {
+        this.laps.set(b.id, { last: angle, turned: 0, laps: 0 });
+        continue;
+      }
+      let d = angle - lap.last;
+      if (d > Math.PI) d -= 2 * Math.PI;
+      if (d < -Math.PI) d += 2 * Math.PI;
+      lap.turned += d;
+      lap.last = angle;
+      const laps = Math.floor(Math.abs(lap.turned) / (2 * Math.PI));
+      if (laps > lap.laps) {
+        lap.laps = laps;
+        if (LAP_POPUPS.has(laps) && this.onScreen(b, 0)) {
+          this.popup(b.x, b.y - b.r - 10, pick(TEXT).years(laps), `hsl(${b.hue}, 85%, 75%)`);
+          sound.play('ding', { volume: 0.5 });
+        }
+      }
+    }
+    for (const f of this.poofs) f.t += dt;
+    this.poofs = this.poofs.filter((f) => f.t < 0.8);
+    if (this.launched) this.hintAlpha = Math.max(0, this.hintAlpha - dt / 1.5);
+  }
+
+  // ---- drawing ----
+
+  private drawStarfield(ctx: CanvasRenderingContext2D): void {
+    for (const s of this.stars) {
+      ctx.globalAlpha = s.a;
+      ctx.fillStyle = '#e2e8f0';
+      ctx.fillRect(s.x, s.y, s.r, s.r);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  private drawToy(ctx: CanvasRenderingContext2D): void {
+    const world = this.world;
+    const u = this.unit;
+
+    // Trails, fading towards their tails.
+    const CHUNKS = 6;
+    for (const b of world.bodies) {
+      const trail = this.trails.get(b.id);
+      if (!trail || trail.length < 2 || b.kind === 'star' && b.sun) continue;
+      const n = trail.length;
+      for (let c = 0; c < CHUNKS; c++) {
+        const i0 = Math.floor((c * (n - 1)) / CHUNKS);
+        const i1 = Math.floor(((c + 1) * (n - 1)) / CHUNKS);
+        if (i1 <= i0) continue;
+        ctx.beginPath();
+        ctx.moveTo(trail[i0].x, trail[i0].y);
+        for (let i = i0 + 1; i <= i1; i++) ctx.lineTo(trail[i].x, trail[i].y);
+        ctx.strokeStyle = `hsla(${b.hue}, 80%, 70%, ${(0.55 * (c + 1)) / CHUNKS})`;
+        ctx.lineWidth = Math.max(1.5, 2.5 * u);
+        ctx.stroke();
+      }
+    }
+
+    // Stars first (under the planets), then planets lit from the nearest star.
+    const starBodies = world.bodies.filter((b) => b.kind === 'star');
+    for (const b of starBodies) drawStar(ctx, b.x, b.y, b.r, b.hue, Math.sin(this.time * 2 + b.id));
+    for (const b of world.bodies) {
+      if (b.kind === 'star') continue;
+      const light = this.nearestStar(b.x, b.y, starBodies);
+      drawPlanet(ctx, b.x, b.y, b.r, b.hue, light.x, light.y, b.kind === 'giant');
+    }
+
+    for (const f of this.poofs) {
+      const k = f.t / 0.8;
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, f.r + k * 70 * u, 0, Math.PI * 2);
+      ctx.strokeStyle = `hsla(${f.hue}, 90%, 75%, ${0.8 * (1 - k)})`;
+      ctx.lineWidth = 4 * u;
+      ctx.stroke();
+      if (k < 0.25) {
+        ctx.beginPath();
+        ctx.arc(f.x, f.y, f.r * 1.6, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255, 247, 214, ${0.8 * (1 - k / 0.25)})`;
+        ctx.fill();
+      }
+    }
+
+    this.drawEdgeArrows(ctx);
+
+    if (this.drag) {
+      this.drawForecast(ctx, this.drag);
+    } else if (this.pointer.inside && this.pointer.mouse && !this.hoveredBody()) {
+      // The next body, waiting at the cursor.
+      ctx.globalAlpha = 0.45;
+      this.drawGhost(ctx, this.pointer.x, this.pointer.y);
+      ctx.globalAlpha = 1;
+    }
+
+    if (this.hintAlpha > 0) {
+      ctx.globalAlpha = this.hintAlpha;
+      label(ctx, pick(TEXT).dragHint, this.w / 2, 74, 20, 'rgba(238, 242, 255, 0.9)');
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  private nearestStar(x: number, y: number, stars: Body[]): { x: number; y: number } {
+    let best = { x: this.w / 2, y: this.h / 2 };
+    let bd = Infinity;
+    for (const s of stars) {
+      const d = (s.x - x) ** 2 + (s.y - y) ** 2;
+      if (d < bd) {
+        bd = d;
+        best = s;
+      }
+    }
+    return best;
+  }
+
+  private hoveredBody(): Body | null {
+    for (const b of this.world.bodies) {
+      if (!b.sun && Math.hypot(b.x - this.pointer.x, b.y - this.pointer.y) < b.r + 10 * this.unit) return b;
+    }
+    return null;
+  }
+
+  private drawGhost(ctx: CanvasRenderingContext2D, x: number, y: number, body?: Body): void {
+    const kind = body?.kind ?? this.kind;
+    const r = body?.r ?? KINDS[kind].r * this.unit;
+    const hue = body?.hue ?? this.nextHue;
+    if (kind === 'star') drawStar(ctx, x, y, r, hue);
+    else {
+      const light = this.nearestStar(x, y, this.world.bodies.filter((b) => b.kind === 'star'));
+      drawPlanet(ctx, x, y, r, hue, light.x, light.y, kind === 'giant');
+    }
+  }
+
+  /** Arrows at the screen edge for bodies out of view, so a huge orbit is known to come back. */
+  private drawEdgeArrows(ctx: CanvasRenderingContext2D): void {
+    const m = 22 * this.unit;
+    const cx = this.w / 2;
+    const cy = this.h / 2;
+    for (const b of this.world.bodies) {
+      if (this.onScreen(b, 0)) continue;
+      const dx = b.x - cx;
+      const dy = b.y - cy;
+      const t = Math.min((cx - m) / Math.abs(dx || 1e-9), (cy - m) / Math.abs(dy || 1e-9));
+      const x = cx + dx * t;
+      const y = cy + dy * t;
+      const a = Math.atan2(dy, dx);
+      const dist = Math.hypot(b.x - x, b.y - y);
+      const size = clamp(14 * this.unit * (1 - dist / (3 * Math.max(this.w, this.h))), 6, 14 * this.unit);
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(a);
+      ctx.beginPath();
+      ctx.moveTo(size, 0);
+      ctx.lineTo(-size * 0.7, -size * 0.7);
+      ctx.lineTo(-size * 0.7, size * 0.7);
+      ctx.closePath();
+      ctx.fillStyle = b.kind === 'star' ? `hsl(${b.hue}, 100%, 65%)` : `hsla(${b.hue}, 80%, 70%, 0.8)`;
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  /** The 🔮 forecast: the world copied, the throw added, and all of it run ahead. */
+  private drawForecast(ctx: CanvasRenderingContext2D, d: Drag): void {
+    const v = this.launchVelocity(d, this.pointer);
+    const copy = this.world.clone();
+    const body = copy.add(this.thrown(d, v, d.grab ? undefined : -1));
+    const limit = 2 * Math.max(this.w, this.h);
+    const { pts, outcome } = forecast(copy, body.id, Math.round(FORECAST_SECONDS / TICK), FORECAST_EVERY, limit);
+    const color = OUTCOME_COLOR[outcome];
+
     ctx.beginPath();
-    ctx.moveTo(this.drag.x, this.drag.y);
+    ctx.moveTo(d.x0, d.y0);
     ctx.lineTo(this.pointer.x, this.pointer.y);
     ctx.strokeStyle = 'rgba(238, 242, 255, 0.45)';
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
-    ctx.beginPath();
-    ctx.moveTo(pts[0].x, pts[0].y);
-    for (const p of pts) ctx.lineTo(p.x, p.y);
-    ctx.setLineDash([7, 7]);
-    ctx.lineDashOffset = -this.time * 40;
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2.5;
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.lineDashOffset = 0;
-
-    if (outcome === 'crash') {
+    if (pts.length > 1) {
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, pts[0].y);
+      for (const p of pts) ctx.lineTo(p.x, p.y);
+      ctx.setLineDash([8, 8]);
+      ctx.lineDashOffset = -this.time * 40;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 3 * this.unit;
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.lineDashOffset = 0;
+    }
+    if (outcome === 'crash' || outcome === 'merge') {
       const end = pts[pts.length - 1];
+      const k = 8 * this.unit;
       ctx.strokeStyle = color;
       ctx.lineWidth = 3;
       ctx.beginPath();
-      ctx.moveTo(end.x - 7, end.y - 7);
-      ctx.lineTo(end.x + 7, end.y + 7);
-      ctx.moveTo(end.x + 7, end.y - 7);
-      ctx.lineTo(end.x - 7, end.y + 7);
+      ctx.moveTo(end.x - k, end.y - k);
+      ctx.lineTo(end.x + k, end.y + k);
+      ctx.moveTo(end.x + k, end.y - k);
+      ctx.lineTo(end.x - k, end.y + k);
       ctx.stroke();
     }
 
-    ctx.fillStyle = color;
-    ctx.font = 'bold 16px system-ui, sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText(label, this.drag.x + 14, this.drag.y - 12);
+    this.drawGhost(ctx, d.x0, d.y0, d.grab ?? undefined);
+    label(ctx, pick(TEXT).outcomeLabel[outcome], d.x0 + 16 * this.unit, d.y0 - 16 * this.unit, 16 * this.unit + 4, color, 'left');
   }
 
-  private drawSun(ctx: CanvasRenderingContext2D, cx: number, cy: number, radius: number): void {
-    const glow = ctx.createRadialGradient(cx, cy, 4, cx, cy, radius * 2.5);
-    glow.addColorStop(0, '#fff3b0');
-    glow.addColorStop(0.4, '#ffb703');
-    glow.addColorStop(1, 'rgba(255, 183, 3, 0)');
-    ctx.fillStyle = glow;
-    ctx.beginPath();
-    ctx.arc(cx, cy, radius * 2.5, 0, Math.PI * 2);
-    ctx.fill();
+  private popup(x: number, y: number, text: string, color: string): void {
+    this.popups.push({ x, y, text, color, age: 0 });
+  }
+
+  private drawPopups(ctx: CanvasRenderingContext2D, dt: number): void {
+    const u = this.unit;
+    for (const p of this.popups) {
+      p.age += dt;
+      ctx.globalAlpha = Math.max(0, 1 - p.age / 1.4);
+      label(ctx, p.text, p.x, p.y - 40 * p.age * u, 20 * u + 6, p.color);
+    }
+    ctx.globalAlpha = 1;
+    this.popups = this.popups.filter((p) => p.age < 1.4);
+  }
+
+  // ---- challenge ----
+
+  private roundHost(): RoundHost {
+    return {
+      area: () => this.area(),
+      unit: () => this.unit,
+      hint: (text) => {
+        if (this.hint.textContent !== text) this.hint.textContent = text;
+      },
+      popup: (x, y, text, color) => this.popup(x, y, text, color),
+      buttons: (defs) => this.roundButtons(defs),
+      finish: (score, summary) => this.roundOver(score, summary),
+    };
+  }
+
+  private startChallenge(): void {
+    this.closeDelve();
+    this.flow?.dispose();
+    this.flow = null;
+    this.challenge?.round.dispose();
+    this.challenge?.card?.remove();
+    if (this.drag?.grab) this.world.add(this.drag.grab);
+    this.drag = null;
+    this.popups = [];
+    this.toyBar.classList.add('hidden');
+    this.toggle.element.classList.add('hidden');
+    this.hud.classList.remove('hidden');
+    this.gameBar.classList.remove('hidden');
+    this.challenge = { index: 0, total: 0, round: ROUNDS[0](this.roundHost()), card: null };
+  }
+
+  private nextRound(): void {
+    const ch = this.challenge;
+    if (!ch) return;
+    ch.card?.remove();
+    ch.card = null;
+    ch.round.dispose();
+    ch.index++;
+    this.gameBar.classList.remove('hidden');
+    ch.round = ROUNDS[ch.index](this.roundHost());
+  }
+
+  private roundOver(score: number, summary: string): void {
+    const ch = this.challenge;
+    if (!ch) return;
+    ch.total += score;
+    const T = pick(TEXT);
+    this.gameBar.classList.add('hidden');
+    this.hint.textContent = '';
+    const last = ch.index === ROUNDS.length - 1;
+    const card = document.createElement('div');
+    card.className = 'score-flow';
+    const heading = document.createElement('h2');
+    heading.textContent = ch.round.title;
+    const points = document.createElement('div');
+    points.className = 'score-flow-score';
+    points.textContent = T.roundPoints(score);
+    const text = document.createElement('p');
+    text.className = 'score-flow-prompt';
+    text.style.maxWidth = '32rem';
+    text.textContent = summary;
+    const actions = document.createElement('div');
+    actions.className = 'score-flow-actions';
+    const next = document.createElement('button');
+    next.className = 'arcade-button';
+    next.textContent = last ? T.finalScore : T.nextRound;
+    next.addEventListener('click', () => (last ? this.finishChallenge() : this.nextRound()));
+    actions.appendChild(next);
+    card.append(heading, points, text, actions);
+    ch.card = card;
+    this.host.overlay.appendChild(card);
+  }
+
+  private finishChallenge(): void {
+    const ch = this.challenge;
+    if (!ch) return;
+    ch.card?.remove();
+    ch.card = null;
+    const T = pick(TEXT);
+    this.flow = scoreFlow({
+      gameId: 'orbits',
+      heading: T.challengeHeading,
+      score: ch.total,
+      scoreLabel: T.points(ch.total),
+      actions: [
+        { label: T.playAgain, onClick: () => this.startChallenge() },
+        { label: T.freePlay, onClick: () => this.exitToToy() },
+      ],
+    });
+    this.host.overlay.appendChild(this.flow.element);
+  }
+
+  private exitToToy(): void {
+    this.flow?.dispose();
+    this.flow = null;
+    const ch = this.challenge;
+    if (ch) {
+      ch.card?.remove();
+      ch.round.dispose();
+    }
+    this.challenge = null;
+    this.popups = [];
+    this.gameBar.classList.add('hidden');
+    this.toyBar.classList.remove('hidden');
+    this.toggle.element.classList.remove('hidden');
+    this.hud.classList.add('hidden');
+    this.hint.textContent = '';
+  }
+
+  private updateHud(ch: Challenge): void {
+    const T = pick(TEXT);
+    const parts = [ch.round.title, ch.round.hud()];
+    if (ROUNDS.length > 1) parts.unshift(T.round(ch.index + 1, ROUNDS.length));
+    if (ch.total + ch.round.score > 0) parts.push(`⭐ ${fmtNumber(ch.total + (ch.card ? 0 : ch.round.score))}`);
+    const text = parts.join('   ·   ');
+    if (this.hud.textContent !== text) this.hud.textContent = text;
+  }
+
+  // ---- UI ----
+
+  private makeButton(bar: HTMLElement, def: ButtonDef): HTMLButtonElement {
+    const button = toolButton(def.emoji, def.label);
+    button.addEventListener('click', def.onClick);
+    bar.appendChild(button);
+    return button;
+  }
+
+  /** The round's buttons, then Stop. */
+  private roundButtons(defs: ButtonDef[]): HTMLButtonElement[] {
+    this.gameBar.replaceChildren();
+    const buttons = defs.map((def) => this.makeButton(this.gameBar, def));
+    this.makeButton(this.gameBar, { emoji: '⏹', label: pick(TEXT).stop, onClick: () => this.exitToToy() });
+    return buttons;
+  }
+
+  private setKind(kind: Kind): void {
+    this.kind = kind;
+    this.nextHue = newHue(kind);
+    for (const [k, b] of this.kindButtons) b.classList.toggle('active', k === kind);
+  }
+
+  private buildUi(): void {
+    const T = pick(TEXT);
+    this.toyBar = document.createElement('div');
+    this.toyBar.className = 'game-toolbar';
+    for (const kind of KIND_ORDER) {
+      this.kindButtons.set(kind, this.makeButton(this.toyBar, { emoji: KIND_EMOJI[kind], label: T.kinds[kind], onClick: () => this.setKind(kind) }));
+    }
+    this.setKind('planet');
+    this.makeButton(this.toyBar, { emoji: '🧹', label: T.clear, onClick: () => this.seed() });
+    this.makeButton(this.toyBar, { emoji: '🎯', label: T.challenge, onClick: () => this.startChallenge() });
+
+    this.gameBar = document.createElement('div');
+    this.gameBar.className = 'game-toolbar hidden';
+    this.hud = document.createElement('div');
+    this.hud.className = 'challenge-hud hidden';
+    this.hint = document.createElement('p');
+    this.hint.className = 'challenge-hint';
+
+    this.toggle = delveToggle(() => (this.delve ? this.closeDelve() : this.openDelve()));
+    this.host.overlay.append(this.toyBar, this.gameBar, this.hud, this.hint, this.toggle.element);
   }
 
   // ---- delve layer ----
 
   private openDelve(): void {
     if (this.delve) return;
+    if (this.drag?.grab) this.world.add(this.drag.grab);
     this.drag = null;
     this.delve = delvePanel({
       heading: pick(TEXT).delveHeading,
       chapters: orbitsDelve({
-        getIntegrator: () => this.integrator,
+        getIntegrator: () => this.demos.integrator,
         setIntegrator: (kind) => {
-          this.integrator = kind;
-          this.resetDemo(3);
+          this.demos.integrator = kind;
+          this.demos.reset(3);
         },
       }),
-      onChapter: (i) => this.resetDemo(i),
+      onChapter: (i) => this.demos.reset(i),
       onExit: () => this.closeDelve(),
     });
     this.host.overlay.appendChild(this.delve.element);
     this.toggle.setOpen(true);
+    this.toyBar.classList.add('hidden');
   }
 
   private closeDelve(): void {
     if (!this.delve) return;
     this.delve.dispose();
     this.delve = null;
-    this.demo = null;
+    this.demos.clear();
     this.toggle.setOpen(false);
-  }
-
-  // ---- delve demo simulation ----
-
-  private resetDemo(chapter: number): void {
-    if (chapter === 0) {
-      const vc = Math.sqrt(SHAPES.gm / SHAPES.R);
-      const make = (f: number, color: string, label: string): ShapeBody => ({
-        f,
-        color,
-        label,
-        x: -SHAPES.R,
-        y: 0,
-        vx: 0,
-        vy: f * vc,
-        trail: [],
-        alive: true,
-        respawn: 0,
-      });
-      const labels = pick(TEXT).shapesLabels;
-      this.demo = {
-        kind: 'shapes',
-        bodies: [
-          make(0.35, '#f87171', labels[0]),
-          make(1.0, '#4ade80', labels[1]),
-          make(1.2, '#7dd3fc', labels[2]),
-          make(1.5, '#fb923c', labels[3]),
-        ],
-      };
-    } else if (chapter === 1) {
-      const { s, m1, m2, period } = NEWTON;
-      const omega = (2 * Math.PI) / period;
-      const r1 = (s * m2) / (m1 + m2);
-      const r2 = (s * m1) / (m1 + m2);
-      this.demo = {
-        kind: 'newton',
-        b1: { x: -r1, y: 0, vx: 0, vy: -omega * r1, trail: [] },
-        b2: { x: r2, y: 0, vx: 0, vy: omega * r2, trail: [] },
-      };
-    } else if (chapter === 2) {
-      const v = ENERGY.f * Math.sqrt(ENERGY.gm / ENERGY.rp);
-      this.demo = {
-        kind: 'energy',
-        x: ENERGY.rp,
-        y: 0,
-        vx: 0,
-        vy: v,
-        trail: [],
-        hist: [],
-        sample: 0,
-      };
-    } else if (chapter === 3) {
-      this.demo = {
-        kind: 'steps',
-        x: STEPS.R,
-        y: 0,
-        vx: 0,
-        vy: Math.sqrt(STEPS.gm / STEPS.R),
-        path: [{ x: STEPS.R, y: 0 }],
-        energies: [this.orbitEnergy(STEPS.gm, STEPS.R, 0, 0, Math.sqrt(STEPS.gm / STEPS.R))],
-        timer: 0,
-      };
-    } else {
-      this.demo = {
-        kind: 'moon',
-        path: this.computeMoonPath(true),
-        ghost: this.computeMoonPath(false),
-        idx: 0,
-        hold: 0,
-      };
-    }
-  }
-
-  private orbitEnergy(gm: number, x: number, y: number, vx: number, vy: number): number {
-    return (vx * vx + vy * vy) / 2 - gm / Math.hypot(x, y);
-  }
-
-  /** Semi-implicit Euler substep for a point mass around a sun at the origin. */
-  private substep(
-    gm: number,
-    b: { x: number; y: number; vx: number; vy: number },
-    step: number,
-  ): void {
-    const r2 = Math.max(b.x * b.x + b.y * b.y, 25);
-    const a = -gm / (r2 * Math.sqrt(r2));
-    b.vx += a * b.x * step;
-    b.vy += a * b.y * step;
-    b.x += b.vx * step;
-    b.y += b.vy * step;
-  }
-
-  /** The Apollo-style free-return figure-8 around a static Earth and Moon. */
-  private computeMoonPath(moonOn: boolean): { x: number; y: number; vx: number; vy: number }[] {
-    const { D, gmE, gmM, r0, f, dt } = MOON;
-    let x = -r0;
-    let y = 0;
-    let vx = 0;
-    let vy = -f * Math.sqrt(gmE / r0);
-    const path = [{ x, y, vx, vy }];
-    for (let t = 0; t < 25; t += dt) {
-      const dE = Math.hypot(x, y);
-      const dM = Math.hypot(x - D, y);
-      const aE = -gmE / (dE * dE * dE);
-      const aM = moonOn ? -gmM / (dM * dM * dM) : 0;
-      vx += (aE * x + aM * (x - D)) * dt;
-      vy += (aE * y + aM * y) * dt;
-      x += vx * dt;
-      y += vy * dt;
-      path.push({ x, y, vx, vy });
-      if (t > 2 && dE < r0 + 25) break;
-    }
-    return path;
-  }
-
-  private stepDemo(dt: number): void {
-    const demo = this.demo;
-    if (!demo) return;
-    const h = 1 / 240;
-
-    if (demo.kind === 'shapes') {
-      const vc = Math.sqrt(SHAPES.gm / SHAPES.R);
-      for (const b of demo.bodies) {
-        if (!b.alive) {
-          b.respawn -= dt;
-          if (b.respawn <= 0) {
-            b.x = -SHAPES.R;
-            b.y = 0;
-            b.vx = 0;
-            b.vy = b.f * vc;
-            b.trail = [];
-            b.alive = true;
-          }
-          continue;
-        }
-        for (let t = 0; t < dt; t += h) this.substep(SHAPES.gm, b, h);
-        b.trail.push({ x: b.x, y: b.y });
-        if (b.trail.length > 720) b.trail.shift();
-        const r = Math.hypot(b.x, b.y);
-        if (r < SHAPES.sunR || r > 900) {
-          b.alive = false;
-          b.respawn = 1.4;
-        }
-      }
-    } else if (demo.kind === 'newton') {
-      const { m1, m2, s, period } = NEWTON;
-      const omega = (2 * Math.PI) / period;
-      const mu = omega * omega * s * s * s; // G(m1+m2)
-      const g1 = (mu * m1) / (m1 + m2); // G·m1
-      const g2 = (mu * m2) / (m1 + m2); // G·m2
-      for (let t = 0; t < dt; t += h) {
-        const dx = demo.b2.x - demo.b1.x;
-        const dy = demo.b2.y - demo.b1.y;
-        const r2 = dx * dx + dy * dy;
-        const r = Math.sqrt(r2);
-        // b1 is pulled toward b2 by G·m2, and vice versa (equal, opposite force).
-        demo.b1.vx += ((g2 / r2) * dx) / r * h;
-        demo.b1.vy += ((g2 / r2) * dy) / r * h;
-        demo.b2.vx -= ((g1 / r2) * dx) / r * h;
-        demo.b2.vy -= ((g1 / r2) * dy) / r * h;
-        demo.b1.x += demo.b1.vx * h;
-        demo.b1.y += demo.b1.vy * h;
-        demo.b2.x += demo.b2.vx * h;
-        demo.b2.y += demo.b2.vy * h;
-      }
-      demo.b1.trail.push({ x: demo.b1.x, y: demo.b1.y });
-      demo.b2.trail.push({ x: demo.b2.x, y: demo.b2.y });
-      if (demo.b1.trail.length > 400) demo.b1.trail.shift();
-      if (demo.b2.trail.length > 400) demo.b2.trail.shift();
-    } else if (demo.kind === 'energy') {
-      for (let t = 0; t < dt; t += h) this.substep(ENERGY.gm, demo, h);
-      demo.trail.push({ x: demo.x, y: demo.y });
-      if (demo.trail.length > 800) demo.trail.shift();
-      demo.sample += dt;
-      if (demo.sample >= 0.05) {
-        demo.sample = 0;
-        demo.hist.push({
-          ke: (demo.vx * demo.vx + demo.vy * demo.vy) / 2,
-          pe: -ENERGY.gm / Math.hypot(demo.x, demo.y),
-        });
-        if (demo.hist.length > ENERGY.samples) demo.hist.shift();
-      }
-    } else if (demo.kind === 'steps') {
-      demo.timer += dt;
-      if (demo.timer >= STEPS.every) {
-        demo.timer = 0;
-        const T = 2 * Math.PI * Math.sqrt(STEPS.R ** 3 / STEPS.gm);
-        const big = T / STEPS.perOrbit;
-        const ox = demo.x;
-        const oy = demo.y;
-        const r2 = Math.max(ox * ox + oy * oy, 25);
-        const a = -STEPS.gm / (r2 * Math.sqrt(r2));
-        if (this.integrator === 'euler') {
-          // Forward Euler: move along the OLD velocity, then update it with
-          // the pull at the OLD position.
-          demo.x += demo.vx * big;
-          demo.y += demo.vy * big;
-          demo.vx += a * ox * big;
-          demo.vy += a * oy * big;
-        } else {
-          // Symplectic Euler: update the velocity first, step with the new one.
-          demo.vx += a * demo.x * big;
-          demo.vy += a * demo.y * big;
-          demo.x += demo.vx * big;
-          demo.y += demo.vy * big;
-        }
-        demo.path.push({ x: demo.x, y: demo.y });
-        demo.energies.push(this.orbitEnergy(STEPS.gm, demo.x, demo.y, demo.vx, demo.vy));
-        const gone = Math.hypot(demo.x, demo.y) > STEPS.R * 3.4;
-        if (demo.path.length > STEPS.maxSteps || gone) this.resetDemo(3);
-      }
-    } else if (demo.kind === 'moon') {
-      if (demo.idx >= demo.path.length - 1) {
-        demo.hold += dt;
-        if (demo.hold > 1.6) this.resetDemo(4);
-        return;
-      }
-      demo.idx = Math.min(demo.path.length - 1, demo.idx + dt / MOON.dt);
-    }
-  }
-
-  // ---- delve rendering (one live illustration per chapter, beside the panel) ----
-
-  private drawDelve(ctx: CanvasRenderingContext2D, w: number, h: number): void {
-    const panelW = Math.min(500, w * 0.46);
-    const area = { x0: panelW + 30, y0: 24, x1: w - 30, y1: h - 24 };
-    const demo = this.demo;
-    if (!demo) return;
-    if (demo.kind === 'shapes') this.drawShapes(ctx, area, demo);
-    else if (demo.kind === 'newton') this.drawNewton(ctx, area, demo);
-    else if (demo.kind === 'energy') this.drawEnergy(ctx, area, demo);
-    else if (demo.kind === 'steps') this.drawSteps(ctx, area, demo);
-    else this.drawMoon(ctx, area, demo);
-  }
-
-  /** World bbox -> screen transform, aspect-preserving, centered in a rect. */
-  private fit(
-    area: { x0: number; y0: number; x1: number; y1: number },
-    bbox: { x0: number; y0: number; x1: number; y1: number },
-  ): { s: number; ox: number; oy: number } {
-    const s = Math.min(
-      (area.x1 - area.x0) / (bbox.x1 - bbox.x0),
-      (area.y1 - area.y0) / (bbox.y1 - bbox.y0),
-    );
-    return {
-      s,
-      ox: (area.x0 + area.x1) / 2 - (s * (bbox.x0 + bbox.x1)) / 2,
-      oy: (area.y0 + area.y1) / 2 - (s * (bbox.y0 + bbox.y1)) / 2,
-    };
-  }
-
-  private arrow(
-    ctx: CanvasRenderingContext2D,
-    x: number,
-    y: number,
-    dx: number,
-    dy: number,
-    color: string,
-    width = 3,
-  ): void {
-    const len = Math.hypot(dx, dy);
-    if (len < 4) return;
-    const ux = dx / len;
-    const uy = dy / len;
-    ctx.strokeStyle = color;
-    ctx.fillStyle = color;
-    ctx.lineWidth = width;
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    ctx.lineTo(x + dx - ux * 8, y + dy - uy * 8);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(x + dx, y + dy);
-    ctx.lineTo(x + dx - ux * 10 - uy * 5, y + dy - uy * 10 + ux * 5);
-    ctx.lineTo(x + dx - ux * 10 + uy * 5, y + dy - uy * 10 - ux * 5);
-    ctx.closePath();
-    ctx.fill();
-  }
-
-  private caption(ctx: CanvasRenderingContext2D, text: string, x: number, y: number): void {
-    ctx.fillStyle = 'rgba(238, 242, 255, 0.75)';
-    ctx.font = '600 14px system-ui, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(text, x, y);
-  }
-
-  /** Chapter 1: same launch spot, four speeds, four fates. */
-  private drawShapes(
-    ctx: CanvasRenderingContext2D,
-    area: { x0: number; y0: number; x1: number; y1: number },
-    demo: Extract<Demo, { kind: 'shapes' }>,
-  ): void {
-    const legendH = 118;
-    const view = { ...area, y0: area.y0 + legendH };
-    const { s, ox, oy } = this.fit(view, { x0: -260, y0: -300, x1: 500, y1: 300 });
-    const X = (x: number) => ox + s * x;
-    const Y = (y: number) => oy + s * y;
-
-    this.drawSun(ctx, X(0), Y(0), SHAPES.sunR * s);
-
-    // Launch point marker.
-    ctx.fillStyle = 'rgba(238, 242, 255, 0.9)';
-    ctx.font = '16px system-ui, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('🚀', X(-SHAPES.R), Y(0) + 6);
-    this.caption(ctx, pick(TEXT).shapesCaption, X(-SHAPES.R), Y(0) + 28);
-
-    for (const b of demo.bodies) {
-      if (b.trail.length > 1) {
-        ctx.beginPath();
-        ctx.moveTo(X(b.trail[0].x), Y(b.trail[0].y));
-        for (const t of b.trail) ctx.lineTo(X(t.x), Y(t.y));
-        ctx.strokeStyle = b.color + 'aa';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-      }
-      if (b.alive) {
-        ctx.beginPath();
-        ctx.arc(X(b.x), Y(b.y), 7, 0, Math.PI * 2);
-        ctx.fillStyle = b.color;
-        ctx.fill();
-      }
-    }
-
-    // Legend at the top of the demo area.
-    ctx.textAlign = 'left';
-    ctx.font = '600 15px system-ui, sans-serif';
-    demo.bodies.forEach((b, i) => {
-      const y = area.y0 + 18 + i * 26;
-      ctx.beginPath();
-      ctx.arc(area.x0 + 12, y - 5, 6, 0, Math.PI * 2);
-      ctx.fillStyle = b.color;
-      ctx.fill();
-      ctx.fillStyle = 'rgba(238, 242, 255, 0.85)';
-      ctx.fillText(b.label, area.x0 + 26, y);
-    });
-  }
-
-  /** Chapter 2: two-body dance with equal-and-opposite force arrows. */
-  private drawNewton(
-    ctx: CanvasRenderingContext2D,
-    area: { x0: number; y0: number; x1: number; y1: number },
-    demo: Extract<Demo, { kind: 'newton' }>,
-  ): void {
-    const { s, ox, oy } = this.fit(area, { x0: -240, y0: -240, x1: 240, y1: 240 });
-    const X = (x: number) => ox + s * x;
-    const Y = (y: number) => oy + s * y;
-    const { b1, b2 } = demo;
-
-    for (const [b, color] of [
-      [b1, 'rgba(251, 191, 36, 0.5)'],
-      [b2, 'rgba(125, 211, 252, 0.5)'],
-    ] as const) {
-      if (b.trail.length > 1) {
-        ctx.beginPath();
-        ctx.moveTo(X(b.trail[0].x), Y(b.trail[0].y));
-        for (const t of b.trail) ctx.lineTo(X(t.x), Y(t.y));
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 2;
-        ctx.stroke();
-      }
-    }
-
-    // Balance point (barycenter) at the world origin.
-    ctx.strokeStyle = 'rgba(238, 242, 255, 0.7)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(X(0) - 8, Y(0));
-    ctx.lineTo(X(0) + 8, Y(0));
-    ctx.moveTo(X(0), Y(0) - 8);
-    ctx.lineTo(X(0), Y(0) + 8);
-    ctx.stroke();
-    this.caption(ctx, pick(TEXT).balancePoint, X(0), Y(0) - 14);
-
-    // Bodies: heavy star and light planet.
-    ctx.beginPath();
-    ctx.arc(X(b1.x), Y(b1.y), 26, 0, Math.PI * 2);
-    ctx.fillStyle = '#fbbf24';
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(X(b2.x), Y(b2.y), 11, 0, Math.PI * 2);
-    ctx.fillStyle = '#7dd3fc';
-    ctx.fill();
-
-    // Equal and opposite gravity arrows (deliberately the same length).
-    const dx = X(b2.x) - X(b1.x);
-    const dy = Y(b2.y) - Y(b1.y);
-    const d = Math.hypot(dx, dy);
-    const L = 52;
-    this.arrow(ctx, X(b1.x) + (dx / d) * 30, Y(b1.y) + (dy / d) * 30, (dx / d) * L, (dy / d) * L, '#fb923c', 4);
-    this.arrow(ctx, X(b2.x) - (dx / d) * 15, Y(b2.y) - (dy / d) * 15, (-dx / d) * L, (-dy / d) * L, '#fb923c', 4);
-    this.caption(ctx, pick(TEXT).samePull, X((b1.x + b2.x) / 2), Y((b1.y + b2.y) / 2) - 16);
-
-    // Velocity arrows: the light one visibly faster.
-    const vScale = 1.1 * s;
-    this.arrow(ctx, X(b1.x), Y(b1.y), b1.vx * vScale, b1.vy * vScale, '#4ade80', 3);
-    this.arrow(ctx, X(b2.x), Y(b2.y), b2.vx * vScale, b2.vy * vScale, '#4ade80', 3);
-
-    ctx.font = '700 15px system-ui, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#fbbf24';
-    ctx.fillText(pick(TEXT).heavyWobble, X(b1.x), Y(b1.y) + 48);
-    ctx.fillStyle = '#7dd3fc';
-    ctx.fillText(pick(TEXT).lightBig, X(b2.x), Y(b2.y) - 26);
-  }
-
-  /** Chapter 3: eccentric orbit + live kinetic/potential/total energy plot. */
-  private drawEnergy(
-    ctx: CanvasRenderingContext2D,
-    area: { x0: number; y0: number; x1: number; y1: number },
-    demo: Extract<Demo, { kind: 'energy' }>,
-  ): void {
-    const plotH = Math.min(210, (area.y1 - area.y0) * 0.34);
-    const orbitArea = { ...area, y1: area.y1 - plotH - 26 };
-    const { s, ox, oy } = this.fit(orbitArea, { x0: -420, y0: -230, x1: 140, y1: 230 });
-    const X = (x: number) => ox + s * x;
-    const Y = (y: number) => oy + s * y;
-
-    this.drawSun(ctx, X(0), Y(0), 14 * s);
-    if (demo.trail.length > 1) {
-      ctx.beginPath();
-      ctx.moveTo(X(demo.trail[0].x), Y(demo.trail[0].y));
-      for (const t of demo.trail) ctx.lineTo(X(t.x), Y(t.y));
-      ctx.strokeStyle = 'rgba(125, 211, 252, 0.55)';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-    }
-    ctx.beginPath();
-    ctx.arc(X(demo.x), Y(demo.y), 9, 0, Math.PI * 2);
-    ctx.fillStyle = '#7dd3fc';
-    ctx.fill();
-    const near = Math.hypot(demo.x, demo.y) < ENERGY.rp * 1.7;
-    this.caption(ctx, near ? pick(TEXT).closeFast : pick(TEXT).farSlow, X(demo.x), Y(demo.y) - 16);
-
-    // Energy strip: kinetic, shifted potential, and their (flat) sum.
-    const peMin = -ENERGY.gm / ENERGY.rp;
-    const keMax = (ENERGY.f * ENERGY.f * ENERGY.gm) / ENERGY.rp / 2;
-    const px0 = area.x0 + 46;
-    const px1 = area.x1 - 12;
-    const py1 = area.y1 - 20;
-    const py0 = py1 - plotH;
-    const yOf = (v: number) => py1 - (v / (keMax * 1.15)) * plotH;
-    const xOf = (i: number) => px0 + (i / (ENERGY.samples - 1)) * (px1 - px0);
-
-    ctx.strokeStyle = 'rgba(238, 242, 255, 0.25)';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(px0, py0, px1 - px0, py1 - py0);
-
-    const t = pick(TEXT);
-    const series: {
-      color: string;
-      label: string;
-      total: boolean;
-      of: (hp: { ke: number; pe: number }) => number;
-    }[] = [
-      { color: '#fbbf24', label: t.energySpeed, total: false, of: (p) => p.ke },
-      { color: '#7dd3fc', label: t.energyHeight, total: false, of: (p) => p.pe - peMin },
-      { color: '#4ade80', label: t.energyTotal, total: true, of: (p) => p.ke + p.pe - peMin },
-    ];
-    for (const ser of series) {
-      if (demo.hist.length > 1) {
-        ctx.beginPath();
-        demo.hist.forEach((p, i) => {
-          const x = xOf(i);
-          const y = yOf(ser.of(p));
-          i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-        });
-        ctx.strokeStyle = ser.color;
-        ctx.lineWidth = ser.total ? 3.5 : 2;
-        ctx.stroke();
-      }
-    }
-    ctx.font = '600 14px system-ui, sans-serif';
-    ctx.textAlign = 'left';
-    series.forEach((ser, i) => {
-      ctx.fillStyle = ser.color;
-      ctx.fillText(ser.label, px0 + 10 + i * ((px1 - px0 - 20) / 3), py0 - 8);
-    });
-  }
-
-  /** Chapter 4: giant visible integration steps, Euler vs symplectic. */
-  private drawSteps(
-    ctx: CanvasRenderingContext2D,
-    area: { x0: number; y0: number; x1: number; y1: number },
-    demo: Extract<Demo, { kind: 'steps' }>,
-  ): void {
-    const plotH = Math.min(180, (area.y1 - area.y0) * 0.3);
-    const orbitArea = { ...area, y0: area.y0 + 34, y1: area.y1 - plotH - 30 };
-    const euler = this.integrator === 'euler';
-    const span = euler ? 500 : 260;
-    const { s, ox, oy } = this.fit(orbitArea, { x0: -span, y0: -span, x1: span, y1: span });
-    const X = (x: number) => ox + s * x;
-    const Y = (y: number) => oy + s * y;
-
-    const t = pick(TEXT);
-    ctx.fillStyle = euler ? '#fb923c' : '#4ade80';
-    ctx.font = '700 17px system-ui, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(
-      euler ? t.stepsTitleEuler : t.stepsTitleSymplectic,
-      (area.x0 + area.x1) / 2,
-      area.y0 + 12,
-    );
-
-    this.drawSun(ctx, X(0), Y(0), 12 * s);
-    // The true orbit, for reference.
-    ctx.beginPath();
-    ctx.arc(X(0), Y(0), STEPS.R * s, 0, Math.PI * 2);
-    ctx.setLineDash([4, 6]);
-    ctx.strokeStyle = 'rgba(238, 242, 255, 0.35)';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-    ctx.setLineDash([]);
-    this.caption(ctx, t.trueOrbit, X(0), Y(0) - STEPS.R * s - 8);
-
-    // The step polygon: straight hops with a dot at every step.
-    const color = euler ? '#fb923c' : '#4ade80';
-    if (demo.path.length > 1) {
-      ctx.beginPath();
-      ctx.moveTo(X(demo.path[0].x), Y(demo.path[0].y));
-      for (const p of demo.path) ctx.lineTo(X(p.x), Y(p.y));
-      ctx.strokeStyle = color + 'cc';
-      ctx.lineWidth = 2.5;
-      ctx.stroke();
-    }
-    for (const p of demo.path) {
-      ctx.beginPath();
-      ctx.arc(X(p.x), Y(p.y), 3, 0, Math.PI * 2);
-      ctx.fillStyle = color;
-      ctx.fill();
-    }
-    ctx.beginPath();
-    ctx.arc(X(demo.x), Y(demo.y), 8, 0, Math.PI * 2);
-    ctx.fillStyle = '#eef2ff';
-    ctx.fill();
-
-    // Where the next straight hop will land.
-    const T = 2 * Math.PI * Math.sqrt(STEPS.R ** 3 / STEPS.gm);
-    const big = T / STEPS.perOrbit;
-    this.arrow(ctx, X(demo.x), Y(demo.y), demo.vx * big * s, demo.vy * big * s, 'rgba(238, 242, 255, 0.6)', 2);
-
-    // Energy per step, relative to the true value.
-    const e0 = demo.energies[0];
-    const px0 = area.x0 + 46;
-    const px1 = area.x1 - 12;
-    const py1 = area.y1 - 22;
-    const py0 = py1 - plotH;
-    const rel = demo.energies.map((e) => (e - e0) / Math.abs(e0));
-    const range = Math.max(0.5, ...rel.map((r) => Math.abs(r) * 1.2));
-    const yOf = (r: number) => py1 - ((r + range) / (2 * range)) * plotH;
-    const xOf = (i: number) => px0 + (i / (STEPS.maxSteps - 1)) * (px1 - px0);
-
-    ctx.strokeStyle = 'rgba(238, 242, 255, 0.25)';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(px0, py0, px1 - px0, py1 - py0);
-    ctx.setLineDash([4, 6]);
-    ctx.beginPath();
-    ctx.moveTo(px0, yOf(0));
-    ctx.lineTo(px1, yOf(0));
-    ctx.strokeStyle = 'rgba(238, 242, 255, 0.5)';
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.beginPath();
-    rel.forEach((r, i) => {
-      const x = xOf(i);
-      const y = yOf(r);
-      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-    });
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2.5;
-    ctx.stroke();
-    ctx.fillStyle = 'rgba(238, 242, 255, 0.75)';
-    ctx.font = '600 14px system-ui, sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText(
-      euler ? t.stepsEnergyEuler : t.stepsEnergySymplectic,
-      px0 + 10,
-      py0 - 8,
-    );
-    ctx.textAlign = 'right';
-    ctx.fillText(t.trueEnergy, px0 - 4, yOf(0) + 4);
-  }
-
-  /** Chapter 5: the free-return figure-8 around the Moon, flown live. */
-  private drawMoon(
-    ctx: CanvasRenderingContext2D,
-    area: { x0: number; y0: number; x1: number; y1: number },
-    demo: Extract<Demo, { kind: 'moon' }>,
-  ): void {
-    const { D, gmE, gmM } = MOON;
-    const { s, ox, oy } = this.fit(area, { x0: -120, y0: -150, x1: 525, y1: 175 });
-    const X = (x: number) => ox + s * x;
-    const Y = (y: number) => oy + s * y;
-
-    // Gravity field: one small arrow per grid point, pointing where gravity
-    // pulls. Length is proportional to the true field strength — so it decays
-    // with 1/r² away from each body — capped only right next to them. Arrows
-    // inside the Moon's grip (where its pull beats Earth's) are brighter, so
-    // the Moon's little kingdom stands out.
-    // The Moon's grip: inside this disk its pull is stronger than Earth's.
-    // A soft fill (under the arrows), so it cannot be mistaken for an orbit.
-    const gripR = D / (1 + Math.sqrt(gmE / gmM));
-    const grip = ctx.createRadialGradient(X(D), Y(0), 0, X(D), Y(0), gripR * s);
-    grip.addColorStop(0, 'rgba(148, 163, 184, 0.16)');
-    grip.addColorStop(1, 'rgba(148, 163, 184, 0.04)');
-    ctx.fillStyle = grip;
-    ctx.beginPath();
-    ctx.arc(X(D), Y(0), gripR * s, 0, Math.PI * 2);
-    ctx.fill();
-    this.caption(ctx, pick(TEXT).moonGrip, X(D), Y(-gripR) - 10);
-
-    for (let wx = -100; wx <= 515; wx += 22) {
-      for (let wy = -145; wy <= 170; wy += 22) {
-        const dE = Math.hypot(wx, wy);
-        const dM = Math.hypot(wx - D, wy);
-        if (dE < 40 || dM < 14) continue;
-        const gx = (-gmE * wx) / dE ** 3 + (-gmM * (wx - D)) / dM ** 3;
-        const gy = (-gmE * wy) / dE ** 3 + (-gmM * wy) / dM ** 3;
-        const g = Math.hypot(gx, gy);
-        const len = Math.min(9, 0.085 * g) * s;
-        if (len < 2.5) continue;
-        const ux = gx / g;
-        const uy = gy / g;
-        const head = Math.min(3.5, 1.8 + len * 0.1);
-        const moonWins = gmM / (dM * dM) > gmE / (dE * dE);
-        ctx.strokeStyle = moonWins ? 'rgba(203, 213, 225, 0.6)' : 'rgba(148, 163, 184, 0.3)';
-        ctx.lineWidth = 1.2;
-        ctx.beginPath();
-        ctx.moveTo(X(wx), Y(wy));
-        ctx.lineTo(X(wx) + ux * len, Y(wy) + uy * len);
-        // Small chevron head, scaled with the arrow.
-        ctx.moveTo(X(wx) + ux * len - (ux + uy * 0.6) * head, Y(wy) + uy * len - (uy - ux * 0.6) * head);
-        ctx.lineTo(X(wx) + ux * len, Y(wy) + uy * len);
-        ctx.lineTo(X(wx) + ux * len - (ux - uy * 0.6) * head, Y(wy) + uy * len - (uy + ux * 0.6) * head);
-        ctx.stroke();
-      }
-    }
-
-    // Ghost mission: same launch, Moon's gravity switched off. It noses up to
-    // the edge of the grip circle, falls short, and swings back — no Moon.
-    const idx = Math.floor(demo.idx);
-    const gIdx = Math.min(idx, demo.ghost.length - 1);
-    const ghostDone = idx >= demo.ghost.length - 1;
-    ctx.beginPath();
-    ctx.moveTo(X(demo.ghost[0].x), Y(demo.ghost[0].y));
-    for (let i = 1; i <= gIdx; i++) ctx.lineTo(X(demo.ghost[i].x), Y(demo.ghost[i].y));
-    ctx.setLineDash([2, 6]);
-    ctx.strokeStyle = 'rgba(148, 163, 184, 0.55)';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-    ctx.setLineDash([]);
-    if (!ghostDone) {
-      const g = demo.ghost[gIdx];
-      ctx.beginPath();
-      ctx.arc(X(g.x), Y(g.y), 5, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(203, 213, 225, 0.8)';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      // Label the ghost only once the two ships have visibly parted ways.
-      const real = demo.path[Math.min(idx, demo.path.length - 1)];
-      if (Math.hypot(real.x - g.x, real.y - g.y) > 30) {
-        ctx.fillStyle = 'rgba(203, 213, 225, 0.75)';
-        ctx.font = '600 14px system-ui, sans-serif';
-        ctx.textAlign = 'left';
-        ctx.fillText(pick(TEXT).ghostFallsShort, X(g.x) + 12, Y(g.y) - 10);
-      }
-    }
-
-    // Full planned figure-8, faint and dashed.
-    ctx.beginPath();
-    ctx.moveTo(X(demo.path[0].x), Y(demo.path[0].y));
-    for (const p of demo.path) ctx.lineTo(X(p.x), Y(p.y));
-    ctx.setLineDash([3, 7]);
-    ctx.strokeStyle = 'rgba(238, 242, 255, 0.28)';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    // Earth and Moon.
-    const earthR = Math.max(14, 16 * s);
-    ctx.beginPath();
-    ctx.arc(X(0), Y(0), earthR, 0, Math.PI * 2);
-    ctx.fillStyle = '#3b82f6';
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(X(0) - earthR * 0.25, Y(0) - earthR * 0.2, earthR * 0.5, 0, Math.PI * 2);
-    ctx.fillStyle = '#4ade80';
-    ctx.fill();
-    const moonR = Math.max(8, 9 * s);
-    ctx.beginPath();
-    ctx.arc(X(MOON.D), Y(0), moonR, 0, Math.PI * 2);
-    ctx.fillStyle = '#cbd5e1';
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(X(MOON.D) + moonR * 0.3, Y(0) - moonR * 0.2, moonR * 0.28, 0, Math.PI * 2);
-    ctx.fillStyle = '#94a3b8';
-    ctx.fill();
-    this.caption(ctx, pick(TEXT).earth, X(0), Y(0) + earthR + 20);
-    this.caption(ctx, pick(TEXT).moon, X(MOON.D), Y(0) + moonR + 20);
-
-    // Flown part of the trajectory, bright.
-    ctx.beginPath();
-    ctx.moveTo(X(demo.path[0].x), Y(demo.path[0].y));
-    for (let i = 1; i <= idx; i++) ctx.lineTo(X(demo.path[i].x), Y(demo.path[i].y));
-    ctx.strokeStyle = 'rgba(110, 231, 183, 0.8)';
-    ctx.lineWidth = 2.5;
-    ctx.stroke();
-
-    // The spacecraft: a small triangle pointing along its velocity.
-    const p = demo.path[idx];
-    const ang = Math.atan2(p.vy, p.vx);
-    ctx.save();
-    ctx.translate(X(p.x), Y(p.y));
-    ctx.rotate(ang);
-    ctx.beginPath();
-    ctx.moveTo(10, 0);
-    ctx.lineTo(-7, -6);
-    ctx.lineTo(-7, 6);
-    ctx.closePath();
-    ctx.fillStyle = '#eef2ff';
-    ctx.fill();
-    ctx.restore();
-
-    if (demo.idx >= demo.path.length - 1) {
-      ctx.font = '700 22px system-ui, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillStyle = '#6ee7b7';
-      ctx.fillText(pick(TEXT).splashdown, (area.x0 + area.x1) / 2, area.y0 + 30);
-    } else if (Math.hypot(p.x - MOON.D, p.y) < 120) {
-      this.caption(ctx, pick(TEXT).slingshot, X(p.x), Y(p.y) - 18);
-    }
+    if (!this.challenge) this.toyBar.classList.remove('hidden');
   }
 }
 
@@ -1299,9 +878,9 @@ export const orbits: ArcadeGame = {
   id: 'orbits',
   title: { en: 'Gravity Doodle', nl: 'Zwaartekracht-doodle', no: 'Tyngdekraft-doodle' },
   scienceLine: {
-    en: 'The same math that flings these planets around plans real space missions.',
-    nl: 'Dezelfde wiskunde die deze planeten rondslingert, plant ook echte ruimtemissies.',
-    no: 'Den samme matematikken som slynger disse planetene rundt, planlegger ekte romferder.',
+    en: "Newton's law of gravity is 340 years old, but for three planets it has no formula: the only way to see their future is to compute it. That is how space missions are planned, and how we check that asteroids will miss us.",
+    nl: 'De zwaartekrachtwet van Newton is 340 jaar oud, maar voor drie planeten bestaat er geen formule: hun toekomst zie je alleen door hem uit te rekenen. Zo worden ruimtemissies gepland, en zo controleren we dat planetoïden ons missen.',
+    no: 'Newtons gravitasjonslov er 340 år gammel, men for tre planeter finnes det ingen formel: den eneste måten å se fremtiden deres på er å regne den ut. Slik planlegges romferder, og slik sjekker vi at asteroider bommer på oss.',
   },
   tileEmoji: '🪐',
   create: (host) => new OrbitsInstance(host),

@@ -6,6 +6,34 @@ An assessment of Gravity Doodle as it was on 24 September 2026 against
 [Ball Pit proposal](bounce-proposal.md): **A** makes the game meet the goals, **B** adds
 depth, **C** can wait.
 
+**Phase A is built** (24 September 2026). Where the build differs from this plan:
+
+- **Lighter toy masses.** Pebble 0.1 %, planet 0.5 %, giant 3 %, star 60 % of the Sun.
+  With 1 % planets and 5 % giants no opening layout survived three minutes (bodies a
+  few Hill radii apart scatter within seconds). The opening system is a pebble, a
+  planet and a ringed giant at 11, 20 and 44 % of the screen height: 12 of 12 random
+  starts survive three minutes. A giant still wobbles the Sun by ~7 px, and close
+  passes still bend paths and merge.
+- **Exact forecast.** Velocity Verlet in fixed 1/240 s ticks; the forecast copies the
+  world, adds the throw and runs the same steps (6 s, ~3 ms with 33 bodies). A test
+  throws the forecast body for real: 0 px apart after 1 440 steps. The scene is kept
+  centred by a gentle uniform shift of every body, inside the step, so the forecast
+  includes it. The outcome gained a fifth colour: pink, "it will smash into a planet".
+- **The challenge is one round so far,** Save the Earth; Goldilocks and Slingshot are
+  phase B. Impact is 5.5 "years" out (8 s each, ~46 s in all), not 6, so Earth starts
+  across the Sun from the "impact day" mark; asteroids that would pass Earth before the
+  last half year are drawn again. After a look, the new cloud is sampled 0.4 years back
+  and flown to now, so it shows as a short arc rather than a single dot. While
+  dragging a push, the preview flies every third asteroid every third frame (~3 ms).
+- **Calibration, measured** over 16 asteroids (`npm run test:orbits`): the opening
+  chance of impact is 3–16 %; after three looks it is above 50 % for all 16 (54–100 %).
+  A blind full push clears the whole cloud for only 2 of 16, while after three looks a
+  quarter-power push clears it for all 16. A push at the start needs 0.0004–0.0007; one
+  half a year before impact needs 0.008 or cannot save Earth at all. Scores: doing
+  nothing 50, a blind full push 400, looking three times then a small push ~965.
+- **Not built in A:** the gravity view and the step slider (layer 2), the delve rewrite
+  (only chapter 1's colour sentence changed), and Artemis II's tense in chapter 5.
+
 ## Assessment
 
 Gravity Doodle is still close to the Phase-5 "cheap, reliable fun" sketch from

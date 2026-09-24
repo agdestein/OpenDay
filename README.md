@@ -128,6 +128,14 @@ arcade's microscope: everything the other games simulate as a smooth fluid is ma
 balls like these, and its delve goes from one ball to why we write equations for the
 crowd. See [the proposal](docs/bounce-proposal.md) (`npm run test:bounce`).
 
+Gravity Doodle (`app/src/games/orbits/`) is an N-body toy: fling pebbles, planets,
+giants or a second star around the Sun, and every body pulls on every other; bodies
+that touch merge. While you aim, the 🔮 forecast runs a copy of the same simulation
+ahead (fixed steps, so it is exactly what will happen). Its challenge, Save the Earth,
+shows an asteroid nobody knows exactly as a cloud of possible asteroids: look through
+the telescope to shrink the cloud, then push it once, early. See
+[the proposal](docs/orbits-proposal.md) (`npm run test:orbits`).
+
 Weather Detective (`app/src/games/detective/`) grew out of our group's project with
 [KNMI](https://www.knmi.nl/) on multi-fidelity Gaussian process regression of
 crowdsourced (home) and official weather stations, and out of last year's Science Day
