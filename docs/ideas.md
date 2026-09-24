@@ -98,6 +98,10 @@ N-body toy: fling planets around a sun with drag-and-release.
 - **Effort:** low. Proven kid-pleaser; weakest link to our group specifically, which is
   fine — it stretches the "we simulate anything" claim.
 
+Built as **Gravity Doodle** (`orbits`), a one-body toy with a five-chapter delve. See
+[the proposal](orbits-proposal.md) for making it N-body, with a three-round challenge
+(ending in asteroid defence under uncertainty).
+
 ## 7. AI-enhance turbulence (super-resolution) — **stretch**
 
 Split screen: coarse blocky simulation vs. the same flow sharpened live by a small
