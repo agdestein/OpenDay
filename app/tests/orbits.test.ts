@@ -2,6 +2,7 @@ import { World, forecast, KINDS, SUN_R, TICK, type Kind } from '../src/games/orb
 import { Defense, DEFENSE } from '../src/games/orbits/defense.ts';
 import { ZoneSim, ZONE } from '../src/games/orbits/zone.ts';
 import { SlingSim, SLING } from '../src/games/orbits/sling.ts';
+import { gravitySheet } from '../src/games/orbits/scene.ts';
 import assert from 'node:assert/strict';
 
 // ---- the toy's N-body world, on a 1280×720 screen like the game's ----
@@ -46,6 +47,17 @@ const run = (w: World, seconds: number) => { for (let i = 0; i < Math.round(seco
     worst = Math.max(worst, Math.hypot(b.x - f.pts[i].x, b.y - f.pts[i].y));
   }
   assert.equal(worst, 0, `forecast and real throw differ by ${worst} px`);
+  // A throw straight at a planet: the forecast names the planet and its path to the meeting.
+  {
+    const w2 = system([['planet', 0.2, 0]]);
+    const target = w2.bodies[1];
+    const c = w2.clone();
+    const b = c.add({ id: -1, kind: 'pebble', x: target.x + 60, y: target.y, vx: target.vx - 400, vy: target.vy, gm: KINDS.pebble.mass * GM, r: KINDS.pebble.r, hue: 0 });
+    const f = forecast(c, b.id, 480, 6, 2 * W);
+    assert.equal(f.outcome, 'merge', 'thrown at a planet, it merges');
+    assert.equal(f.partner?.id, target.id, 'the forecast names who it hits');
+    assert.ok((f.partner?.pts.length ?? 0) > 1, 'with that planet\'s path to the meeting');
+  }
   console.log(`PASS: the forecast is the real future (${f.pts.length - 1} steps, 0 px apart; outcome ${f.outcome}).`);
 }
 
@@ -91,13 +103,13 @@ const run = (w: World, seconds: number) => { for (let i = 0; i < Math.round(seco
 // The forecast is affordable with a full screen of bodies.
 {
   const kinds: [Kind, number, number][] = [];
-  for (let i = 0; i < 31; i++) kinds.push([i % 5 === 0 ? 'giant' : 'pebble', 0.12 + 0.012 * i, i * 2.4]);
+  for (let i = 0; i < 22; i++) kinds.push([i % 5 === 0 ? 'giant' : 'pebble', 0.12 + 0.015 * i, i * 2.4]);
   const w = system(kinds);
   const t0 = performance.now();
-  for (let k = 0; k < 5; k++) { const c = w.clone(); const b = c.add({ kind: 'planet', x: 200, y: 200, vx: 100, vy: 0, gm: KINDS.planet.mass * GM, r: KINDS.planet.r, hue: 0, id: -1 }); forecast(c, b.id, 1440, 6, 2 * W); }
+  for (let k = 0; k < 5; k++) { const c = w.clone(); const b = c.add({ kind: 'planet', x: 200, y: 200, vx: 100, vy: 0, gm: KINDS.planet.mass * GM, r: KINDS.planet.r, hue: 0, id: -1 }); forecast(c, b.id, 2400, 6, 2 * W); }
   const ms = (performance.now() - t0) / 5;
-  assert.ok(ms < 20, `forecast with 33 bodies takes ${ms.toFixed(1)} ms`);
-  console.log(`PASS: a 6 s forecast with 33 bodies takes ${ms.toFixed(1)} ms.`);
+  assert.ok(ms < 20, `forecast with 24 bodies takes ${ms.toFixed(1)} ms`);
+  console.log(`PASS: a 10 s forecast with 24 bodies (the most the toy keeps) takes ${ms.toFixed(1)} ms.`);
 }
 
 // ---- Save the Earth: calibration over many asteroids ----
@@ -270,4 +282,38 @@ console.log('   ' + rows.join('\n   '));
   while (!late.over) late.step(1 / 60);
   assert.equal(late.arrived, 1, 'a probe in flight at the buzzer still arrives');
   console.log(`PASS: Slingshot — no direct shot reaches the ring; with the giant ${rates.join(' ')} of launches arrive (longest wait ${worstWait.toFixed(2)} s); a forecast arrival arrives (${sim.score} points), also when launched at the buzzer.`);
+}
+
+// ---- the gravity view never folds: the sheet's local stretch stays positive ----
+{
+  const configs: [string, [Kind, number, number][], boolean][] = [
+    ['Sun and three planets', [['pebble', 0.11, 0.3], ['planet', 0.2, 2.1], ['giant', 0.44, 4.4]], false],
+    ['two giants side by side', [['giant', 0.3, 0], ['giant', 0.33, 0.12]], false],
+    ['a second star next to the Sun', [['planet', 0.2, 1]], true],
+  ];
+  const kinds: [Kind, number, number][] = [];
+  for (let i = 0; i < 23; i++) kinds.push([(['pebble', 'planet', 'giant'] as Kind[])[i % 3], 0.1 + 0.015 * i, i * 2.4]);
+  configs.push(['a full sky of 24 bodies', kinds, false]);
+  for (const [name, bodies, star] of configs) {
+    const w = system(bodies);
+    if (star) w.add({ kind: 'star', x: W / 2 + 60, y: H / 2 + 10, vx: 0, vy: 0, gm: KINDS.star.mass * GM, r: KINDS.star.r, hue: 205 });
+    const at = gravitySheet(w, u);
+    let worst = Infinity;
+    const e = 0.5;
+    for (let y = 0; y <= H; y += 3) for (let x = 0; x <= W; x += 3) {
+      const [ax, ay] = at(x, y), [bx, by] = at(x + e, y), [cx, cy] = at(x, y + e);
+      worst = Math.min(worst, ((bx - ax) * (cy - ay) - (by - ay) * (cx - ax)) / (e * e));
+    }
+    assert.ok(worst > 0, `${name}: the sheet folds (stretch ${worst})`);
+    console.log(`PASS: gravity view, ${name}: never folds (tightest squeeze ${worst.toFixed(2)} of the flat sheet's area).`);
+  }
+  const w = system(kinds);
+  const at = gravitySheet(w, u);
+  const t0 = performance.now();
+  let n = 0;
+  for (let y = 0; y <= H; y += 26) for (let x = 0; x <= W; x += 6) { at(x, y); n++; }
+  for (let x = 0; x <= W; x += 26) for (let y = 0; y <= H; y += 6) { at(x, y); n++; }
+  const ms = performance.now() - t0;
+  assert.ok(ms < 8, `gravity view takes ${ms.toFixed(1)} ms`);
+  console.log(`PASS: gravity view with 24 bodies: ${n} sheet points in ${ms.toFixed(1)} ms.`);
 }

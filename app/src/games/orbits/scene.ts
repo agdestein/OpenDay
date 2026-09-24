@@ -141,17 +141,29 @@ export class Poofs {
   }
 }
 
-/** The dashed, marching forecast line (and an ✕ where it ends in a crash). */
-export function drawPath(ctx: CanvasRenderingContext2D, pts: Pt[], color: string, u: number, time: number, cross = false): void {
+/**
+ * The dashed, marching forecast line (and an ✕ where it ends in a crash).
+ * `fade`: the far future fades out, so a long forecast stays readable.
+ */
+export function drawPath(ctx: CanvasRenderingContext2D, pts: Pt[], color: string, u: number, time: number, cross = false, fade = false): void {
   if (pts.length > 1) {
-    ctx.beginPath();
-    ctx.moveTo(pts[0].x, pts[0].y);
-    for (const p of pts) ctx.lineTo(p.x, p.y);
+    const CHUNKS = fade ? 5 : 1;
+    const base = ctx.globalAlpha;
     ctx.setLineDash([8, 8]);
     ctx.lineDashOffset = -time * 40;
     ctx.strokeStyle = color;
     ctx.lineWidth = 3 * u;
-    ctx.stroke();
+    for (let c = 0; c < CHUNKS; c++) {
+      const i0 = Math.floor((c * (pts.length - 1)) / CHUNKS);
+      const i1 = Math.floor(((c + 1) * (pts.length - 1)) / CHUNKS);
+      if (i1 <= i0) continue;
+      ctx.globalAlpha = base * (fade ? 1 - (0.7 * c) / (CHUNKS - 1) : 1);
+      ctx.beginPath();
+      ctx.moveTo(pts[i0].x, pts[i0].y);
+      for (let i = i0 + 1; i <= i1; i++) ctx.lineTo(pts[i].x, pts[i].y);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = base;
     ctx.setLineDash([]);
     ctx.lineDashOffset = 0;
   }
@@ -167,6 +179,34 @@ export function drawPath(ctx: CanvasRenderingContext2D, pts: Pt[], color: string
     ctx.lineTo(end.x - k, end.y + k);
     ctx.stroke();
   }
+}
+
+/**
+ * Who the throw would run into: a pulsing red ring round that body, and its
+ * own path (thin, dashed) to where they meet — so it can be dodged.
+ */
+export function drawPartner(ctx: CanvasRenderingContext2D, world: World, partner: { id: number; pts: Pt[] } | undefined, u: number, time: number): void {
+  if (!partner) return;
+  const b = world.bodies.find((x) => x.id === partner.id);
+  if (!b || b.sun) return;
+  const pts = partner.pts;
+  if (pts.length > 1) {
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (const p of pts) ctx.lineTo(p.x, p.y);
+    ctx.setLineDash([4, 6]);
+    ctx.lineDashOffset = -time * 30;
+    ctx.strokeStyle = 'rgba(248, 113, 113, 0.7)';
+    ctx.lineWidth = 2 * u;
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.lineDashOffset = 0;
+  }
+  ctx.beginPath();
+  ctx.arc(b.x, b.y, b.r + (6 + 3 * Math.sin(time * 8)) * u, 0, Math.PI * 2);
+  ctx.strokeStyle = '#f87171';
+  ctx.lineWidth = 3 * u;
+  ctx.stroke();
 }
 
 /**
@@ -191,65 +231,75 @@ export function launchVelocity(world: World, m: number, x0: number, y0: number, 
 }
 
 /**
- * The rubber sheet: a grid that sags towards every mass. Each grid point is
- * pulled towards each body by an amount that grows with its mass (as the
- * square root, so planets still make visible dimples) and fades with
- * distance; never further than most of the way to the body, so lines don't
- * cross. The deeper the sag, the brighter the line.
+ * The rubber sheet: a grid that sags towards every mass, drawn as smooth
+ * curves. Each mass pulls a grid point at distance r towards itself by
+ *   p(r) = k · r · s³ / (r² + s²)^1.5,
+ * which is zero at the mass, peaks at r ≈ s·0.7 and fades as 1/r² far away.
+ * Its slope is at most k, so for k < 1 lines get denser near the mass but can
+ * never cross or collapse (the old pull, up to 85 % of the way to the mass,
+ * folded rings into a knot). k and s grow with the mass's cube root: the Sun
+ * squeezes space near it about 4×, a pebble makes a small dimple. Where
+ * several wells overlap, their summed squeeze is capped so lines still don't
+ * cross. The deeper the sheet, the brighter the line.
  */
-export function drawGravityGrid(ctx: CanvasRenderingContext2D, world: World, w: number, h: number, u: number): void {
-  const step = 34 * u;
-  const nx = Math.ceil(w / step) + 1;
-  const ny = Math.ceil(h / step) + 1;
-  const ox = (w - (nx - 1) * step) / 2;
-  const oy = (h - (ny - 1) * step) / 2;
-  const px = new Float32Array(nx * ny);
-  const py = new Float32Array(nx * ny);
-  const depth = new Float32Array(nx * ny);
-  const pulls = world.bodies
-    .filter((b) => b.gm > 0)
+export function gravitySheet(world: World, u: number): (x: number, y: number) => [number, number, number] {
+  const wells = world.bodies
+    .filter((b) => b.gm > 0 && Number.isFinite(b.x + b.y))
     .map((b) => {
-      const s = Math.sqrt(b.gm / world.refGm);
-      return { x: b.x, y: b.y, amp: 70 * u * s, reach: 90 * u * Math.sqrt(s) + b.r };
+      const m = Math.cbrt(Math.min(1.5, b.gm / world.refGm));
+      const s = (40 + 90 * m) * u + b.r;
+      return { x: b.x, y: b.y, k: 0.78 * m, s, s2: s * s, s3: s * s * s, far2: (8 * s) ** 2 };
     });
-  for (let j = 0; j < ny; j++) {
-    for (let i = 0; i < nx; i++) {
-      const k = j * nx + i;
-      const gx = ox + i * step;
-      const gy = oy + j * step;
-      let dx = 0;
-      let dy = 0;
-      let dep = 0;
-      for (const p of pulls) {
-        const ex = p.x - gx;
-        const ey = p.y - gy;
-        const d = Math.hypot(ex, ey) || 1e-6;
-        const f = p.reach / (d + p.reach);
-        const pull = Math.min(p.amp * f * f, 0.85 * d);
-        dx += (ex / d) * pull;
-        dy += (ey / d) * pull;
-        dep += p.amp * f;
-      }
-      px[k] = gx + dx;
-      py[k] = gy + dy;
-      depth[k] = dep;
+  /** The sheet at (x, y): where the point is drawn, and how deep it lies (0–1). */
+  return (x: number, y: number): [number, number, number] => {
+    let dx = 0;
+    let dy = 0;
+    let squeeze = 0;
+    let depth = 0;
+    for (const q of wells) {
+      const ex = q.x - x;
+      const ey = q.y - y;
+      const r2 = ex * ex + ey * ey;
+      if (r2 > q.far2) continue;
+      const g = q.s3 / (r2 + q.s2) ** 1.5; // p(r) / r, and roughly the local squeeze
+      dx += q.k * g * ex;
+      dy += q.k * g * ey;
+      squeeze += q.k * g;
+      depth += q.k * Math.sqrt(q.s2 / (r2 + q.s2));
     }
-  }
-  // Segments bucketed by depth: a few strokes per frame instead of one per segment.
+    const cap = squeeze > 0.85 ? 0.85 / squeeze : 1; // overlapping wells: never fold
+    return [x + dx * cap, y + dy * cap, Math.min(1, depth)];
+  };
+}
+
+export function drawGravityGrid(ctx: CanvasRenderingContext2D, world: World, w: number, h: number, u: number): void {
+  const cell = 26 * u;
+  const sample = 6 * u;
+  const at = gravitySheet(world, u);
   const LEVELS = 6;
   const paths = Array.from({ length: LEVELS }, () => new Path2D());
-  const seg = (a: number, b: number) => {
-    const d = Math.min(1, (depth[a] + depth[b]) / (2 * 60 * u));
-    const path = paths[Math.min(LEVELS - 1, Math.floor(d * LEVELS))];
-    path.moveTo(px[a], py[a]);
-    path.lineTo(px[b], py[b]);
+  const line = (x0: number, y0: number, ux: number, uy: number, n: number) => {
+    let [px, py, pd] = at(x0, y0);
+    for (let i = 1; i <= n; i++) {
+      const [qx, qy, qd] = at(x0 + ux * i * sample, y0 + uy * i * sample);
+      const path = paths[Math.min(LEVELS - 1, Math.floor(((pd + qd) / 2) * LEVELS))];
+      path.moveTo(px, py);
+      path.lineTo(qx, qy);
+      px = qx;
+      py = qy;
+      pd = qd;
+    }
   };
-  for (let j = 0; j < ny; j++) for (let i = 0; i + 1 < nx; i++) seg(j * nx + i, j * nx + i + 1);
-  for (let j = 0; j + 1 < ny; j++) for (let i = 0; i < nx; i++) seg(j * nx + i, (j + 1) * nx + i);
+  const ox = (w % cell) / 2;
+  const oy = (h % cell) / 2;
+  const nx = Math.ceil((w + 2 * cell) / sample);
+  const ny = Math.ceil((h + 2 * cell) / sample);
+  for (let y = oy - cell; y <= h + cell; y += cell) line(-cell, y, 1, 0, nx);
+  for (let x = ox - cell; x <= w + cell; x += cell) line(x, -cell, 0, 1, ny);
   ctx.lineWidth = 1;
   paths.forEach((path, l) => {
     const d = (l + 0.5) / LEVELS;
-    ctx.strokeStyle = `rgba(${Math.round(90 + 110 * d)}, ${Math.round(140 + 60 * d)}, 255, ${0.12 + 0.4 * d})`;
+    ctx.strokeStyle = `rgba(${Math.round(90 + 120 * d)}, ${Math.round(140 + 70 * d)}, 255, ${0.14 + 0.46 * d})`;
     ctx.stroke(path);
   });
 }

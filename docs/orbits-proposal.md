@@ -81,6 +81,23 @@ Phase B:
   a spacecraft through planetary ephemerides, and a test checks Earth is still on its
   orbit after a round. Probes still flying when Slingshot's time is up now finish their trip (one launched with 26 s left on a long loop was cut off). Re-measured: Goldilocks one planet 250, two calm 461, three calm
   527, six crowded 441, six at random 356; Slingshot 0–33 % of launches arrive.
+- **Second playtest: the gravity view and collisions.** The old grid pulled each point
+  up to 85 % of the way to every mass, so rings near the Sun collapsed into a knot and
+  overlapping pulls folded lines over each other. Now each mass pulls with
+  p(r) = k·r·s³/(r²+s²)^1.5, zero at the mass and never steeper than k < 1, with the
+  summed squeeze capped where wells overlap; cells are finer (26 px) and each line is
+  sampled every 6 px, so it curves smoothly. A test checks the sheet's local area never
+  turns negative (no folds) for the opening system, two giants side by side, a second
+  star next to the Sun and a full sky of 24 bodies (~3 ms a frame).
+  On collisions, measured with bots over 10 games of 10 throws: making contact 15 %
+  closer, bodies 20–30 % smaller, or the giant lighter changed almost nothing (the
+  collisions come from crossing orbits and giants scattering planets, not from
+  grazing). What mattered was the forecast: a player who ignores it loses 56 % of
+  throws within 10 s; one who heeds the 6 s forecast 22 %; with a 10 s forecast 9 %
+  (48 % within 30 s, against 55 %). So the physics is unchanged, and the forecast now
+  looks 10 s ahead (fading towards the end), rings the body a throw would hit in red and
+  draws that body's path to the meeting point. The toy keeps at most 24 bodies (was 32)
+  so the longer forecast stays ~6 ms a frame at worst.
 - **To verify before printing:** Artemis II flew the free return in April 2026; 2024
   YR4's 3 % (February 2025); DART changed Dimorphos's orbit by about half an hour;
   Hera arrives at the end of 2026; JUICE's Moon/Earth/Venus flybys; Oscar II's prize

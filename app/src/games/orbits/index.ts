@@ -16,7 +16,7 @@ import { orbitsDelve } from './delve';
 import { OrbitsDemos } from './demos';
 import { forecast, KINDS, SUN_R, TICK, World, type Body, type Kind, type Method, type Outcome } from './physics';
 import { drawPlanet, drawStar, label, starfield } from './draw';
-import { drawBodies, drawGravityGrid, drawPath, launchVelocity, nearestStar, OUTCOME_COLOR, PACE, Poofs, Trails } from './scene';
+import { drawBodies, drawGravityGrid, drawPartner, drawPath, launchVelocity, nearestStar, OUTCOME_COLOR, PACE, Poofs, Trails } from './scene';
 import { toolButton, type Area, type ButtonDef, type Round, type RoundHost } from './rounds';
 import { DefenseRound } from './roundDefense';
 import { ZoneRound } from './roundZone';
@@ -142,11 +142,12 @@ const KIND_ORDER: Kind[] = ['pebble', 'planet', 'giant', 'star'];
 const STAR_HUES = [45, 205, 12];
 const newHue = (kind: Kind) => (kind === 'star' ? STAR_HUES[Math.floor(Math.random() * STAR_HUES.length)] : randRange(0, 360));
 
-const MAX_BODIES = 32;
+const MAX_BODIES = 24;
 /** The step slider: step size = TICK · 2^(5·value), so from 240 down to 7.5 steps per simulated second (≈156 to 5 real). */
 const MAX_STEP_POWER = 5;
-/** How far the 🔮 forecast looks ahead (s), and every how many steps it keeps a point. */
-const FORECAST_SECONDS = 6;
+/** How far the 🔮 forecast looks ahead (simulated s), and every how many steps it keeps a point.
+ * 10 s rather than 6: with 6, most collisions came just after the line ended, as surprises. */
+const FORECAST_SECONDS = 10;
 const FORECAST_EVERY = 6;
 /** Most fixed steps per frame (the shell clamps dt to 0.05 s = 12 steps). */
 const MAX_STEPS = 16;
@@ -585,7 +586,7 @@ class OrbitsInstance implements GameInstance {
     const limit = 2 * Math.max(this.w, this.h);
     const h = this.world.h;
     const every = Math.max(1, Math.round((FORECAST_EVERY * TICK) / h));
-    const { pts, outcome } = forecast(copy, body.id, Math.round(FORECAST_SECONDS / h), every, limit);
+    const { pts, outcome, partner } = forecast(copy, body.id, Math.round(FORECAST_SECONDS / h), every, limit);
     const color = OUTCOME_COLOR[outcome];
 
     ctx.beginPath();
@@ -594,7 +595,8 @@ class OrbitsInstance implements GameInstance {
     ctx.strokeStyle = 'rgba(238, 242, 255, 0.45)';
     ctx.lineWidth = 1.5;
     ctx.stroke();
-    drawPath(ctx, pts, color, this.unit, this.time, outcome === 'crash' || outcome === 'merge');
+    drawPartner(ctx, this.world, partner, this.unit, this.time);
+    drawPath(ctx, pts, color, this.unit, this.time, outcome === 'crash' || outcome === 'merge', true);
 
     this.drawGhost(ctx, d.x0, d.y0, d.grab ?? undefined);
     label(ctx, pick(TEXT).outcomeLabel[outcome], d.x0 + 16 * this.unit, d.y0 - 16 * this.unit, 16 * this.unit + 4, color, 'left');

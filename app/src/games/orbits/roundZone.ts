@@ -7,12 +7,12 @@ import { sound } from '../../lib/sound';
 import { clamp, randRange } from '../../lib/util';
 import { label } from './draw';
 import { forecast, TICK } from './physics';
-import { drawBodies, drawPath, launchVelocity, PACE, Poofs, Trails, type Pt } from './scene';
+import { drawBodies, drawPartner, drawPath, launchVelocity, PACE, Poofs, Trails, type Pt } from './scene';
 import type { Round, RoundHost } from './rounds';
 import { ZONE, ZoneSim } from './zone';
 
 const LIFE = ['🌱', '🌿', '🌳', '🦕'];
-const FORECAST_SECONDS = 6;
+const FORECAST_SECONDS = 10;
 const GREEN = '#86efac';
 
 const TEXT: Localized<{
@@ -235,20 +235,30 @@ export class ZoneRound implements Round {
     // Split the path into runs inside and outside the zone.
     let run: Pt[] = [];
     let inside = f.pts.length ? sim.inZone(f.pts[0].x, f.pts[0].y) : false;
+    // The far future fades out, as in the toy.
+    let runStart = 0;
     const flush = () => {
-      if (run.length > 1) drawPath(ctx, run, inside ? GREEN : 'rgba(238, 242, 255, 0.55)', u, this.clock);
+      if (run.length < 2) return;
+      ctx.globalAlpha = 1 - (0.7 * runStart) / Math.max(1, f.pts.length - 1);
+      drawPath(ctx, run, inside ? GREEN : 'rgba(238, 242, 255, 0.55)', u, this.clock);
+      ctx.globalAlpha = 1;
     };
-    for (const p of f.pts) {
+    for (const [i, p] of f.pts.entries()) {
       const now = sim.inZone(p.x, p.y);
+      if (run.length === 0) runStart = i;
       run.push(p);
       if (now !== inside) {
         flush();
         run = [p];
+        runStart = i;
         inside = now;
       }
     }
     flush();
-    if (f.outcome === 'crash' || f.outcome === 'merge') drawPath(ctx, f.pts.slice(-1), '#f87171', u, this.clock, true);
+    if (f.outcome === 'crash' || f.outcome === 'merge') {
+      drawPartner(ctx, sim.world, f.partner, u, this.clock);
+      drawPath(ctx, f.pts.slice(-1), '#f87171', u, this.clock, true);
+    }
     ctx.globalAlpha = 0.8;
     ctx.beginPath();
     ctx.arc(d.x0, d.y0, ZONE.planetR * u, 0, Math.PI * 2);

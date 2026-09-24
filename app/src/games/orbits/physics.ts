@@ -83,6 +83,8 @@ export class World {
   refGm: number;
   /** Bodies farther than this from the centre don't count for the re-centring. */
   reach = 4000;
+  /** Bodies merge when their centres come within this fraction of their radii's sum. */
+  contact = 1;
   /** Step size (s) and recipe: the game's are TICK and 'smart'; the step lab changes them. */
   h = TICK;
   method: Method = 'smart';
@@ -118,6 +120,7 @@ export class World {
   clone(): World {
     const w = new World(this.cx, this.cy, this.unit, this.refGm);
     w.reach = this.reach;
+    w.contact = this.contact;
     w.h = this.h;
     w.method = this.method;
     w.nextId = this.nextId;
@@ -266,7 +269,7 @@ export class World {
         const b = B[j];
         const dx = b.x - a.x;
         const dy = b.y - a.y;
-        const rr = a.r + b.r;
+        const rr = (a.r + b.r) * this.contact;
         if (dx * dx + dy * dy >= rr * rr) continue;
         this.merge(a, b);
         j = i; // a changed: check it against everything again
@@ -351,6 +354,8 @@ export type Outcome = 'orbit' | 'far' | 'escape' | 'crash' | 'merge';
 export interface Forecast {
   pts: { x: number; y: number }[];
   outcome: Outcome;
+  /** For a crash or merge: the body it runs into, and that body's path to the meeting point. */
+  partner?: { id: number; pts: { x: number; y: number }[] };
 }
 
 /**
@@ -364,6 +369,17 @@ export function forecast(world: World, id: number, steps: number, every: number,
   const start = body();
   if (!start) return { pts: [], outcome: 'orbit' };
   const pts = [{ x: start.x, y: start.y }];
+  // Everyone's path too (at the same stride), so a collision can show who it was with.
+  const paths = new Map<number, { x: number; y: number }[]>();
+  const record = () => {
+    for (const o of w.bodies) {
+      if (o.id === id) continue;
+      let p = paths.get(o.id);
+      if (!p) paths.set(o.id, (p = []));
+      p.push({ x: o.x, y: o.y });
+    }
+  };
+  record();
   for (let i = 1; i <= steps; i++) {
     w.step();
     for (const m of w.takeMerges()) {
@@ -371,12 +387,18 @@ export function forecast(world: World, id: number, steps: number, every: number,
         const other = m.gone.id === id ? m.into : m.gone;
         pts.push({ x: m.x, y: m.y });
         // Swallowing a pebble is no end to a planet's story; being swallowed is.
-        if (m.gone.id === id) return { pts, outcome: other.kind === 'star' ? 'crash' : 'merge' };
+        if (m.gone.id === id) {
+          const path = [...(paths.get(other.id) ?? []), { x: m.x, y: m.y }];
+          return { pts, outcome: other.kind === 'star' ? 'crash' : 'merge', partner: { id: other.id, pts: path } };
+        }
       }
     }
     const b = body();
     if (!b) return { pts, outcome: 'crash' };
-    if (i % every === 0) pts.push({ x: b.x, y: b.y });
+    if (i % every === 0) {
+      pts.push({ x: b.x, y: b.y });
+      record();
+    }
     if (Math.hypot(b.x - w.cx, b.y - w.cy) > limit) break;
   }
   const b = body()!;
