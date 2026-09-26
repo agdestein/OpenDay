@@ -14,7 +14,7 @@ export const TRAINED: Record<PresetId, Genome> = {
 };
 
 /** Delve brains, each showing one thing (see train.ts for how each was chosen). */
-export const DEMO_BRAINS: Record<'wigglerHop' | 'wigglerGround' | 'stickOld' | 'wormOldJump' | 'doggoFlat' | 'doggoBumps', Genome> = {
+export const DEMO_BRAINS: Record<'wigglerHop' | 'wigglerGround' | 'stickOld' | 'wormOldJump' | 'doggoFlat' | 'doggoBumps' | 'doggoShoved' | 'doggoFeel', Genome> = {
   /** Wiggler rewarded for distance only: it hops. */
   wigglerHop: { freq: 2.8, muscles: [{ amp: 0.0554, phase: 6.2741 }, { amp: 0.3, phase: 3.394 }, { amp: 0.0749, phase: 2.2919 }, { amp: 0.1118, phase: 3.1723 }, { amp: 0.3, phase: 2.8606 }, { amp: 0, phase: 5.7982 }] },
   /** Wiggler rewarded for distance with a foot on the ground: it crawls. */
@@ -27,4 +27,8 @@ export const DEMO_BRAINS: Record<'wigglerHop' | 'wigglerGround' | 'stickOld' | '
   doggoFlat: { freq: 2.8, muscles: [{ amp: 0.1732, phase: 5.3979 }, { amp: 0.2204, phase: 6.0524 }, { amp: 0.0954, phase: 5.3967 }, { amp: 0.0894, phase: 1.9107 }] },
   /** Doggo that practised on changing bumps. */
   doggoBumps: { freq: 2.8, muscles: [{ amp: 0.2849, phase: 0.87 }, { amp: 0.144, phase: 3.1553 }, { amp: 0.0494, phase: 4.0016 }, { amp: 0.0126, phase: 1.1562 }] },
+  /** Doggo that practised with shoves: a rhythm brain. */
+  doggoShoved: { freq: 2.8, muscles: [{ amp: 0.3, phase: 1.5594 }, { amp: 0.1978, phase: 3.5213 }, { amp: 0.0532, phase: 4.3215 }, { amp: 0.1206, phase: 4.1632 }] },
+  /** Doggo that practised with shoves, with senses: rhythm plus reflexes. */
+  doggoFeel: { freq: 1.9036, muscles: [{ amp: 0, phase: 4.6539 }, { amp: 0.0198, phase: 0.6077 }, { amp: 0.0197, phase: 2.3067 }, { amp: 0.0241, phase: 0.2518 }], net: { hidden: 4, w: [1.2708, -0.7024, 1.6144, -0.0263, -1.1557, 0.9569, -0.4564, 0.4526, -0.7124, 2.3354, -1.2557, 1.7505, -0.6948, 2.7218, 1.559, 1.3367, 0.8001, -0.3801, 1.6778, 0.588, 1.8896, -0.6762, 0.0084, -0.1502, -0.9335, 0.6273, 0.354, 1.2145, 0.7282, -1.3479, 1.055, 0.5158, 1.0301, -0.8821, -0.7076, 0.0104, -0.3414, 0.485, -0.1639, -0.7605, 1.6746, 0.1189, 0.104, 0.2754, 0.4787, -1.3442, -0.4142, 0.1086, 1.0655, 0.2957, 0.6961, -0.2315, 0.0334, -0.1714, -0.1318, 0.6728, 0.1743, -0.458, 1.2499, -1.3405] } },
 };

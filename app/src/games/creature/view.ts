@@ -194,6 +194,16 @@ export function drawCreature(ctx: CanvasRenderingContext2D, v: View, c: Creature
     ctx.beginPath();
     ctx.arc(x, y, (i === 0 ? NODE_R * 2 : NODE_R) * v.scale, 0, Math.PI * 2);
     ctx.fill();
+    if (i === 0 && c.genome.net && !style.tint) {
+      // A brain that feels: a dashed ring of senses round the head.
+      ctx.strokeStyle = 'rgba(125, 211, 252, 0.85)';
+      ctx.lineWidth = Math.max(1.5, 0.018 * v.scale);
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.arc(x, y, NODE_R * 3 * v.scale, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
     if (i === 0 && !style.tint) {
       const look = style.look;
       const dir = look ? { x: look.x - p.x, y: look.y - p.y } : { x: p.x - p.px || 1, y: 0 };

@@ -1,6 +1,6 @@
 // Creature Lab: physics, evolution and the pre-trained brains (npm run test:creature).
 import { bumpyGround, Creature, FIXED_DT, FLAT, NODE_R, simulate, type BodyPlan, type Genome } from '../src/games/creature/physics.ts';
-import { babiesOf, Evolution, randomGenome, seededRandom, steadiest, type Reward } from '../src/games/creature/evolve.ts';
+import { babiesOf, Evolution, randomGenome, randomShoves, seededRandom, steadiest, withReflexes, type Reward } from '../src/games/creature/evolve.ts';
 import { COURSE_SEED, PRESETS, preset } from '../src/games/creature/presets.ts';
 import { DEMO_BRAINS, TRAINED } from '../src/games/creature/brains.ts';
 import assert from 'node:assert/strict';
@@ -178,4 +178,34 @@ const course = bumpyGround(COURSE_SEED, 0.2);
   const us = ((performance.now() - t0) * 1000) / (2400 * cs.length);
   assert.ok(us < 20, `${us} µs per creature-step`);
   console.log(`PASS: cost — ${us.toFixed(2)} µs per creature per step.`);
+}
+
+// ---- brains that feel (phase C) ----
+{
+  // Silent reflexes change nothing; a brain with senses survives being stored as a crown (JSON).
+  for (const p of PRESETS) {
+    const plain = simulate(p.plan, TRAINED[p.id], 12).dist();
+    const silent = simulate(p.plan, withReflexes(TRAINED[p.id], p.plan, seededRandom(3)), 12).dist();
+    assert.equal(silent, plain, `${p.id}: silent reflexes change nothing`);
+  }
+  const stored = JSON.parse(JSON.stringify(DEMO_BRAINS.doggoFeel)) as Genome;
+  assert.equal(simulate(doggo, stored, 12).dist(), simulate(doggo, DEMO_BRAINS.doggoFeel, 12).dist(), 'a feeling brain survives JSON');
+  // The push test of the delve's chapter: the same 20 shove sequences for all three Doggos.
+  const tests = Array.from({ length: 20 }, (_, k) => randomShoves(12, seededRandom(9000 + k)));
+  const flips = (g: Genome) => tests.filter((q) => simulate(doggo, g, 12, {}, q).turns() > 0.4).length;
+  const calm = flips(TRAINED.Doggo);
+  const shoved = flips(DEMO_BRAINS.doggoShoved);
+  const feel = flips(DEMO_BRAINS.doggoFeel);
+  assert.ok(calm > shoved && shoved > feel && feel <= 3, `on its back: calm ${calm}, shoved ${shoved}, senses ${feel}`);
+  // Senses on and off in a running evolution; shoves reach every creature.
+  const evo = new Evolution(doggo, { start: TRAINED.Doggo, rand: seededRandom(11) });
+  evo.setBrain('feel');
+  assert.equal(evo.brain(), 'feel');
+  evo.setShoves(true);
+  evo.runGenerations(2);
+  evo.advance(4, 1000); // mid-generation: a shove has come (the first by 2.5 s)
+  assert.ok(evo.lastShove > 0 && evo.creatures.every((c) => c.finite()), 'shoved practice runs');
+  evo.setBrain('rhythm');
+  assert.ok(evo.genomes.every((g) => !g.net), 'senses off');
+  console.log(`PASS: brains that feel — silent reflexes change nothing; in 20 shoved runs on its back: calm ${calm}, practised with shoves ${shoved}, with senses ${feel}.`);
 }

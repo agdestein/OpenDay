@@ -7,9 +7,11 @@
 //   3 it does what you reward: the race-walk worms side by side;
 //   4 it finds every flaw: the old limitless muscles (cartwheels, a flying worm;
 //     the 🐞 switch turns them off) and flat- versus bump-trained Doggos on a course;
-//   5 robots go to school: the zoo of trained bodies.
+//   5 brains that feel: three Doggos get the same shoves (practised calmly,
+//     practised with shoves, and with senses too), with the feeling brain drawn live;
+//   6 robots go to school: the zoo of trained bodies.
 import { bumpyGround, Creature, FIXED_DT, simulate, type BodyPlan, type Genome, type Ground } from './physics';
-import { randomGenome } from './evolve';
+import { randomGenome, randomShoves, seededRandom, type Shove } from './evolve';
 import { COURSE_SEED, KIND_NAMES, PRESETS, preset } from './presets';
 import { DEMO_BRAINS, TRAINED } from './brains';
 import { Park } from './park';
@@ -33,6 +35,17 @@ const LAB: Localized<{
   flew: (pct: number) => string;
   bug: { cartwheel: (turns: number) => string; jump: (h: string) => string; flat: string; bumps: string };
   zoo: (name: string, d: string) => string;
+  feel: {
+    calm: string;
+    shoved: string;
+    withSenses: string;
+    flips: (n: number) => string;
+    net: string;
+    icons: string[];
+    sensesCol: string;
+    neuronsCol: string;
+    musclesCol: string;
+  };
 }> = {
   en: {
     legend: { dot: 'dot: a little mass', bone: 'bone: fixed length', muscle: 'muscle: pulsing spring' },
@@ -54,6 +67,17 @@ const LAB: Localized<{
       bumps: '⛰ practised on changing bumps',
     },
     zoo: (name, d) => `${name} — ${d}`,
+    feel: {
+      calm: '🎵 practised on calm ground',
+      shoved: '🎵 practised with shoves',
+      withSenses: '👁 practised with shoves, with senses',
+      flips: (n) => `🙃 on its back ${n}×`,
+      net: 'the bottom Doggo’s brain, live: senses → neurons → muscles (yellow +, blue −)',
+      icons: ['⏱ sin', '⏱ cos', '📐 tilt', '🔄 spin', '⬆ head', '➡ speed', '⬆ speed', '🦶 back', '🦶 front', '🦶', '🦶'],
+      sensesCol: 'senses',
+      neuronsCol: 'neurons',
+      musclesCol: 'muscles',
+    },
   },
   nl: {
     legend: { dot: 'stip: een klein gewicht', bone: 'bot: vaste lengte', muscle: 'spier: kloppende veer' },
@@ -75,6 +99,17 @@ const LAB: Localized<{
       bumps: '⛰ oefende op steeds andere hobbels',
     },
     zoo: (name, d) => `${name} — ${d}`,
+    feel: {
+      calm: '🎵 oefende op rustige grond',
+      shoved: '🎵 oefende met duwtjes',
+      withSenses: '👁 oefende met duwtjes, met zintuigen',
+      flips: (n) => `🙃 ${n}× op zijn rug`,
+      net: 'het brein van het onderste hondje, live: zintuigen → neuronen → spieren (geel +, blauw −)',
+      icons: ['⏱ sin', '⏱ cos', '📐 scheef', '🔄 draai', '⬆ kop', '➡ vaart', '⬆ vaart', '🦶 achter', '🦶 voor', '🦶', '🦶'],
+      sensesCol: 'zintuigen',
+      neuronsCol: 'neuronen',
+      musclesCol: 'spieren',
+    },
   },
   no: {
     legend: { dot: 'prikk: en liten masse', bone: 'bein: fast lengde', muscle: 'muskel: pulserende fjær' },
@@ -96,6 +131,17 @@ const LAB: Localized<{
       bumps: '⛰ øvde på humper som skiftet',
     },
     zoo: (name, d) => `${name} — ${d}`,
+    feel: {
+      calm: '🎵 øvde på rolig bakke',
+      shoved: '🎵 øvde med dytt',
+      withSenses: '👁 øvde med dytt, med sanser',
+      flips: (n) => `🙃 på ryggen ${n}×`,
+      net: 'hjernen til den nederste vovsen, live: sanser → nevroner → muskler (gult +, blått −)',
+      icons: ['⏱ sin', '⏱ cos', '📐 skjev', '🔄 snurr', '⬆ hode', '➡ fart', '⬆ fart', '🦶 bak', '🦶 foran', '🦶', '🦶'],
+      sensesCol: 'sanser',
+      neuronsCol: 'nevroner',
+      musclesCol: 'muskler',
+    },
   },
 };
 
@@ -120,10 +166,13 @@ interface Lane {
   marks: { from: number; to: number }[];
   airFrom: number | null;
   best: number;
+  /** Times it has ended up on its back, and whether it is now. */
+  flips: number;
+  upside: boolean;
 }
 
 function lane(plan: BodyPlan, genome: Genome, seconds: number, ground?: Ground, old = false): Lane {
-  return { c: new Creature(plan, genome, { ground, oldMuscles: old }), plan, genome, ground, old, seconds, camX: 1, camY: 0, marks: [], airFrom: null, best: 0 };
+  return { c: new Creature(plan, genome, { ground, oldMuscles: old }), plan, genome, ground, old, seconds, camX: 1, camY: 0, marks: [], airFrom: null, best: 0, flips: 0, upside: false };
 }
 
 function restart(l: Lane): void {
@@ -131,6 +180,8 @@ function restart(l: Lane): void {
   l.marks = [];
   l.airFrom = null;
   l.best = 0;
+  l.flips = 0;
+  l.upside = false;
 }
 
 function limp(plan: BodyPlan): Genome {
@@ -158,8 +209,12 @@ export class CreatureDemos {
   private walker: Creature | null = null;
   private climbers: { i: number; j: number; trail: [number, number][] }[] = [];
   private climbAcc = 0;
-  // chapters 3–5
+  // chapters 3–6
   private lanes: Lane[] = [];
+  // chapter 5: the same shoves for all three, every 1.5–3 s
+  private shoves: Shove[] = [];
+  private nextShove = 0;
+  private puff = -1;
 
   setOwnBrain(brain: { plan: BodyPlan; genome: Genome } | null): void {
     this.own = brain;
@@ -198,8 +253,21 @@ export class CreatureDemos {
     } else if (chapter === 4) {
       this.bugLanes();
     } else if (chapter === 5) {
+      const doggo = preset('Doggo').plan;
+      this.lanes = [lane(doggo, TRAINED.Doggo, 14), lane(doggo, DEMO_BRAINS.doggoShoved, 14), lane(doggo, DEMO_BRAINS.doggoFeel, 14)];
+      this.shoves = randomShoves(14, seededRandom(4242));
+      this.nextShove = 0;
+    } else if (chapter === 6) {
       this.lanes = PRESETS.map((p) => lane(p.plan, TRAINED[p.id], 14));
     }
+  }
+
+  /** The lab's button: everyone in the chapter gets the same shove, now. */
+  shoveNow(): void {
+    const vx = (Math.random() < 0.5 ? -1 : 1) * 2.5;
+    for (const l of this.lanes) l.c.kick(vx, 0.8);
+    this.puff = 0;
+    sound.play('whoosh');
   }
 
   private bugLanes(): void {
@@ -306,6 +374,32 @@ export class CreatureDemos {
         }
         l.best = Math.max(l.best, l.c.bestClear);
       }
+    }
+    if (this.chapter === 5 && this.lanes.length) {
+      const s = this.shoves[this.nextShove];
+      if (s && this.lanes[0].c.time >= s.t) {
+        for (const l of this.lanes) l.c.kick(s.vx, s.vy);
+        this.nextShove++;
+        this.puff = 0;
+        sound.play('whoosh', { pitch: 0.8, volume: 0.7 });
+      }
+      for (const l of this.lanes) {
+        const t = Math.abs(l.c.tilt());
+        if (!l.upside && t > (2 * Math.PI) / 3) {
+          l.upside = true;
+          l.flips++;
+          sound.play('thud');
+        } else if (l.upside && t < Math.PI / 3) l.upside = false;
+      }
+      // All three start again together, with the same shoves.
+      if (this.lanes.some((l) => l.c.time >= l.seconds || !l.c.finite())) {
+        for (const l of this.lanes) restart(l);
+        this.nextShove = 0;
+      }
+    }
+    if (this.puff >= 0) {
+      this.puff += dt;
+      if (this.puff > 0.8) this.puff = -1;
     }
     for (const l of this.lanes) {
       if (l.c.time >= l.seconds || !l.c.finite()) restart(l);
@@ -443,15 +537,85 @@ export class CreatureDemos {
         false,
       );
     } else if (this.chapter === 5) {
+      const F = T.feel;
+      const titles = [F.calm, F.shoved, F.withSenses];
+      const netH = Math.min(250, h * 0.36);
+      this.drawLanes(ctx, w, h, 3, (l, i) => `${titles[i]}  ·  ${F.flips(l.flips)}  ·  ${fmtMetres(Math.max(0, l.c.dist()))}`, false, h - netH - 10);
+      if (this.puff >= 0) {
+        ctx.globalAlpha = Math.max(0, 1 - this.puff / 0.8);
+        label(ctx, '💨', left + 60 + 80 * this.puff, (h - netH) / 2, 64);
+        ctx.globalAlpha = 1;
+      }
+      if (this.lanes[2]) this.drawNet(ctx, this.lanes[2].c, left, h - netH, w - left - 20, netH - 14);
+    } else if (this.chapter === 6) {
       const names = pick(KIND_NAMES);
       this.drawLanes(ctx, w, h, 4, (l, i) => `${PRESETS[i].emoji} ${T.zoo(names[PRESETS[i].id], fmtMetres(Math.max(0, l.c.dist())))}`, false);
     }
   }
 
-  private drawLanes(ctx: CanvasRenderingContext2D, w: number, h: number, n: number, caption: (l: Lane, i: number) => string, judge: boolean): void {
+  /** A feeling brain, live: senses on the left, neurons in the middle, muscles on the right. */
+  private drawNet(ctx: CanvasRenderingContext2D, c: Creature, x: number, y: number, w: number, h: number): void {
+    const net = c.genome.net;
+    if (!net || c.senses.length === 0) return;
+    const F = pick(LAB).feel;
+    panel(ctx, x, y, w, h);
+    label(ctx, F.net, x + 14, y + 22, 15, COLOR.dim, 'left', 600);
+    const cols = [c.senses, net.hidden > 0 ? c.neurons : [], c.commands].filter((col) => col.length > 0);
+    const colX = cols.map((_, i) => x + 90 + ((w - 150) * i) / Math.max(1, cols.length - 1));
+    const rowY = (n: number, k: number) => y + 40 + ((h - 56) * (k + 0.5)) / n;
+    const colour = (v: number) => (v >= 0 ? `rgba(251, 191, 36, ${0.25 + 0.75 * Math.min(1, v)})` : `rgba(125, 211, 252, ${0.25 + 0.75 * Math.min(1, -v)})`);
+    // Wires, faint, coloured by weight sign.
+    const w8 = net.w;
+    let k = 0;
+    for (let col = 1; col < cols.length; col++) {
+      const from = cols[col - 1];
+      const to = cols[col];
+      for (let j = 0; j < to.length; j++) {
+        k++; // bias
+        for (let i = 0; i < from.length; i++) {
+          const wt = w8[k++] ?? 0;
+          if (Math.abs(wt) < 0.05) continue;
+          ctx.strokeStyle = wt > 0 ? `rgba(251, 191, 36, ${Math.min(0.5, Math.abs(wt) * 0.3)})` : `rgba(125, 211, 252, ${Math.min(0.5, Math.abs(wt) * 0.3)})`;
+          ctx.lineWidth = Math.min(3, 0.5 + Math.abs(wt));
+          ctx.beginPath();
+          ctx.moveTo(colX[col - 1], rowY(from.length, i));
+          ctx.lineTo(colX[col], rowY(to.length, j));
+          ctx.stroke();
+        }
+      }
+    }
+    const icons = F.icons;
+    cols.forEach((col, ci) => {
+      col.forEach((v, i) => {
+        const cx = colX[ci];
+        const cy = rowY(col.length, i);
+        ctx.fillStyle = colour(v);
+        ctx.beginPath();
+        ctx.arc(cx, cy, Math.min(11, (h - 56) / col.length / 2.4), 0, Math.PI * 2);
+        ctx.fill();
+        if (ci === 0) label(ctx, icons[Math.min(i, icons.length - 1)], cx - 18, cy + 5, 13, COLOR.dim, 'right', 600);
+        if (ci === cols.length - 1) {
+          ctx.fillStyle = MUSCLE_COLORS[i % MUSCLE_COLORS.length];
+          ctx.fillRect(cx + 16, cy - 3, 26, 6);
+        }
+      });
+    });
+    const heads = [F.sensesCol, F.neuronsCol, F.musclesCol];
+    cols.forEach((_, ci) => label(ctx, ci === cols.length - 1 ? heads[2] : heads[ci], colX[ci], y + h - 6, 13, COLOR.dim, 'center', 600));
+  }
+
+  private drawLanes(
+    ctx: CanvasRenderingContext2D,
+    w: number,
+    h: number,
+    n: number,
+    caption: (l: Lane, i: number) => string,
+    judge: boolean,
+    bottom = h - 20,
+  ): void {
     const left = this.left();
     const top = 70;
-    const laneH = (h - top - 20) / n;
+    const laneH = (bottom - top) / n;
     this.lanes.forEach((l, i) => {
       const y0 = top + i * laneH;
       // The flying worm needs room above it: a smaller scale in its lane.
@@ -472,7 +636,10 @@ export class CreatureDemos {
           ? [...l.marks, ...(l.airFrom !== null ? [{ from: l.airFrom, to: l.c.dist() }] : [])].map((m) => ({ from: start + m.from, to: start + m.to, color: COLOR.bad }))
           : [],
       });
-      drawCreature(ctx, v, l.c, { head: i === 0 || !judge ? COLOR.you : COLOR.good, glow: judge && !l.c.touching ? COLOR.bad : undefined });
+      drawCreature(ctx, v, l.c, {
+        head: i === 0 || !judge ? COLOR.you : COLOR.good,
+        glow: (judge && !l.c.touching) || l.upside ? COLOR.bad : undefined,
+      });
       ctx.restore();
       label(ctx, caption(l, i), left + 8, y0 + 26, 17, COLOR.text, 'left');
       if (i > 0) {

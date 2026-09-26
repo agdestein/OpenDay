@@ -85,6 +85,7 @@ class CreatureInstance implements GameInstance {
   private editPresets!: HTMLElement;
   private editBar!: HTMLElement;
   private rewardBar!: HTMLElement;
+  private practiceBar!: HTMLElement;
   private teachBar!: HTMLElement;
   private roundBar!: HTMLElement;
   private hud!: HTMLElement;
@@ -265,7 +266,7 @@ class CreatureInstance implements GameInstance {
   }
 
   private hidePanels(): void {
-    for (const el of [this.bodyBar, this.parkBar, this.editPresets, this.editBar, this.rewardBar, this.teachBar, this.roundBar]) {
+    for (const el of [this.bodyBar, this.parkBar, this.editPresets, this.editBar, this.rewardBar, this.practiceBar, this.teachBar, this.roundBar]) {
       el.classList.add('hidden');
     }
   }
@@ -372,6 +373,7 @@ class CreatureInstance implements GameInstance {
     this.mode = 'teach';
     this.hidePanels();
     this.rewardBar.classList.remove('hidden');
+    this.practiceBar.classList.remove('hidden');
     this.teachBar.classList.remove('hidden');
     this.hud.classList.remove('hidden');
     this.toggle.element.classList.remove('hidden');
@@ -384,6 +386,8 @@ class CreatureInstance implements GameInstance {
     if (!t) return;
     const T = pick(TEXT).teach;
     for (const r of REWARDS) this.buttons[`reward-${r.id}`].classList.toggle('active', r.id === t.evo.reward);
+    this.buttons.senses.classList.toggle('active', t.evo.brain() === 'feel');
+    this.buttons.shoves.classList.toggle('active', t.evo.shoving);
     const speed = this.buttons.speed;
     speed.querySelector('.tool-emoji')!.textContent = SPEED_EMOJI[t.speed];
     setLabel(speed, T.speed(t.speed));
@@ -395,6 +399,26 @@ class CreatureInstance implements GameInstance {
     this.teacher.setReward(reward);
     this.hint.textContent = pick(TEXT).teach.rewardHint[reward];
     sound.play('click');
+    this.refreshTeach();
+  }
+
+  private toggleSenses(): void {
+    const t = this.teacher;
+    if (!t) return;
+    const on = t.evo.brain() !== 'feel';
+    t.setBrain(on ? 'feel' : 'rhythm');
+    this.hint.textContent = pick(TEXT).teach.sensesHint(on);
+    sound.play(on ? 'ding' : 'click');
+    this.refreshTeach();
+  }
+
+  private toggleShoves(): void {
+    const t = this.teacher;
+    if (!t) return;
+    const on = !t.evo.shoving;
+    t.evo.setShoves(on);
+    this.hint.textContent = pick(TEXT).teach.shovesHint(on);
+    sound.play(on ? 'whoosh' : 'click');
     this.refreshTeach();
   }
 
@@ -699,6 +723,10 @@ class CreatureInstance implements GameInstance {
     for (const r of REWARDS) {
       this.makeButton(this.rewardBar, { emoji: r.emoji, label: T.teach.reward[r.id], onClick: () => this.setReward(r.id) }, `reward-${r.id}`);
     }
+    // Brains that feel, and rough practice (phase C).
+    this.practiceBar = bar('game-toolbar creature-practice hidden');
+    this.makeButton(this.practiceBar, { emoji: '👁', label: T.teach.senses, onClick: () => this.toggleSenses() }, 'senses');
+    this.makeButton(this.practiceBar, { emoji: '💨', label: T.teach.shoves, onClick: () => this.toggleShoves() }, 'shoves');
     this.teachBar = bar('game-toolbar hidden');
     this.makeButton(this.teachBar, { emoji: '⏩', label: T.teach.speed('x3'), onClick: () => this.cycleSpeed() }, 'speed');
     this.makeButton(this.teachBar, { emoji: '✅', label: T.teach.done, onClick: () => this.finishTeach() });
@@ -716,6 +744,7 @@ class CreatureInstance implements GameInstance {
       this.editPresets,
       this.editBar,
       this.rewardBar,
+      this.practiceBar,
       this.teachBar,
       this.roundBar,
       this.hud,

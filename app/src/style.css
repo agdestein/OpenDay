@@ -1126,6 +1126,17 @@ input[type='range'] {
   gap: 0.5rem;
 }
 
+/* Teaching: senses and shoves, a short column on the right. */
+.creature-practice {
+  left: auto;
+  right: 1rem;
+  bottom: auto;
+  top: 50%;
+  transform: translateY(-50%);
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
 /* ---------- Delve layer (shared chaptered science explainer) ---------- */
 
 .delve-card {
@@ -1282,6 +1293,12 @@ input[type='range'] {
   .orbits-presets {
     left: 0.5rem;
     right: auto;
+    gap: 0.35rem;
+  }
+
+  .creature-practice {
+    left: auto;
+    right: 0.5rem;
     gap: 0.35rem;
   }
 

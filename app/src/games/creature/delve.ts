@@ -3,7 +3,8 @@
 // chapter drawn by demos.ts. One arc, from dots to our group: a creature is
 // physics; its brain is a rhythm (and chaotic); learning is searching a
 // landscape; it learns exactly what you reward; it finds every flaw in the
-// world (our old muscles, a flat practice floor); and robots — and our models of
+// world (our old muscles, a flat practice floor); brains that feel (senses and
+// a tiny neural network, trained with shoves); and robots — and our models of
 // the wind — learn inside simulations.
 import type { DelveChapter } from '../../shell/delve';
 import { pick, type Localized } from '../../lib/i18n';
@@ -69,6 +70,15 @@ const CHAPTERS: Localized<ChapterText[]> = {
       ],
     },
     {
+      title: 'Brains that feel',
+      paragraphs: [
+        'A rhythm brain is blind: it keeps its beat whatever happens, so a shove can tip it over. Real robots feel. They sense how they tilt, how fast they go and which feet touch the ground, and turn that into corrections.',
+        'So give the Doggo senses — seven numbers about its body, plus its feet — and a tiny neural network of four neurons between the senses and the muscles, added to the beat. It starts silent; practice teaches it when to push.',
+        'All three Doggos get the same shoves. In a test of 20 shoved runs, the one that practised on calm ground ends up on its back 13 times, the one that practised with shoves 4 times, and the one with senses too only twice. Rough practice matters most; senses help on top. Every walking robot works like this: a rhythm, corrected by what it feels.',
+        'A brain that feels can’t save a body that can’t stand. Our stick-man has no feet and weak knees: in our tests, with or without senses, it falls within a second. Real robots have feet and strong, fast motors.',
+      ],
+    },
+    {
       title: 'Robots go to school in simulations',
       paragraphs: [
         'Real legged robots learn to walk this way now: thousands of copies practise at once in a simulation on one computer chip, falling millions of times, and then the brain is copied into real legs. Years of falling take a few hours.',
@@ -116,6 +126,15 @@ const CHAPTERS: Localized<ChapterText[]> = {
         'De eerste versie van dit spel had een fout: spieren konden zo snel bewegen als ze wilden. Evolutie vond dat binnen een paar minuten. Stokmannetjes leerden radslagen maken en een worm leerde vijf meter hoog springen, met zijn kop op 100 km/u. Echte spieren hebben een snelheidslimiet, dus die van ons nu ook.',
         'Wie leert, is de strengste tester die een simulatie kan hebben: klopt de natuurkunde niet, dan leert de robot het verkeerde. En een hondje dat alleen op een vlakke vloer oefende, struikelt over de eerste hobbel, terwijl een hondje dat op steeds andere hobbels oefende er gewoon overheen loopt.',
         'De simulatie moet dus kloppen, en gevarieerd zijn. Dat goed krijgen is ons vak: hetzelfde soort fout maakt energie uit het niets in Zwaartekracht-doodle.',
+      ],
+    },
+    {
+      title: 'Breinen die voelen',
+      paragraphs: [
+        'Een ritmebrein is blind: het houdt zijn ritme wat er ook gebeurt, dus een duw kan het omgooien. Echte robots voelen. Ze merken hoe scheef ze staan, hoe snel ze gaan en welke voeten de grond raken, en maken daar correcties van.',
+        'Geef het hondje dus zintuigen — zeven getallen over zijn lijf, plus zijn voeten — en een piepklein neuraal netwerk van vier neuronen tussen de zintuigen en de spieren, bovenop het ritme. Het begint stil; oefenen leert het wanneer het moet duwen.',
+        'Alle drie de hondjes krijgen dezelfde duwen. In een test van 20 keer duwen belandt het hondje dat op rustige grond oefende 13 keer op zijn rug, het hondje dat met duwtjes oefende 4 keer, en het hondje met zintuigen maar twee keer. Ruw oefenen helpt het meest; zintuigen helpen daarbovenop. Elke lopende robot werkt zo: een ritme, bijgestuurd door wat hij voelt.',
+        'Een brein dat voelt kan een lijf dat niet kan staan niet redden. Ons stokmannetje heeft geen voeten en slappe knieën: in onze tests valt het, met of zonder zintuigen, binnen een seconde om. Echte robots hebben voeten en sterke, snelle motoren.',
       ],
     },
     {
@@ -169,6 +188,15 @@ const CHAPTERS: Localized<ChapterText[]> = {
       ],
     },
     {
+      title: 'Hjerner som kjenner',
+      paragraphs: [
+        'En rytmehjerne er blind: den holder takten uansett hva som skjer, så et dytt kan velte den. Ekte roboter kjenner. De merker hvor skjeve de står, hvor fort de går og hvilke føtter som er i bakken, og gjør det om til korreksjoner.',
+        'Gi derfor vovsen sanser — sju tall om kroppen, pluss føttene — og et bitte lite nevralt nettverk med fire nevroner mellom sansene og musklene, lagt oppå takten. Det starter stille; øving lærer det når det skal dytte.',
+        'Alle tre vovsene får de samme dyttene. I en test med 20 dyttede løp havner vovsen som øvde på rolig bakke på ryggen 13 ganger, den som øvde med dytt 4 ganger, og den med sanser bare to ganger. Røff øving betyr mest; sansene hjelper i tillegg. Alle gående roboter virker slik: en rytme, justert av det den kjenner.',
+        'En hjerne som kjenner kan ikke redde en kropp som ikke kan stå. Pinnemannen vår har ingen føtter og svake knær: i testene våre faller den, med eller uten sanser, innen et sekund. Ekte roboter har føtter og sterke, raske motorer.',
+      ],
+    },
+    {
       title: 'Roboter går på skole i simuleringer',
       paragraphs: [
         'Ekte roboter med bein lærer å gå slik nå: tusenvis av kopier øver samtidig i en simulering på én databrikke, faller millioner av ganger, og så kopieres hjernen over i ekte bein. År med fall tar noen timer.',
@@ -188,6 +216,8 @@ const LAB: Localized<{
   brainNote: string;
   bug: (on: boolean) => string;
   bugNote: string;
+  shove: string;
+  shoveNote: string;
   links: string;
   games: Record<'orbits' | 'windfarm', string>;
 }> = {
@@ -199,6 +229,8 @@ const LAB: Localized<{
     brainNote: 'That is the whole brain: Doggo’s is 9 numbers. Scramble them and the walk falls apart. Nudge them by a hair and a twin runs beside it: a good walk shrugs the nudge off, but a flailing brain is chaotic and the twins part ways, like the weather. Try both.',
     bug: (on) => `🐞 Old muscles, no speed limit: ${on ? 'ON' : 'OFF'}`,
     bugNote: 'The top two brains were trained on the old muscles. Switch them off and the same brains flop.',
+    shove: '💨 Shove them!',
+    shoveNote: 'The dashed ring round the bottom Doggo’s head means it feels. Below is its brain, live: watch the tilt light up after a shove.',
     links: '🔭 The same craft, elsewhere in the arcade:',
     games: { orbits: '🪐 Gravity Doodle: energy out of nothing', windfarm: '🌀 Swirl Lab: the wind we simulate' },
   },
@@ -210,6 +242,8 @@ const LAB: Localized<{
     brainNote: 'Dat is het hele brein: dat van het hondje is 9 getallen. Hussel ze en het lopen valt uit elkaar. Verschuif ze een haartje en er loopt een tweeling naast: een goede loop trekt zich er niets van aan, maar een fladderend brein is chaotisch en de tweelingen gaan uit elkaar, net als het weer. Probeer beide.',
     bug: (on) => `🐞 Oude spieren, zonder snelheidslimiet: ${on ? 'AAN' : 'UIT'}`,
     bugNote: 'De bovenste twee breinen zijn getraind met de oude spieren. Zet ze uit en dezelfde breinen floppen.',
+    shove: '💨 Geef ze een duw!',
+    shoveNote: 'De stippellijn rond de kop van het onderste hondje betekent: het voelt. Hieronder zie je zijn brein, live: kijk hoe “scheef” oplicht na een duw.',
     links: '🔭 Hetzelfde vak, elders in de arcade:',
     games: { orbits: '🪐 Zwaartekracht-doodle: energie uit het niets', windfarm: '🌀 Wervel-lab: de wind die we simuleren' },
   },
@@ -221,6 +255,8 @@ const LAB: Localized<{
     brainNote: 'Det er hele hjernen: vovsens er 9 tall. Rot dem til og gangen faller fra hverandre. Flytt dem et hårstrå, så går en tvilling ved siden av: en god gange bryr seg ikke, men en sprellende hjerne er kaotisk og tvillingene skilles, akkurat som i været. Prøv begge.',
     bug: (on) => `🐞 Gamle muskler, uten fartsgrense: ${on ? 'PÅ' : 'AV'}`,
     bugNote: 'De to øverste hjernene ble trent med de gamle musklene. Slå dem av, og de samme hjernene floppar.',
+    shove: '💨 Dytt dem!',
+    shoveNote: 'Den stiplede ringen rundt hodet til den nederste vovsen betyr at den kjenner. Under ser du hjernen dens, live: se «skjev» lyse opp etter et dytt.',
     links: '🔭 Samme fag, andre steder i arkaden:',
     games: { orbits: '🪐 Tyngdekraft-doodle: energi av ingenting', windfarm: '🌀 Virvellab: vinden vi simulerer' },
   },
@@ -295,10 +331,16 @@ export const creatureDelve = {
               }
             : i === 5
               ? (host: HTMLElement) => {
-                  const l = links(api, ['windfarm', 'orbits']);
-                  if (l) host.appendChild(l);
+                  const lab = box(L.title);
+                  lab.append(button(L.shove, () => api.demos.shoveNow()), note(L.shoveNote));
+                  host.appendChild(lab);
                 }
-              : undefined,
+              : i === 6
+                ? (host: HTMLElement) => {
+                    const l = links(api, ['windfarm', 'orbits']);
+                    if (l) host.appendChild(l);
+                  }
+                : undefined,
     }));
   },
 };

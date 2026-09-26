@@ -3,7 +3,7 @@
 // pop out of it at once). The practice clock counts the simulated time, the
 // point of the whole game: an hour of falling in a minute. Turbo stops drawing
 // the practice and only computes.
-import { Evolution, type EvolutionOptions, type Reward } from './evolve';
+import { Evolution, type Brain, type EvolutionOptions, type Reward } from './evolve';
 import type { BodyPlan } from './physics';
 import type { BodyKind } from './presets';
 import { pick } from '../../lib/i18n';
@@ -33,6 +33,8 @@ export class Teacher {
   private flash: { text: string; age: number } | null = null;
   private lastRecord = 0;
   private shownGeneration = 1;
+  private shownShove = -1;
+  private puff = -1;
   private w = 1;
   private h = 1;
 
@@ -89,10 +91,27 @@ export class Teacher {
       this.flash.age += dt;
       if (this.flash.age > 1.5) this.flash = null;
     }
+    // A shove: a puff and a whoosh (not in turbo, where they come too fast to see).
+    if (evo.lastShove >= 0 && evo.lastShove !== this.shownShove) {
+      this.shownShove = evo.lastShove;
+      if ((this.rate ?? RATE[this.speed]) <= 10) {
+        this.puff = 0;
+        sound.play('whoosh', { pitch: 0.8, volume: 0.7 });
+      }
+    }
+    if (this.puff >= 0) {
+      this.puff += dt;
+      if (this.puff > 0.8) this.puff = -1;
+    }
   }
 
   setReward(reward: Reward): void {
     this.evo.setReward(reward);
+    this.lastRecord = 0;
+  }
+
+  setBrain(brain: Brain): void {
+    this.evo.setBrain(brain);
     this.lastRecord = 0;
   }
 
@@ -221,6 +240,11 @@ export class Teacher {
     label(ctx, sub, cx, 112 + big * 1.1, big * 0.6, COLOR.dim, 'center', 600);
     if (this.speed === 'turbo' && this.rate === null) label(ctx, T.turbo, w / 2, v.groundY + 70, 20, COLOR.champ);
 
+    if (this.puff >= 0) {
+      ctx.globalAlpha = Math.max(0, 1 - this.puff / 0.8);
+      label(ctx, pick(TEXT).teach.shove, v.centerX - v.scale * 1.6 - 60 * this.puff, v.groundY - v.scale * 0.9, 56);
+      ctx.globalAlpha = 1;
+    }
     if (this.flash) {
       const a = Math.min(1, 3 * (1.5 - this.flash.age));
       ctx.globalAlpha = Math.max(0, a);

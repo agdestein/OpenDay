@@ -43,6 +43,11 @@ export interface CreatureText {
     picked: string;
     pickHere: string;
     turbo: string;
+    senses: string;
+    shoves: string;
+    sensesHint: (on: boolean) => string;
+    shovesHint: (on: boolean) => string;
+    shove: string;
     chart: Record<Reward, string>;
     doneHint: string;
     record: string;
@@ -127,6 +132,17 @@ export const TEXT: Localized<CreatureText> = {
       picked: '❤️ You picked it!',
       pickHere: '❤️ click to pick',
       turbo: '⚡ TURBO: the computer stops drawing and only computes',
+      senses: 'Senses',
+      shoves: 'Shoves',
+      sensesHint: (on) =>
+        on
+          ? '👁 Senses on: each brain now feels its tilt, speed and feet, and a tiny neural network can correct the beat. It starts silent; practice teaches it.'
+          : 'Senses off: back to a brain that only keeps a beat.',
+      shovesHint: (on) =>
+        on
+          ? '💨 Shoves on: every few seconds everyone gets a shove. Rough practice makes creatures that don’t fall over — even more so with senses on.'
+          : 'Shoves off: practice on calm ground again.',
+      shove: '💨',
       chart: {
         far: 'best distance per generation',
         ground: 'best race-walk per generation',
@@ -212,6 +228,17 @@ export const TEXT: Localized<CreatureText> = {
       picked: '❤️ Jij koos deze!',
       pickHere: '❤️ klik om te kiezen',
       turbo: '⚡ TURBO: de computer tekent niet meer en rekent alleen',
+      senses: 'Zintuigen',
+      shoves: 'Duwtjes',
+      sensesHint: (on) =>
+        on
+          ? '👁 Zintuigen aan: elk brein voelt nu hoe scheef het staat, hoe snel het gaat en welke voeten de grond raken, en een klein neuraal netwerk kan het ritme bijsturen. Het begint stil; oefenen leert het.'
+          : 'Zintuigen uit: terug naar een brein dat alleen een ritme houdt.',
+      shovesHint: (on) =>
+        on
+          ? '💨 Duwtjes aan: om de paar seconden krijgt iedereen een duw. Ruw oefenen maakt beestjes die niet omvallen — nog meer met zintuigen aan.'
+          : 'Duwtjes uit: weer oefenen op rustige grond.',
+      shove: '💨',
       chart: {
         far: 'beste afstand per generatie',
         ground: 'beste snelwandeling per generatie',
@@ -297,6 +324,17 @@ export const TEXT: Localized<CreatureText> = {
       picked: '❤️ Du valgte denne!',
       pickHere: '❤️ klikk for å velge',
       turbo: '⚡ TURBO: datamaskinen slutter å tegne og bare regner',
+      senses: 'Sanser',
+      shoves: 'Dytt',
+      sensesHint: (on) =>
+        on
+          ? '👁 Sanser på: hver hjerne kjenner nå hvor skjev den står, farten og hvilke føtter som er i bakken, og et lite nevralt nettverk kan justere takten. Det starter stille; øving lærer det.'
+          : 'Sanser av: tilbake til en hjerne som bare holder takten.',
+      shovesHint: (on) =>
+        on
+          ? '💨 Dytt på: med noen sekunders mellomrom får alle et dytt. Røff øving gir skapninger som ikke velter — enda mer med sansene på.'
+          : 'Dytt av: øv på rolig bakke igjen.',
+      shove: '💨',
       chart: {
         far: 'beste avstand per generasjon',
         ground: 'beste kappgang per generasjon',

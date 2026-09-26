@@ -8,6 +8,8 @@ import {
   simulate,
   MAX_AMP,
   muscleCount,
+  netSize,
+  senseCount,
   type BodyPlan,
   type CreatureOptions,
   type Genome,
@@ -29,6 +31,44 @@ const FREQ_MAX = 2.8;
  */
 export type Reward = 'far' | 'ground' | 'high' | 'back';
 
+/** A rhythm brain (a sine wave per muscle), or one that also feels: rhythm plus reflexes from the senses. */
+export type Brain = 'rhythm' | 'feel';
+
+/** A shove during a try: at time t (s), every dot gets the velocity (vx, vy) (m/s) added. */
+export interface Shove {
+  t: number;
+  vx: number;
+  vy: number;
+}
+
+/** Random shoves every 1.5–3 s, forwards or backwards (rough practice, and the push test). */
+export function randomShoves(seconds: number, rand: () => number = Math.random, strength = 2.5): Shove[] {
+  const out: Shove[] = [];
+  for (let t = 1 + rand() * 1.5; t < seconds; t += 1.5 + rand() * 1.5) {
+    out.push({ t, vx: (rand() < 0.5 ? -1 : 1) * strength * (0.6 + 0.4 * rand()), vy: strength * 0.4 * rand() });
+  }
+  return out;
+}
+
+/**
+ * Hidden neurons of a feeling brain. Measured (Doggo, 50 generations with
+ * shoves, 12 runs, a test of 20 shove sequences): rhythm alone flipped a
+ * median 10 times, with 4 hidden neurons 1, with 6 hidden 2, and wired
+ * straight to the muscles it was no better than the rhythm.
+ */
+export const REFLEX_HIDDEN = 4;
+
+/**
+ * Give a rhythm brain senses and reflexes that start silent: it moves exactly
+ * as before until evolution tunes them.
+ */
+export function withReflexes(g: Genome, plan: BodyPlan, rand: () => number = Math.random, hidden = REFLEX_HIDDEN): Genome {
+  // Hidden neurons (if any) start random; every weight into a muscle starts at zero.
+  const hiddenWeights = hidden > 0 ? hidden * (senseCount(plan) + 1) : 0;
+  const w = Array.from({ length: netSize(plan, hidden) }, (_, i) => (i < hiddenWeights ? randn(rand) * 1.2 : 0));
+  return { freq: g.freq, muscles: g.muscles.map((m) => ({ ...m })), net: { hidden, w } };
+}
+
 const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x));
 
 /** Roughly normal noise (sum of uniforms), cheap and good enough. */
@@ -36,15 +76,17 @@ function randn(rand: () => number): number {
   return rand() + rand() + rand() - 1.5;
 }
 
-export function randomGenome(plan: BodyPlan, rand: () => number = Math.random): Genome {
+export function randomGenome(plan: BodyPlan, rand: () => number = Math.random, brain: Brain = 'rhythm'): Genome {
   const muscles: MuscleGene[] = [];
   for (let i = 0; i < muscleCount(plan); i++) {
     muscles.push({ amp: rand() * MAX_AMP, phase: rand() * 2 * Math.PI });
   }
-  return { freq: FREQ_MIN + rand() * (FREQ_MAX - FREQ_MIN), muscles };
+  const g = { freq: FREQ_MIN + rand() * (FREQ_MAX - FREQ_MIN), muscles };
+  return brain === 'feel' ? withReflexes(g, plan, rand) : g;
 }
 
 export function mutate(g: Genome, rand: () => number = Math.random): Genome {
+  const net = g.net ? { hidden: g.net.hidden, w: g.net.w.map((x) => (rand() < 0.2 ? x + randn(rand) * 0.6 : x)) } : undefined;
   const muscles = g.muscles.map((m) =>
     rand() < 0.55
       ? {
@@ -53,18 +95,21 @@ export function mutate(g: Genome, rand: () => number = Math.random): Genome {
         }
       : { ...m },
   );
-  return { freq: clamp(g.freq + randn(rand) * 0.25, FREQ_MIN, FREQ_MAX), muscles };
+  return { freq: clamp(g.freq + randn(rand) * 0.25, FREQ_MIN, FREQ_MAX), muscles, ...(net ? { net } : {}) };
 }
 
 export function crossover(a: Genome, b: Genome, rand: () => number = Math.random): Genome {
+  const bw = b.net?.w;
+  const net = a.net && bw ? { hidden: a.net.hidden, w: a.net.w.map((x, i) => (rand() < 0.5 ? x : bw[i])) } : undefined;
   return {
     freq: rand() < 0.5 ? a.freq : b.freq,
     muscles: a.muscles.map((m, i) => ({ ...(rand() < 0.5 ? m : b.muscles[i]) })),
+    ...(net ? { net } : {}),
   };
 }
 
 export function cloneGenome(g: Genome): Genome {
-  return { freq: g.freq, muscles: g.muscles.map((m) => ({ ...m })) };
+  return { freq: g.freq, muscles: g.muscles.map((m) => ({ ...m })), ...(g.net ? { net: { hidden: g.net.hidden, w: [...g.net.w] } } : {}) };
 }
 
 export interface Scored {
@@ -121,6 +166,10 @@ export interface EvolutionOptions {
   rand?: () => number;
   /** Carry on from this brain (it and its mutated babies) instead of random brains. */
   start?: Genome;
+  /** Which kind of brain the random first generation gets. */
+  brain?: Brain;
+  /** Shoves during each generation's tries (the same for everyone in a generation). */
+  shovesFor?: (generation: number) => Shove[];
 }
 
 export interface Best {
@@ -156,6 +205,11 @@ export class Evolution {
   practice = 0;
   private stepAccum = 0;
   private readonly groundFor?: (generation: number) => Ground;
+  private shovesFor?: (generation: number) => Shove[];
+  private shoves: Shove[] = [];
+  private nextShove = 0;
+  /** When the last shove came (simulated seconds into the generation), for a puff on screen. */
+  lastShove = -1;
   private readonly oldMuscles: boolean;
   private readonly rand: () => number;
 
@@ -167,11 +221,12 @@ export class Evolution {
     this.evalTime = opts.evalTime ?? 7;
     this.reward = opts.reward ?? 'far';
     this.groundFor = opts.groundFor;
+    this.shovesFor = opts.shovesFor;
     this.oldMuscles = opts.oldMuscles ?? false;
     this.rand = opts.rand ?? Math.random;
     this.genomes = opts.start
       ? babiesOf(opts.start, this.population, this.rand)
-      : Array.from({ length: this.population }, () => randomGenome(plan, this.rand));
+      : Array.from({ length: this.population }, () => randomGenome(plan, this.rand, opts.brain));
     this.spawn();
   }
 
@@ -184,6 +239,9 @@ export class Evolution {
     const opts: CreatureOptions = { ground: this.ground(), oldMuscles: this.oldMuscles };
     this.creatures = this.genomes.map((g) => new Creature(this.plan, g, opts));
     this.genElapsed = 0;
+    this.shoves = this.shovesFor?.(this.generation) ?? [];
+    this.nextShove = 0;
+    this.lastShove = -1;
   }
 
   score(i: number): number {
@@ -218,6 +276,7 @@ export class Evolution {
     while (steps-- > 0) {
       for (const c of this.creatures) c.step();
       this.genElapsed += FIXED_DT;
+      this.shove();
       if (this.genElapsed >= this.evalTime - 1e-9) {
         this.endGeneration();
         ended++;
@@ -230,10 +289,50 @@ export class Evolution {
   runGenerations(n: number): void {
     for (let k = 0; k < n; k++) {
       const steps = Math.round((this.evalTime - this.genElapsed) / FIXED_DT);
-      for (let s = 0; s < steps; s++) for (const c of this.creatures) c.step();
+      for (let s = 0; s < steps; s++) {
+        for (const c of this.creatures) c.step();
+        this.genElapsed += FIXED_DT;
+        this.shove();
+      }
       this.genElapsed = this.evalTime;
       this.endGeneration();
     }
+  }
+
+  private shove(): void {
+    const s = this.shoves[this.nextShove];
+    if (s && this.genElapsed >= s.t) {
+      for (const c of this.creatures) c.kick(s.vx, s.vy);
+      this.nextShove++;
+      this.lastShove = this.genElapsed;
+    }
+  }
+
+  /** Practise with random shoves from the next generation on (or stop). */
+  setShoves(on: boolean): void {
+    this.shovesFor = on ? () => randomShoves(this.evalTime, this.rand) : undefined;
+    if (!on) this.shoves = [];
+  }
+
+  get shoving(): boolean {
+    return this.shovesFor !== undefined;
+  }
+
+  /** The kind of brain the population has now. */
+  brain(): Brain {
+    return this.genomes[0]?.net ? 'feel' : 'rhythm';
+  }
+
+  /** Give the whole population senses (silent reflexes) or take them away; the generation starts over. */
+  setBrain(brain: Brain): void {
+    if (brain === this.brain()) return;
+    this.genomes = this.genomes.map((g) =>
+      brain === 'feel' ? withReflexes(g, this.plan, this.rand) : { freq: g.freq, muscles: g.muscles.map((m) => ({ ...m })) },
+    );
+    this.best = null;
+    this.history = [];
+    this.picked.clear();
+    this.spawn();
   }
 
   /** End the generation now: the kid's pick breeds, or else the best do. */
@@ -243,7 +342,8 @@ export class Evolution {
     this.practice += this.creatures.length * this.genElapsed;
     let top = scored[0];
     for (const s of scored) if (s.score > top.score) top = s;
-    if (this.groundFor || !this.best || top.score > this.best.score) {
+    // In a world that changes (bumps, shoves) a lucky old score says little: keep the latest best.
+    if (this.groundFor || this.shovesFor || !this.best || top.score > this.best.score) {
       this.best = { score: top.score, dist: top.dist, genome: top.genome };
     }
     this.lastTop = [...scored].sort((a, b) => b.score - a.score).slice(0, 5).map((s) => s.genome);

@@ -39,10 +39,53 @@ export interface MuscleGene {
 
 /** One creature brain: a sine oscillator per muscle plus a shared clock. */
 export interface Genome {
-  /** Shared oscillation frequency in Hz. */
+  /** Shared oscillation frequency in Hz (a feeling brain's clock sense). */
   freq: number;
   /** Aligned with the plan's muscle sticks in order of appearance. */
   muscles: MuscleGene[];
+  /**
+   * Reflexes: a tiny neural network from the senses to the muscles, added on
+   * top of the rhythm (a brain that feels). Without it, the rhythm alone.
+   */
+  net?: NetGenome;
+}
+
+/**
+ * The weights of a feeling brain: hidden × (senses + 1), then
+ * muscles × (hidden + 1) (the +1 is each neuron's bias). With no hidden
+ * neurons the senses are wired straight to the muscles: muscles × (senses + 1).
+ */
+export interface NetGenome {
+  hidden: number;
+  w: number[];
+}
+
+
+/** Senses besides the feet: clock (2), tilt, turning, head height, speed (2). */
+const BODY_SENSES = 7;
+const MAX_FEET = 4;
+/** A feeling brain thinks 60 times a second. */
+const CONTROL_EVERY = 2;
+
+/** The dots a feeling brain feels touching the ground: up to four of the lowest at the start. */
+export function feetOf(plan: BodyPlan): number[] {
+  const minY = Math.min(...plan.nodes.map((n) => n.y));
+  return plan.nodes
+    .map((n, i) => ({ i, y: n.y }))
+    .filter((n) => n.y < minY + 0.15)
+    .sort((a, b) => a.y - b.y)
+    .slice(0, MAX_FEET)
+    .map((n) => n.i)
+    .sort((a, b) => a - b);
+}
+
+export function senseCount(plan: BodyPlan): number {
+  return BODY_SENSES + feetOf(plan).length;
+}
+
+export function netSize(plan: BodyPlan, hidden: number): number {
+  const n = senseCount(plan);
+  return hidden > 0 ? hidden * (n + 1) + muscleCount(plan) * (hidden + 1) : muscleCount(plan) * (n + 1);
 }
 
 export const FIXED_DT = 1 / 120;
@@ -146,7 +189,18 @@ export class Creature {
   turn = 0;
   /** A dot held by the mouse, pinned to (x, y). */
   pin: { i: number; x: number; y: number } | null = null;
+  /** A feeling brain's last senses, hidden neurons and muscle commands (−1…1), for drawing it. */
+  senses: number[] = [];
+  neurons: number[] = [];
+  commands: number[] = [];
+  readonly feet: number[];
   private lastAngle: number;
+  private readonly startAngle: number;
+  private readonly headH0: number;
+  private angVel = 0;
+  private vx = 0;
+  private vy = 0;
+  private lastY = 0;
 
   constructor(
     public plan: BodyPlan,
@@ -178,7 +232,52 @@ export class Creature {
       this.sticks.push({ a: s.a, b: s.b, rest: Math.max(rest, 0.05), muscle: s.muscle ? m++ : -1 });
     }
     this.startX = this.comX();
-    this.lastAngle = this.headAngle();
+    this.lastAngle = this.startAngle = this.headAngle();
+    this.lastY = this.comY();
+    this.headH0 = this.pts[0].y - this.ground(this.pts[0].x);
+    this.feet = genome.net ? feetOf(plan) : [];
+    if (genome.net) this.commands = new Array(m).fill(0);
+  }
+
+  /** A feeling brain: read the senses, run the network, set the muscle commands. */
+  private think(): void {
+    const net = this.genome.net!;
+    const w = net.w;
+    const head = this.pts[0];
+    let tilt = this.lastAngle - this.startAngle;
+    while (tilt > Math.PI) tilt -= 2 * Math.PI;
+    while (tilt < -Math.PI) tilt += 2 * Math.PI;
+    const clock = 2 * Math.PI * this.genome.freq * this.time;
+    const senses = this.senses;
+    senses.length = 0;
+    senses.push(
+      Math.sin(clock),
+      Math.cos(clock),
+      tilt / Math.PI,
+      Math.max(-1, Math.min(1, this.angVel * 0.2)),
+      Math.max(-1, Math.min(1, (head.y - this.ground(head.x)) / Math.max(0.1, this.headH0) - 1)),
+      Math.max(-1, Math.min(1, this.vx * 0.3)),
+      Math.max(-1, Math.min(1, this.vy * 0.3)),
+    );
+    for (const f of this.feet) {
+      const p = this.pts[f];
+      senses.push(p.y - this.ground(p.x) - NODE_R <= CONTACT ? 1 : -1);
+    }
+    const n = senses.length;
+    const neurons = this.neurons;
+    neurons.length = 0;
+    let k = 0;
+    for (let h = 0; h < net.hidden; h++) {
+      let sum = w[k++] ?? 0;
+      for (let i = 0; i < n; i++) sum += (w[k++] ?? 0) * senses[i];
+      neurons.push(Math.tanh(sum));
+    }
+    const inputs = net.hidden > 0 ? neurons : senses;
+    for (let m = 0; m < this.commands.length; m++) {
+      let sum = w[k++] ?? 0;
+      for (let i = 0; i < inputs.length; i++) sum += (w[k++] ?? 0) * inputs[i];
+      this.commands[m] = Math.tanh(sum);
+    }
   }
 
   /** Advance one fixed time step. */
@@ -200,6 +299,8 @@ export class Creature {
 
     const omega = 2 * Math.PI * this.genome.freq * this.time;
     const limit = this.oldMuscles ? Infinity : MUSCLE_STEP;
+    const net = this.genome.net;
+    if (net && (this.steps % CONTROL_EVERY === 0 || this.neurons.length === 0)) this.think();
     const pin = this.pin;
     for (let iter = 0; iter < ITERATIONS; iter++) {
       for (const s of this.sticks) {
@@ -211,7 +312,13 @@ export class Creature {
         let push: number;
         if (s.muscle >= 0) {
           const gene = this.genome.muscles[s.muscle];
-          const rest = s.rest * (1 + gene.amp * Math.sin(omega + gene.phase));
+          let rest: number;
+          if (net) {
+            const beat = gene ? gene.amp * Math.sin(omega + gene.phase) : 0;
+            rest = s.rest * (1 + Math.max(-MAX_AMP, Math.min(MAX_AMP, beat + MAX_AMP * this.commands[s.muscle])));
+          } else {
+            rest = s.rest * (1 + gene.amp * Math.sin(omega + gene.phase));
+          }
           // Each end moves (d - rest)/2 · stiffness, at most `limit`.
           const move = (d - rest) * 0.5 * MUSCLE_STIFFNESS;
           push = Math.max(-limit, Math.min(limit, move)) / d;
@@ -238,7 +345,8 @@ export class Creature {
     let clear = Infinity;
     for (const p of this.pts) clear = Math.min(clear, p.y - ground(p.x) - NODE_R);
     this.touching = clear <= CONTACT;
-    if (this.touching) this.groundDist += this.comX() - x0;
+    const x1 = this.comX();
+    if (this.touching) this.groundDist += x1 - x0;
     else this.airSteps++;
     if (clear > this.bestClear && isFinite(clear)) this.bestClear = clear;
     const angle = this.headAngle();
@@ -247,6 +355,11 @@ export class Creature {
     else if (d < -Math.PI) d += 2 * Math.PI;
     this.turn += d;
     this.lastAngle = angle;
+    this.angVel = d / FIXED_DT;
+    const y1 = this.comY();
+    this.vx = (x1 - x0) / FIXED_DT;
+    this.vy = (y1 - this.lastY) / FIXED_DT;
+    this.lastY = y1;
   }
 
   /** Let go of the mouse: the held dot keeps the hand's velocity (m/s, clamped). */
@@ -294,6 +407,14 @@ export class Creature {
     return this.airSteps / Math.max(1, this.steps);
   }
 
+  /** How far the body is tipped from how it started (radians, −π…π): upside down near ±π. */
+  tilt(): number {
+    let t = this.lastAngle - this.startAngle;
+    while (t > Math.PI) t -= 2 * Math.PI;
+    while (t < -Math.PI) t += 2 * Math.PI;
+    return t;
+  }
+
   /** Full turns of the head around the centre (cartwheels). */
   turns(): number {
     return Math.abs(this.turn) / (2 * Math.PI);
@@ -322,10 +443,24 @@ export class Creature {
   }
 }
 
-/** Run a creature for `seconds` of simulated time. */
-export function simulate(plan: BodyPlan, genome: Genome, seconds: number, opts?: CreatureOptions): Creature {
+/** Run a creature for `seconds` of simulated time (with shoves: at time t, velocity (vx, vy) added to every dot). */
+export function simulate(
+  plan: BodyPlan,
+  genome: Genome,
+  seconds: number,
+  opts?: CreatureOptions,
+  shoves: { t: number; vx: number; vy: number }[] = [],
+): Creature {
   const c = new Creature(plan, genome, opts);
   const n = Math.round(seconds / FIXED_DT);
-  for (let i = 0; i < n; i++) c.step();
+  let next = 0;
+  for (let i = 0; i < n; i++) {
+    c.step();
+    const s = shoves[next];
+    if (s && c.time >= s.t) {
+      c.kick(s.vx, s.vy);
+      next++;
+    }
+  }
   return c;
 }
