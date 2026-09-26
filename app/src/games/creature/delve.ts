@@ -67,6 +67,7 @@ const CHAPTERS: Localized<ChapterText[]> = {
         'The first version of this game had a flaw: muscles could move as fast as they liked. Evolution found it within minutes. Stick-men learned to cartwheel and a worm learned to leap five metres, its head at 100 km/h. Real muscles have a speed limit, so now ours do too.',
         'A learner is the toughest tester a simulation can have: if the physics is wrong, the robot learns the wrong thing. And a Doggo that only ever practised on a flat floor trips over the first bump, while one that practised on ever-changing bumps crosses them.',
         'So the simulation has to be right, and varied. Getting it right is our craft: the same kind of flaw makes energy out of nothing in Gravity Doodle.',
+        'The body matters too. With flat practice only, a Doggo trips over the bumps, but a worm or a caterpillar crosses them. Try ⛰️ Design in the park: build a body that doesn’t trip.',
       ],
     },
     {
@@ -126,6 +127,7 @@ const CHAPTERS: Localized<ChapterText[]> = {
         'De eerste versie van dit spel had een fout: spieren konden zo snel bewegen als ze wilden. Evolutie vond dat binnen een paar minuten. Stokmannetjes leerden radslagen maken en een worm leerde vijf meter hoog springen, met zijn kop op 100 km/u. Echte spieren hebben een snelheidslimiet, dus die van ons nu ook.',
         'Wie leert, is de strengste tester die een simulatie kan hebben: klopt de natuurkunde niet, dan leert de robot het verkeerde. En een hondje dat alleen op een vlakke vloer oefende, struikelt over de eerste hobbel, terwijl een hondje dat op steeds andere hobbels oefende er gewoon overheen loopt.',
         'De simulatie moet dus kloppen, en gevarieerd zijn. Dat goed krijgen is ons vak: hetzelfde soort fout maakt energie uit het niets in Zwaartekracht-doodle.',
+        'Het lijf telt ook. Met alleen vlak oefenen struikelt een hondje over de hobbels, maar een worm of een rups komt eroverheen. Probeer ⛰️ Ontwerpen in het park: bouw een lijf dat niet struikelt.',
       ],
     },
     {
@@ -185,6 +187,7 @@ const CHAPTERS: Localized<ChapterText[]> = {
         'Den første versjonen av dette spillet hadde en feil: musklene kunne bevege seg så fort de ville. Evolusjonen fant den i løpet av minutter. Pinnemenn lærte å hjule og en mark lærte å hoppe fem meter, med hodet i 100 km/t. Ekte muskler har en fartsgrense, så nå har våre det også.',
         'Den som lærer, er den strengeste testeren en simulering kan få: er fysikken feil, lærer roboten feil. Og en vovse som bare har øvd på flatt gulv, snubler i første hump, mens en som øvde på humper som stadig skiftet, går rett over.',
         'Simuleringen må altså være riktig, og variert. Å få den riktig er faget vårt: samme slags feil lager energi av ingenting i Tyngdekraft-doodle.',
+        'Kroppen betyr også noe. Med bare flat øving snubler vovsen i humpene, men en mark eller en larve kommer over. Prøv ⛰️ Design i parken: bygg en kropp som ikke snubler.',
       ],
     },
     {

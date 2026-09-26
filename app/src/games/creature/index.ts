@@ -34,9 +34,11 @@ import { PickRound } from './roundPick';
 import { WalkRound } from './roundWalk';
 import { WildRound } from './roundWild';
 import { creatureDelve } from './delve';
+import { DESIGN_TEXT, DesignRun } from './design';
+import { topScores } from '../../shell/scores';
 import { CreatureDemos } from './demos';
 
-type Mode = 'park' | 'editor' | 'teach' | 'race';
+type Mode = 'park' | 'editor' | 'teach' | 'race' | 'design';
 
 const REWARDS: { id: Reward; emoji: string }[] = [
   { id: 'far', emoji: '🏁' },
@@ -86,6 +88,9 @@ class CreatureInstance implements GameInstance {
   private raceWalker: Walker | null = null;
   private challenge: Challenge | null = null;
   private flow: ScoreFlowHandle | null = null;
+  /** The design challenge: the editor's Done tests the body; a run practises and crosses the course. */
+  private designing = false;
+  private designRun: DesignRun | null = null;
 
   private delve: DelveHandle | null = null;
   private toggle!: DelveToggleHandle;
@@ -99,6 +104,7 @@ class CreatureInstance implements GameInstance {
   private practiceBar!: HTMLElement;
   private teachBar!: HTMLElement;
   private roundBar!: HTMLElement;
+  private designBar!: HTMLElement;
   private hud!: HTMLElement;
   private hint!: HTMLElement;
   private buttons: Record<string, HTMLButtonElement> = {};
@@ -189,6 +195,13 @@ class CreatureInstance implements GameInstance {
       this.teacher.step(dt);
       this.teacher.draw(ctx);
       this.setHud(this.teacher.hud());
+    } else if (this.mode === 'design' && this.designRun) {
+      const run = this.designRun;
+      const wasDone = run.phase === 'done';
+      run.step(dt);
+      run.draw(ctx, w, h);
+      if (!wasDone && run.phase === 'done') this.designBar.classList.remove('hidden');
+      this.setHud(pick(DESIGN_TEXT).hud(this.designBest()));
     } else if (this.mode === 'race' && this.race) {
       if (this.race.step(dt)) this.finishRace();
       this.race.draw(ctx, w, h);
@@ -282,7 +295,7 @@ class CreatureInstance implements GameInstance {
   }
 
   private hidePanels(): void {
-    for (const el of [this.bodyBar, this.parkBar, this.editPresets, this.editBar, this.rewardBar, this.practiceBar, this.teachBar, this.roundBar]) {
+    for (const el of [this.bodyBar, this.parkBar, this.editPresets, this.editBar, this.rewardBar, this.practiceBar, this.teachBar, this.roundBar, this.designBar]) {
       el.classList.add('hidden');
     }
   }
@@ -291,6 +304,9 @@ class CreatureInstance implements GameInstance {
     this.mode = 'park';
     this.teacher = null;
     this.race = null;
+    this.designing = false;
+    this.designRun = null;
+    this.refreshEditor();
     this.hidePanels();
     this.bodyBar.classList.remove('hidden');
     this.parkBar.classList.remove('hidden');
@@ -336,11 +352,12 @@ class CreatureInstance implements GameInstance {
 
   // ---- the editor ----
 
-  private enterEditor(): void {
+  private enterEditor(plan?: BodyPlan): void {
     this.mode = 'editor';
     this.hidePanels();
     const sel = this.park.selected;
-    this.editor.load(sel ? sel.plan : PRESETS[0].plan);
+    this.editor.load(plan ?? (sel ? sel.plan : PRESETS[0].plan));
+    this.toggle.element.classList.remove('hidden');
     this.editPresets.classList.remove('hidden');
     this.editBar.classList.remove('hidden');
     this.hud.classList.remove('hidden');
@@ -359,17 +376,73 @@ class CreatureInstance implements GameInstance {
     if (!done) return;
     const T = pick(TEXT).editor;
     done.disabled = !this.editor.valid();
-    setLabel(done, done.disabled ? T.needsMuscle : T.done);
+    setLabel(done, done.disabled ? T.needsMuscle : this.designing ? pick(DESIGN_TEXT).test : T.done);
+    done.querySelector('.tool-emoji')!.textContent = this.designing ? '⛰️' : '✅';
     this.buttons.undo.disabled = !this.editor.canUndo();
   }
 
   private finishEditor(): void {
     if (!this.editor.valid()) return;
     const plan = this.editor.result();
+    if (this.designing) {
+      this.startDesignRun(plan);
+      return;
+    }
     const kind = kindOf(plan);
     this.park.add(plan, randomGenome(plan), kind, { drop: true, select: true });
     sound.play('boing');
     this.enterPark(pick(TEXT).editor.doneHint);
+  }
+
+  // ---- the design challenge ----
+
+  /** Build a body that crosses the bumps, practising only on a flat floor. It starts from the Doggo, which trips. */
+  private startDesign(plan: BodyPlan = PRESETS[0].plan): void {
+    this.enterEditor(plan);
+    this.designing = true;
+    this.refreshEditor();
+    this.hint.textContent = pick(DESIGN_TEXT).brief;
+  }
+
+  private startDesignRun(plan: BodyPlan): void {
+    this.mode = 'design';
+    this.hidePanels();
+    this.hud.classList.remove('hidden');
+    this.toggle.element.classList.add('hidden');
+    this.designRun = new DesignRun(plan, (text) => (this.hint.textContent = text));
+  }
+
+  private designBest(): string {
+    const top = topScores('creature-design', 1)[0];
+    return top ? `${top.initials} ${fmtMetres(top.score)}` : '—';
+  }
+
+  /** The tried design walks in the park with its brain, as the kid's own. */
+  private designToPark(): void {
+    const run = this.designRun;
+    if (run?.genome) this.park.add(run.plan, run.genome, kindOf(run.plan), { drop: true, select: true, mine: true });
+    this.toggle.element.classList.remove('hidden');
+    this.enterPark();
+  }
+
+  private designToBoard(): void {
+    const run = this.designRun;
+    if (!run) return;
+    const T = pick(DESIGN_TEXT);
+    this.designBar.classList.add('hidden');
+    this.flow?.dispose();
+    this.flow = scoreFlow({
+      gameId: 'creature-design',
+      heading: T.heading,
+      score: run.dist,
+      scoreLabel: fmtMetres(run.dist),
+      formatScore: (sc) => fmtMetres(sc),
+      actions: [
+        { label: `✏️ ${T.change}`, onClick: () => this.closeFlow(() => this.startDesign(run.plan)) },
+        { label: `🌳 ${T.park}`, onClick: () => this.closeFlow(() => this.designToPark()) },
+      ],
+    });
+    this.host.overlay.appendChild(this.flow.element);
   }
 
   // ---- teaching ----
@@ -697,8 +770,10 @@ class CreatureInstance implements GameInstance {
     this.demos.clear();
     this.toggle.setOpen(false);
     if (this.mode === 'teach' && this.teacher) this.enterTeach(this.teacher);
-    else if (this.mode === 'editor') this.enterEditor();
-    else this.enterPark();
+    else if (this.mode === 'editor') {
+      this.enterEditor(this.editor.plan);
+      if (this.designing) this.hint.textContent = pick(DESIGN_TEXT).brief;
+    } else this.enterPark();
   }
 
   // ---- UI ----
@@ -729,6 +804,7 @@ class CreatureInstance implements GameInstance {
     this.makeButton(this.parkBar, { emoji: '🧠', label: T.park.teach, onClick: () => this.enterTeach() }, 'teach');
     this.makeButton(this.parkBar, { emoji: '👑', label: T.park.race, onClick: () => this.startRace('park') }, 'race');
     this.makeButton(this.parkBar, { emoji: '🏆', label: T.park.challenge, onClick: () => this.startChallenge(false) });
+    this.makeButton(this.parkBar, { emoji: '⛰️', label: pick(DESIGN_TEXT).button, onClick: () => this.startDesign() });
 
     this.editPresets = bar('game-toolbar creature-presets hidden');
     for (const p of PRESETS) {
@@ -758,6 +834,12 @@ class CreatureInstance implements GameInstance {
 
     this.roundBar = bar('game-toolbar hidden');
 
+    const D = pick(DESIGN_TEXT);
+    this.designBar = bar('game-toolbar hidden');
+    this.makeButton(this.designBar, { emoji: '✏️', label: D.change, onClick: () => this.designRun && this.startDesign(this.designRun.plan) });
+    this.makeButton(this.designBar, { emoji: '🏆', label: D.board, onClick: () => this.designToBoard() });
+    this.makeButton(this.designBar, { emoji: '🌳', label: D.park, onClick: () => this.designToPark() });
+
     this.hud = bar('challenge-hud hidden');
     this.hint = document.createElement('p');
     this.hint.className = 'challenge-hint';
@@ -771,6 +853,7 @@ class CreatureInstance implements GameInstance {
       this.practiceBar,
       this.teachBar,
       this.roundBar,
+      this.designBar,
       this.hud,
       this.hint,
       this.toggle.element,

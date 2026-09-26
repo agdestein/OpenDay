@@ -209,3 +209,16 @@ const course = bumpyGround(COURSE_SEED, 0.2);
   assert.ok(evo.genomes.every((g) => !g.net), 'senses off');
   console.log(`PASS: brains that feel — silent reflexes change nothing; in 20 shoved runs on its back: calm ${calm}, practised with shoves ${shoved}, with senses ${feel}.`);
 }
+
+// ---- the design challenge: with flat practice only, the body decides who crosses the bumps ----
+{
+  const cross = (plan: BodyPlan, seed: number) => {
+    const evo = new Evolution(plan, { rand: seededRandom(seed) });
+    evo.runGenerations(30);
+    return simulate(plan, steadiest(evo, [FLAT]), 12, { ground: course }).dist();
+  };
+  const dog = [0, 1, 2, 3, 4, 5].map((r) => cross(doggo, 3000 + r));
+  const worm = [0, 1, 2, 3, 4, 5].map((r) => cross(wiggler, 3000 + r));
+  assert.ok(median(dog) < 3 && median(worm) > 10, `design: Doggo ${dog.map(f1)}, Wiggler ${worm.map(f1)}`);
+  console.log(`PASS: design — practising only on the flat, Doggo crosses ${dog.map(f1).join(' ')} m of the course, Wiggler ${worm.map(f1).join(' ')} m.`);
+}

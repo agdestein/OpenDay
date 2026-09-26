@@ -121,7 +121,10 @@ cartwheels and 5 m worm jumps, which the delve's 🐞 switch brings back. The
 challenge has three rounds: Pick the parents (you are the selection, then the
 computer does 300 picks), Race-walk (choose the reward; a judge counts only
 distance with a foot on the ground) and Into the wild (practise on a flat floor or
-changing bumps, then cross an unseen course). The pre-trained brains are generated
+changing bumps, then cross an unseen course). Brains can also feel (senses and a
+tiny neural network adding reflexes to the beat), practice can come with shoves, the
+park's ⛰️ Design asks for a body that crosses bumps with flat practice only, and the
+computer can take its own turn at the challenge. The pre-trained brains are generated
 by `npm run train:creature` (`tools/creature/train.ts`) and must be re-trained when
 the physics changes. See [the proposal](docs/creature-proposal.md)
 (`npm run test:creature`).

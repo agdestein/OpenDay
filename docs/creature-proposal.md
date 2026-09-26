@@ -10,8 +10,40 @@ The numbers below were measured headlessly with the game's own `physics.ts` and
 `evolve.ts` (scratch scripts, not committed; medians over repeated runs, since
 evolution is random), and by playing it at 1280×720.
 
-**Phases A and B are built** (26 September 2026); phase C is not. `npm run
-test:creature` checks the numbers quoted here. Where the build differs from the plan:
+**Phases A, B and C are built** (26 September 2026). `npm run test:creature` checks the
+numbers quoted here. Phase C, and what the spikes behind it found:
+
+- **Brains that feel.** A brain can have senses — a clock (sin, cos), tilt, spin, head
+  height, speed (x, y) and each foot's contact — feeding four hidden neurons whose
+  output is added to the muscles' rhythm (reflexes on a beat, as in real walking
+  machines). The reflexes start silent, so a brain moves exactly as before until
+  practice tunes them. Teaching has 👁 Senses and 💨 Shoves toggles (shoves: a kick
+  every 1.5–3 s, the same for the whole generation), and a new delve chapter 6 shoves
+  three Doggos at the same moments and draws the feeling brain live. Measured on a
+  push test (20 shoved runs of 12 s): practised on calm ground, the Doggo ends on its
+  back 13 times; practised with shoves 4; with shoves and senses 2. Over 8 practice
+  runs of 100 generations, 7 of 8 with senses flip at most twice (median 1, 14.8 m),
+  against a median of 5 for rhythm brains (13.0 m); with only 50 generations half the
+  runs with senses never learn to use them. What did not work: a pure network
+  (no rhythm) learned more slowly than the rhythm (bump-trained Doggos 6.3 against
+  10.7 m on the course); senses wired straight to the muscles, with no hidden
+  neurons, were no better than the rhythm; and **no brain keeps the stick-man
+  standing tall** (head above 80 % of its height: rhythm or network, it falls within
+  a second). Rewarded for "staying up" with a looser rule (head above half its
+  height), both brains crouch and shuffle with the head just above the line — the
+  reward was gamed again. It has no feet and weak knees; the delve says so.
+- **The computer's turn.** After a challenge the computer plays all three rounds at
+  double speed through the same controls: the farthest pen every time; in race-walk
+  and into the wild it tries both options and keeps the better one. It posts as CPU
+  and keeps only its best (a headless run: 1 808 points in 87 s).
+- **⛰️ Design** (a fourth button in the park): build a body that crosses the round-3
+  course when it may only practise on a flat floor (30 generations, then the
+  steadiest brain on the course, 12 s), with its own board (`creature-design`).
+  Measured (flat practice only, 0.2 m bumps, median of 6): Doggo 0.4 m, stick-man
+  4.9, a long-legged Doggo 5.1, a wheel 6.0, Hopper 11.3, a tripod 15.9, a caterpillar
+  18.6, Wiggler 19.5 — low, long or many-legged bodies don't trip.
+
+Where phases A and B differ from the plan:
 
 - **Muscles.** Each muscle may move its ends at most 2.4 m/s (a cap on its correction
   per constraint iteration); `oldMuscles` keeps the limitless ones for the delve's 🐞
