@@ -55,8 +55,9 @@ test:creature` checks the numbers quoted here. Where the build differs from the 
   "start over" are there.
 - **Delve.** As planned, with two changes. The brain chapter's nudge makes a twin of
   the brain on show: the champion's twin stays with it (a good gait shrugs off a
-  0.01 rad nudge; 0 of 20 parted), and for a scrambled brain it quietly tries up to a
-  few dozen and shows one whose twin parts (only about a third do within 10 s; it finds one in 48 of 50 searches). The
+  0.01 rad nudge; 0 of 20 parted), and for a scrambled brain it quietly tries up to
+  forty and shows one whose twin is 0.7 m away by 6 s (only about a third of
+  scrambled brains part within 10 s; the search finds one in 48 of 50 tries). The
   landscape is 40 × 40 Doggo brains of 5 s each (the two leg-swing timings), painted
   at 8 ms a frame and kept between visits; pointing at a pixel walks that brain.
 - **Title and tile.** The title stays Creature Lab (Beestenlab); the tile is now 🦿.
