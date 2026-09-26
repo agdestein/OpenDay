@@ -25,8 +25,11 @@ import {
   type BodyPlan,
   type Genome,
 } from './physics';
-import { POPULATION, nextGeneration, randomGenome } from './evolve';
-import { clonePlan, FALLBACK_CHAMP, PRESET_NAMES, PRESETS, TRAINED } from './presets';
+import { POPULATION, nextGeneration, randomGenome, rewardScore } from './evolve';
+import { clonePlan, KIND_NAMES, PRESETS, ROBO_NAMES } from './presets';
+import { TRAINED } from './brains';
+
+const FALLBACK_CHAMP = { name: ROBO_NAMES.Doggo, plan: PRESETS[0].plan, genome: TRAINED.Doggo, score: 0 };
 import { pick, type Localized } from '../../lib/i18n';
 
 /** Sim-seconds each generation gets to walk. */
@@ -381,13 +384,13 @@ function makeEvoState(plan: BodyPlan, pop: number, evalTime: number): EvoState {
 function endEvoGeneration(s: EvoState): void {
   const scored = s.creatures.map((c, i) => ({
     genome: s.genomes[i],
-    fitness: c.fitness(),
+    score: rewardScore(c, 'far'),
     dist: c.comX(),
   }));
   let best = scored[0];
-  for (const entry of scored) if (entry.fitness > best.fitness) best = entry;
-  if (!s.bestEver || best.fitness > s.bestEver.fitness) {
-    s.bestEver = { fitness: best.fitness, dist: best.dist, genome: best.genome };
+  for (const entry of scored) if (entry.score > best.score) best = entry;
+  if (!s.bestEver || best.score > s.bestEver.fitness) {
+    s.bestEver = { fitness: best.score, dist: best.dist, genome: best.genome };
   }
   s.history.push(Math.max(0, best.dist));
   s.genomes = nextGeneration(scored);
@@ -419,7 +422,7 @@ function stepEvo(s: EvoState, dt: number, speed: number): void {
 function evoLeader(s: EvoState): number {
   let best = 0;
   for (let i = 1; i < s.creatures.length; i++) {
-    if (s.creatures[i].fitness() > s.creatures[best].fitness()) best = i;
+    if (s.creatures[i].comX() > s.creatures[best].comX()) best = i;
   }
   return best;
 }
@@ -762,9 +765,9 @@ class CreatureInstance implements GameInstance {
       this.demoEvo = makeEvoState(this.delvePlan(), DELVE_POP, DELVE_EVAL_TIME);
     } else if (chapter === 3) {
       this.zoo = PRESETS.map((p) => ({
-        name: pick(PRESET_NAMES)[p.name],
+        name: pick(KIND_NAMES)[p.id],
         emoji: p.emoji,
-        creature: new Creature(p.plan, TRAINED[p.name]),
+        creature: new Creature(p.plan, TRAINED[p.id]),
         camX: 0,
       }));
     }
@@ -906,7 +909,7 @@ class CreatureInstance implements GameInstance {
     this.presetBar = document.createElement('div');
     this.presetBar.className = 'game-toolbar creature-presets';
     for (const preset of PRESETS) {
-      add(this.presetBar, `preset-${preset.name}`, preset.emoji, pick(PRESET_NAMES)[preset.name], () => {
+      add(this.presetBar, `preset-${preset.id}`, preset.emoji, pick(KIND_NAMES)[preset.id], () => {
         this.plan = clonePlan(preset.plan);
         this.refreshBuildUi();
       });

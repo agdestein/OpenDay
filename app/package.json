@@ -12,7 +12,9 @@
     "test:outbreak": "node tests/run-outbreak.mjs",
     "test:detective": "node tests/run-detective.mjs",
     "test:bounce": "node tests/run-bounce.mjs",
-    "test:orbits": "node tests/run-orbits.mjs"
+    "test:orbits": "node tests/run-orbits.mjs",
+    "test:creature": "node tests/run-creature.mjs",
+    "train:creature": "node tests/run-creature.mjs ../tools/creature/train.ts"
   },
   "devDependencies": {
     "typescript": "^7.0.2",
