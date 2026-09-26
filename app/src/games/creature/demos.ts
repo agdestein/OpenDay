@@ -238,8 +238,9 @@ export class CreatureDemos {
    * Twins: the brain on show and a copy with every timing nudged by a hair.
    * A good walk shrugs it off (they stay together); a flailing brain is often
    * chaotic, and then they part. Only about a third of scrambled brains part
-   * within 10 s, so, like Ball Pit's Plinko twins, it quietly tries a dozen
-   * on a copy and shows one that does.
+   * within 10 s, so, like Ball Pit's Plinko twins, it quietly tries up to
+   * forty on a copy and shows one whose twins are 0.7 m apart by 6 s (found in
+   * 48 of 50 searches, ~40 ms each).
    */
   nudge(): void {
     const b = this.champion();
@@ -247,10 +248,10 @@ export class CreatureDemos {
     let genome = this.brain?.genome ?? b.genome;
     let twin = nudged(genome);
     if (!this.brainIsChampion) {
-      for (let k = 0; k < 12; k++) {
+      for (let k = 0; k < 40; k++) {
         const g = k === 0 ? genome : randomGenome(b.plan);
         const t = nudged(g);
-        if (Math.abs(simulate(b.plan, g, 10).dist() - simulate(b.plan, t, 10).dist()) > 1) {
+        if (Math.abs(simulate(b.plan, g, 6).dist() - simulate(b.plan, t, 6).dist()) > 0.7) {
           genome = g;
           twin = t;
           break;
