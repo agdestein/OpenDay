@@ -40,7 +40,7 @@ export default async (h) => {
   }
   if (want('creature')) {
     await open(h, 'creature');
-    await btn(h, 'TRAINEN');
+    await btn(h, 'Leer het lopen');
     await h.sleep(22000);
     await style(h, CANVAS_ONLY); await h.shot('c_creature');
   }

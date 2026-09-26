@@ -2,6 +2,7 @@
 // (y up, ground at 0) to canvas pixels; creatures, ground, labels and the
 // learning chart are drawn through one.
 import { NODE_R, type BodyPlan, type Creature, type Ground } from './physics';
+import { fmtNumber } from '../../lib/i18n';
 
 export interface View {
   /** World x at the canvas point centerX. */
@@ -283,7 +284,7 @@ export function drawChart(
   const y0 = y + h - 12;
   const W = w - 24;
   const H = h - 46;
-  label(ctx, `${max.toFixed(1)} ${unit}`, x + w - 10, y + 22, 14, COLOR.dim, 'right', 600);
+  label(ctx, `${fmtNumber(max, { maximumFractionDigits: 1, minimumFractionDigits: 1 })} ${unit}`, x + w - 10, y + 22, 14, COLOR.dim, 'right', 600);
   const n = Math.max(...series.map((s) => s.values.length));
   if (series.length === 1 && n <= 40) {
     const s = series[0];

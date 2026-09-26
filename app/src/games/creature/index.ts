@@ -302,8 +302,9 @@ class CreatureInstance implements GameInstance {
   private refreshPark(): void {
     const sel = this.park.selected;
     const race = this.buttons.race;
-    race.disabled = !sel?.mine;
-    setLabel(race, sel?.mine ? pick(TEXT).park.race : pick(TEXT).park.raceFirst);
+    // A crown holder would only race itself.
+    race.disabled = !sel?.mine || !!sel.tag;
+    setLabel(race, sel?.tag ? pick(TEXT).park.crowned : sel?.mine ? pick(TEXT).park.race : pick(TEXT).park.raceFirst);
     this.buttons.teach.disabled = !sel;
     if (this.hintTimer < 0) this.parkHint();
   }
@@ -358,10 +359,13 @@ class CreatureInstance implements GameInstance {
 
   private enterTeach(teacher?: Teacher): void {
     const sel = this.park.selected;
+    let hint = pick(TEXT).teach.hint;
     if (!teacher) {
       if (!sel) return;
       const plan = clonePlan(sel.plan);
-      teacher = new Teacher(plan, kindOf(plan));
+      // A kid's own creature carries on from its brain; everyone else starts from scratch.
+      teacher = new Teacher(plan, kindOf(plan), sel.mine ? { start: sel.genome } : {});
+      if (sel.mine) hint = pick(TEXT).teach.carryOn;
     }
     this.teacher = teacher;
     teacher.layout(this.w, this.h);
@@ -371,7 +375,7 @@ class CreatureInstance implements GameInstance {
     this.teachBar.classList.remove('hidden');
     this.hud.classList.remove('hidden');
     this.toggle.element.classList.remove('hidden');
-    this.hint.textContent = pick(TEXT).teach.hint;
+    this.hint.textContent = hint;
     this.refreshTeach();
   }
 

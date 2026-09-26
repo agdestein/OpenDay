@@ -10,6 +10,61 @@ The numbers below were measured headlessly with the game's own `physics.ts` and
 `evolve.ts` (scratch scripts, not committed; medians over repeated runs, since
 evolution is random), and by playing it at 1280×720.
 
+**Phases A and B are built** (26 September 2026); phase C is not. `npm run
+test:creature` checks the numbers quoted here. Where the build differs from the plan:
+
+- **Muscles.** Each muscle may move its ends at most 2.4 m/s (a cap on its correction
+  per constraint iteration); `oldMuscles` keeps the limitless ones for the delve's 🐞
+  switch. Every stored brain is re-trained by `npm run train:creature`
+  (`tools/creature/train.ts`, seeded, about 90 s), which writes `brains.ts`. Each brain
+  is rounded, then checked rounded, and must keep 85 % of its distance with every
+  phase nudged by up to ±1e-4 rad. The park's walkers and built-in champions are the
+  median of eight 40-generation runs, not the best, so kids who train can win:
+  Doggo 20.1 m in 12 s, Wiggler 23.7, Hopper 18.6, stick-man 12.1.
+- **No Tumbler.** With the cap the stick-man no longer cartwheels (0.1 turns in 12 s
+  against 24 with the old muscles) and learns to scoot, so it stays in the park as
+  🧍 Stick-man. Cartwheels and the 5 m worm now live only in delve chapter 5, where
+  the 🐞 switch turns the old muscles on and off for the same two brains. For the
+  same reason the crown race needs no "upside down is out" rule.
+- **Rewards.** "Far" is plain distance (the old contact discount is gone), "race-walk"
+  is distance while some dot touches the ground, "jump" the lowest dot's best
+  clearance, "backwards" distance to the left. With the cap, jump rewards reach
+  0.7–1 m.
+- **Round 2 uses the Wiggler.** Under the cap the Hopper's gap shrank (48 % against
+  34 % airborne), while the Wiggler's is plain: rewarded for distance it flies 58 % of
+  the time (8.9 m counted), with a foot on the ground 15 % (14.9 m); the delve's two
+  pre-trained worms fly 60 % and 0 %. 25 generations at 40× (about 4 s), then a judged
+  12 s run; two tries, the best counts, 50 points a metre.
+- **Round 3 uses the Doggo, 40 generations,** on bumps up to 0.2 m, and the brain that
+  goes out is the one of the last generation's best five that does best on three
+  fresh practice worlds (flat floors, or new bumps; never the course). Without that
+  check a quarter of bump-trained Doggos also tripped. Measured over 16 runs on the
+  course: flat-trained median 0.2 m (14 below 3 m), bump-trained 7.8 m (none below 3 m).
+  60 points a metre.
+- **Round 1** takes a pick any time after the pens have walked a second (they freeze at
+  four), so a kid is never ignored. Picking the farthest takes Doggo from 1.7 to
+  4.1 m in ten picks; picking at random from 1.7 to 1.0 m. The computer's 300 picks
+  follow at ~7 ms each, spread over frames, 100 points a metre.
+- **Crowns** are stored per kind of body (the four presets and "own design") and per
+  day, as `creature-crowns:<date>`. A win is crowned at once as "???" and renamed when
+  the initials come, and the new champion walks in the park with its crown. Each kind
+  has its own board (`creature-race-<kind>`, distances in metres). A crown holder
+  can't race itself, and teaching a kid's own creature carries on from its brain.
+- **Editor.** Drags start from the nearest dot within 0.3 m, and anything not joined to
+  the head is shown faded and dropped at Done, so drawn limbs stay attached. Undo and
+  "start over" are there.
+- **Delve.** As planned, with two changes. The brain chapter's nudge makes a twin of
+  the brain on show: the champion's twin stays with it (a good gait shrugs off a
+  0.01 rad nudge; 0 of 20 parted), and for a scrambled brain it quietly tries up to a
+  dozen and shows one whose twin parts (only about a third do within 10 s). The
+  landscape is 40 × 40 Doggo brains of 5 s each (the two leg-swing timings), painted
+  at 8 ms a frame and kept between visits; pointing at a pixel walks that brain.
+- **Title and tile.** The title stays Creature Lab (Beestenlab); the tile is now 🦿.
+- **Facts to verify before the day:** the boat-race AI (OpenAI's CoastRunners post,
+  2016), "thousands of copies practise at once on one chip … years of falling take
+  a few hours" (e.g. Rudin et al., 2021), and **agree the wording** of chapter 6's
+  group sentence about learning inside turbulence simulations.
+
 ## Assessment
 
 Creature Lab is still the Phase-5 build from August, plus a delve and translations. It

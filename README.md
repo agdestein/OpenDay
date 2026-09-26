@@ -49,8 +49,9 @@ Planned first games (see [docs/plan.md](docs/plan.md) for the full implementatio
    hospital; the challenge scores lives saved against simulated do-nothing futures.
 3. **Save the Netherlands** — hold back a live storm surge with sand; dikes that
    overtop wear away and breach.
-4. **Creature Lab** — build a stick creature and watch evolution teach it to walk;
-   race your champion against the reigning champ of the day.
+4. **Creature Lab** — a park of stick creatures to grab and fling; teach one to walk
+   by evolution in a simulated world (an hour of practice a minute) and race it for
+   today's crown.
 5. **Weather Detective** — a real KNMI weather map hides under the fog; place
    thermometers and a Gaussian process guesses the rest, shows how sure it is, and
    "dreams" possible weathers. Three cases: find the hottest place, make the weather
@@ -111,6 +112,19 @@ follows a beloved lineage: Karl Sims'
 [Evolved Virtual Creatures](https://www.karlsims.com/evolved-virtual-creatures.html)
 (1994), [carykh](https://www.youtube.com/@carykh)'s Evolution Simulator
 videos, and Keiwan Donyagard's [Evolution](https://keiwan.itch.io/evolution).
+It opens on a park of creatures walking on trained brains, to grab, fling and
+startle. Teaching one shows a practice clock (simulated time, tries), lets a kid pick
+parents by hand, and has turbo and four rewards (far, race-walk, jump, backwards);
+the race is against today's champion of the same kind of body (crowns per kind and
+day, with initials). Muscles have a speed limit: without it evolution learned
+cartwheels and 5 m worm jumps, which the delve's 🐞 switch brings back. The
+challenge has three rounds: Pick the parents (you are the selection, then the
+computer does 300 picks), Race-walk (choose the reward; a judge counts only
+distance with a foot on the ground) and Into the wild (practise on a flat floor or
+changing bumps, then cross an unseen course). The pre-trained brains are generated
+by `npm run train:creature` (`tools/creature/train.ts`) and must be re-trained when
+the physics changes. See [the proposal](docs/creature-proposal.md)
+(`npm run test:creature`).
 
 Save the Netherlands (`app/src/games/floodland/`) runs a finite-volume shallow-water model
 (hydrostatic reconstruction, Rusanov fluxes, wetting and drying) live every frame, with

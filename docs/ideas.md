@@ -73,10 +73,10 @@ Shallow-water equations on a stylized map of the Dutch coast.
 - **Effort:** medium (2D physics engine off-the-shelf; evolution loop is easy; tuning
   "learns visibly within ~2 minutes" is the real work). The cleanest AI message.
 
-Built as **Creature Lab** (`creature`): a body editor, evolution, a race against the
-day's champion and a four-chapter delve. See [the proposal](creature-proposal.md) for
-turning it into a creature park you can grab and fling, with a three-round challenge
-(pick the parents, race-walk, into the wild) about learning inside a simulation.
+Built as **Creature Lab** (`creature`): a creature park you can grab and fling,
+teaching with a practice clock, crowns per body, a three-round challenge (pick the
+parents, race-walk, into the wild) and a six-chapter delve about learning inside a
+simulation. See [the proposal](creature-proposal.md).
 
 ## 5. Butterfly effect (chaos twins) — **candidate**
 

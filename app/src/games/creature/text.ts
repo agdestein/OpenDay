@@ -12,6 +12,7 @@ export interface CreatureText {
     race: string;
     challenge: string;
     raceFirst: string;
+    crowned: string;
     you: string;
     mine: string;
   };
@@ -29,6 +30,7 @@ export interface CreatureText {
   };
   teach: {
     hint: string;
+    carryOn: string;
     rewardHint: Record<Reward, string>;
     reward: Record<Reward, string>;
     speed: (s: 'x1' | 'x3' | 'turbo') => string;
@@ -84,6 +86,7 @@ export const TEXT: Localized<CreatureText> = {
       race: 'Race',
       challenge: 'Challenge',
       raceFirst: 'Teach it first',
+      crowned: 'Champion!',
       you: '⭐',
       mine: '⭐ yours',
     },
@@ -106,6 +109,7 @@ export const TEXT: Localized<CreatureText> = {
     },
     teach: {
       hint: 'Every baby has its own random brain. The farthest walkers get babies — or click the one YOU like ❤️',
+      carryOn: 'These babies are copies of your creature with small changes. The farthest get babies — or click the one YOU like ❤️',
       rewardHint: {
         far: 'Reward: distance. The only thing they are told is how far they got.',
         ground: 'Reward: race-walking. Distance only counts while a foot touches the ground.',
@@ -167,6 +171,7 @@ export const TEXT: Localized<CreatureText> = {
       race: 'Race',
       challenge: 'Uitdaging',
       raceFirst: 'Eerst trainen',
+      crowned: 'Kampioen!',
       you: '⭐',
       mine: '⭐ van jou',
     },
@@ -189,6 +194,7 @@ export const TEXT: Localized<CreatureText> = {
     },
     teach: {
       hint: 'Elke baby heeft een eigen willekeurig brein. De verste lopers krijgen baby’s — of klik op degene die JIJ leuk vindt ❤️',
+      carryOn: 'Deze baby’s zijn kopieën van jouw beestje met kleine veranderingen. De verste krijgen baby’s — of klik op degene die JIJ leuk vindt ❤️',
       rewardHint: {
         far: 'Beloning: afstand. Het enige wat ze horen is hoe ver ze kwamen.',
         ground: 'Beloning: snelwandelen. Afstand telt alleen als er een voet op de grond staat.',
@@ -250,6 +256,7 @@ export const TEXT: Localized<CreatureText> = {
       race: 'Løp',
       challenge: 'Utfordring',
       raceFirst: 'Tren først',
+      crowned: 'Mester!',
       you: '⭐',
       mine: '⭐ din',
     },
@@ -272,6 +279,7 @@ export const TEXT: Localized<CreatureText> = {
     },
     teach: {
       hint: 'Hver baby har sin egen tilfeldige hjerne. De som går lengst får babyer — eller klikk på den DU liker ❤️',
+      carryOn: 'Disse babyene er kopier av skapningen din med små endringer. De som går lengst får babyer — eller klikk på den DU liker ❤️',
       rewardHint: {
         far: 'Belønning: avstand. Det eneste de får vite er hvor langt de kom.',
         ground: 'Belønning: kappgang. Avstanden teller bare mens en fot er i bakken.',

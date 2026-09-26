@@ -119,6 +119,8 @@ export interface EvolutionOptions {
   groundFor?: (generation: number) => Ground;
   oldMuscles?: boolean;
   rand?: () => number;
+  /** Carry on from this brain (it and its mutated babies) instead of random brains. */
+  start?: Genome;
 }
 
 export interface Best {
@@ -167,7 +169,9 @@ export class Evolution {
     this.groundFor = opts.groundFor;
     this.oldMuscles = opts.oldMuscles ?? false;
     this.rand = opts.rand ?? Math.random;
-    this.genomes = Array.from({ length: this.population }, () => randomGenome(plan, this.rand));
+    this.genomes = opts.start
+      ? babiesOf(opts.start, this.population, this.rand)
+      : Array.from({ length: this.population }, () => randomGenome(plan, this.rand));
     this.spawn();
   }
 

@@ -21,7 +21,7 @@ export default async (h) => {
   await h.sleep(6000); await h.shot('or_1');
   // creature
   await open(h, 'creature');
-  await btn(h, 'TRAINEN');
+  await btn(h, 'Leer het lopen');
   await h.sleep(20000); await h.shot('cr_1');
   await h.sleep(20000); await h.shot('cr_2');
 };

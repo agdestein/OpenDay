@@ -200,7 +200,7 @@ export class Teacher {
     if (evo.best && evo.reward !== 'high' && Math.abs(evo.best.dist) > 0.5) {
       const x = sx(v, evo.best.dist);
       if (x > -40 && x < w + 40) {
-        const top = Math.max(200, v.groundY - v.scale * 2.2);
+        const top = Math.max(236, v.groundY - v.scale * 2.2);
         ctx.strokeStyle = 'rgba(251, 191, 36, 0.55)';
         ctx.setLineDash([10, 10]);
         ctx.lineWidth = 3;
