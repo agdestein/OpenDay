@@ -46,6 +46,10 @@ export function scoreFlow(opts: {
    */
   presetInitials?: string;
   actions: ScoreFlowAction[];
+  /** Called with the initials once they are entered (e.g. to name a champion). */
+  onInitials?: (initials: string) => void;
+  /** How the board shows a score (default: a whole number). */
+  formatScore?: (score: number) => string;
 }): ScoreFlowHandle {
   const element = document.createElement('div');
   element.className = 'score-flow';
@@ -67,6 +71,7 @@ export function scoreFlow(opts: {
 
   const showBoard = (initials: string) => {
     removeKeys();
+    opts.onInitials?.(initials);
     sound.play('cheer');
     const bestOnly = opts.presetInitials !== undefined;
     const list = addScore(opts.gameId, initials, opts.score, bestOnly);
@@ -88,7 +93,7 @@ export function scoreFlow(opts: {
       const name = document.createElement('span');
       name.textContent = entry.initials;
       const points = document.createElement('span');
-      points.textContent = fmtNumber(Math.round(entry.score));
+      points.textContent = opts.formatScore ? opts.formatScore(entry.score) : fmtNumber(Math.round(entry.score));
       li.append(place, name, points);
       return li;
     };

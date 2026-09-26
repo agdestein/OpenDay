@@ -1,6 +1,6 @@
 // Creature Lab: physics, evolution and the pre-trained brains (npm run test:creature).
-import { bumpyGround, Creature, FIXED_DT, NODE_R, simulate, type BodyPlan, type Genome } from '../src/games/creature/physics.ts';
-import { babiesOf, Evolution, randomGenome, seededRandom, type Reward } from '../src/games/creature/evolve.ts';
+import { bumpyGround, Creature, FIXED_DT, FLAT, NODE_R, simulate, type BodyPlan, type Genome } from '../src/games/creature/physics.ts';
+import { babiesOf, Evolution, randomGenome, seededRandom, steadiest, type Reward } from '../src/games/creature/evolve.ts';
 import { COURSE_SEED, PRESETS, preset } from '../src/games/creature/presets.ts';
 import { DEMO_BRAINS, TRAINED } from '../src/games/creature/brains.ts';
 import assert from 'node:assert/strict';
@@ -156,9 +156,17 @@ const course = bumpyGround(COURSE_SEED, 0.2);
   assert.ok(judged(grd) > judged(far), `judged: far ${judged(far)}, ground ${judged(grd)}`);
   console.log(`PASS: race-walk — rewarded for distance the worm flies ${(100 * air(far)).toFixed(0)} % (judged ${f1(judged(far))} m); with a foot on the ground ${(100 * air(grd)).toFixed(0)} % (${f1(judged(grd))} m).`);
 
-  const flat = [0, 1, 2, 3, 4, 5].map((r) => simulate(doggo, train(doggo, 'far', 30, 500 + r, false), 12, { ground: course }).dist());
-  const bumpy = [0, 1, 2, 3, 4, 5].map((r) => simulate(doggo, train(doggo, 'far', 30, 600 + r, true), 12, { ground: course }).dist());
+  // Round 3 as played: 40 generations, then the steadiest of the best five on fresh practice worlds.
+  const wild = (seed: number, bumps: boolean) => {
+    const evo = new Evolution(doggo, { rand: seededRandom(seed), groundFor: bumps ? (gen) => bumpyGround(seed * 1000 + gen, 0.2) : undefined });
+    evo.runGenerations(40);
+    const worlds = bumps ? [1, 2, 3].map((k) => bumpyGround(seed * 7919 + k, 0.2)) : [FLAT];
+    return simulate(doggo, steadiest(evo, worlds), 12, { ground: course }).dist();
+  };
+  const flat = [0, 1, 2, 3, 4, 5, 6, 7].map((r) => wild(500 + r, false));
+  const bumpy = [0, 1, 2, 3, 4, 5, 6, 7].map((r) => wild(600 + r, true));
   assert.ok(median(bumpy) > 2 * Math.max(1, median(flat)), `course: flat ${flat.map(f1)}, bumps ${bumpy.map(f1)}`);
+  assert.ok(bumpy.filter((d) => d < 3).length <= 1, `bump-trained Doggos stuck: ${bumpy.map(f1)}`);
   console.log(`PASS: practice worlds — on the course, flat-trained Doggos ${flat.map(f1).join(' ')} m; bump-trained ${bumpy.map(f1).join(' ')} m.`);
 }
 

@@ -4,12 +4,12 @@
 // on the machine; `?sound=off` in the URL starts a machine muted.
 
 export type SoundName =
-  | 'click' | 'thud' | 'splash' | 'alarm' | 'flood' | 'cheer' | 'fanfare' | 'tick' | 'gate' | 'horn' | 'ding' | 'clack' | 'whoosh' | 'sizzle';
+  | 'click' | 'thud' | 'splash' | 'alarm' | 'flood' | 'cheer' | 'fanfare' | 'tick' | 'gate' | 'horn' | 'ding' | 'clack' | 'whoosh' | 'sizzle' | 'boing' | 'squeak' | 'pop';
 
 const KEY = 'arcade-muted';
 /** Shortest gap between two plays of the same sound (s), so a held button or a
  * frame loop cannot turn a sound into a buzz. */
-const GAP: Partial<Record<SoundName, number>> = { thud: .09, splash: .15, click: .04, tick: .3, ding: .06, flood: .4, alarm: 1.5, horn: 1.2, clack: .035, whoosh: .08, sizzle: .25 };
+const GAP: Partial<Record<SoundName, number>> = { thud: .09, splash: .15, click: .04, tick: .3, ding: .06, flood: .4, alarm: 1.5, horn: 1.2, clack: .035, whoosh: .08, sizzle: .25, boing: .12, squeak: .08, pop: .03 };
 
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
@@ -77,6 +77,9 @@ const RECIPES: Record<SoundName, (a: AudioContext, t: number, pitch: number, vol
   whoosh: (a, t, p, v) => { hiss(a, t, .35, .22 * v, 500 * p, 2600 * p, 1.5); tone(a, t, 180 * p, .25, .06 * v, 'sine', 420 * p); },
   sizzle: (a, t) => { hiss(a, t, .7, .28, 5200, 1400, .7); tone(a, t, 260, .4, .08, 'sawtooth', 90); },
   clack: (a, t, p, v) => { tone(a, t, 1500 * p, .045, .12 * v, 'triangle', 1100 * p); hiss(a, t, .03, .1 * v, 4200 * p, 2600 * p, 2); },
+  boing: (a, t, p, v) => { tone(a, t, 170 * p, .16, .22 * v, 'triangle', 560 * p); tone(a, t + .12, 560 * p, .28, .12 * v, 'sine', 330 * p); },
+  squeak: (a, t, p) => { tone(a, t, 950 * p, .09, .12, 'sine', 1700 * p); tone(a, t + .07, 1500 * p, .07, .08, 'sine', 1150 * p); },
+  pop: (a, t, p, v) => { tone(a, t, 520 * p, .07, .16 * v, 'sine', 1250 * p); hiss(a, t, .04, .06 * v, 3000, 1500, 2); },
 };
 
 export const sound = {

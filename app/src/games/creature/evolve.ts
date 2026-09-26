@@ -5,6 +5,7 @@
 import {
   Creature,
   FIXED_DT,
+  simulate,
   MAX_AMP,
   muscleCount,
   type BodyPlan,
@@ -144,6 +145,8 @@ export class Evolution {
   best: Best | null = null;
   /** The best score of each finished generation. */
   history: number[] = [];
+  /** The last finished generation's best five, best first. */
+  lastTop: Genome[] = [];
   /** Generations where the kid picked the parent (indices into history). */
   picked = new Set<number>();
   /** Everything simulated so far: tries and simulated seconds of practice. */
@@ -239,6 +242,7 @@ export class Evolution {
     if (this.groundFor || !this.best || top.score > this.best.score) {
       this.best = { score: top.score, dist: top.dist, genome: top.genome };
     }
+    this.lastTop = [...scored].sort((a, b) => b.score - a.score).slice(0, 5).map((s) => s.genome);
     if (parent !== undefined) this.picked.add(this.history.length);
     this.history.push(top.score);
     this.genomes =
@@ -269,4 +273,23 @@ export function seededRandom(seed: number): () => number {
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
+}
+
+/**
+ * For practice in changing worlds: the one of the last generation's best five
+ * that does best on average over a few fresh practice worlds (a check on
+ * practice-like ground, never on the test course itself).
+ */
+export function steadiest(evo: Evolution, worlds: Ground[], seconds = 12): Genome {
+  let best = evo.best!.genome;
+  let bestScore = -Infinity;
+  for (const g of evo.lastTop) {
+    let sum = 0;
+    for (const ground of worlds) sum += rewardScore(simulate(evo.plan, g, seconds, { ground }), evo.reward);
+    if (sum > bestScore) {
+      bestScore = sum;
+      best = g;
+    }
+  }
+  return best;
 }
