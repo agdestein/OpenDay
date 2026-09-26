@@ -76,6 +76,10 @@ export interface CreatureText {
     freePlay: string;
     stop: string;
     points: (n: number) => string;
+    computersTurn: string;
+    cpuAgain: string;
+    cpuDone: string;
+    cpuPlaying: string;
   };
 }
 
@@ -176,6 +180,10 @@ export const TEXT: Localized<CreatureText> = {
       freePlay: '🌳 Back to the park',
       stop: 'Stop',
       points: (n) => `${fmtNumber(n)} points`,
+      computersTurn: '🤖 Computer’s turn',
+      cpuAgain: '🤖 Once more',
+      cpuDone: '🤖 The computer is done!',
+      cpuPlaying: '🤖 The computer plays',
     },
   },
   nl: {
@@ -272,6 +280,10 @@ export const TEXT: Localized<CreatureText> = {
       freePlay: '🌳 Terug naar het park',
       stop: 'Stop',
       points: (n) => `${fmtNumber(n)} punten`,
+      computersTurn: '🤖 Beurt van de computer',
+      cpuAgain: '🤖 Nog een keer',
+      cpuDone: '🤖 De computer is klaar!',
+      cpuPlaying: '🤖 De computer speelt',
     },
   },
   no: {
@@ -368,6 +380,10 @@ export const TEXT: Localized<CreatureText> = {
       freePlay: '🌳 Tilbake til parken',
       stop: 'Stopp',
       points: (n) => `${fmtNumber(n)} poeng`,
+      computersTurn: '🤖 Datamaskinens tur',
+      cpuAgain: '🤖 En gang til',
+      cpuDone: '🤖 Datamaskinen er ferdig!',
+      cpuPlaying: '🤖 Datamaskinen spiller',
     },
   },
 };

@@ -58,7 +58,18 @@ interface Challenge {
   total: number;
   round: Round;
   card: HTMLElement | null;
+  /** The computer's turn: it plays every round itself, at CPU_SPEED. */
+  cpu: boolean;
+  /** How long the current round card has been up (the computer moves on by itself). */
+  cardAge: number;
+  /** All rounds done: the total is final (the score flow is up). */
+  done: boolean;
 }
+
+/** The computer plays at double speed, so the queue at the stand keeps moving. */
+const CPU_SPEED = 2;
+/** Seconds a round card stays up in the computer's turn. */
+const CPU_CARD_SECONDS = 4;
 
 class CreatureInstance implements GameInstance {
   private ctx!: CanvasRenderingContext2D;
@@ -148,10 +159,15 @@ class CreatureInstance implements GameInstance {
     }
     const ch = this.challenge;
     if (ch) {
-      ch.round.step(dt);
+      ch.round.step(ch.cpu ? dt * CPU_SPEED : dt);
       ch.round.draw(ctx, w, h);
+      if (ch.cpu && ch.card) {
+        ch.cardAge += dt;
+        if (ch.cardAge > CPU_CARD_SECONDS) (ch.index === ROUNDS.length - 1 ? this.finishChallenge() : this.nextRound());
+      }
+      const T = pick(TEXT).challenge;
       this.setHud(
-        [pick(TEXT).challenge.round(ch.index + 1, ROUNDS.length), ch.round.title, ch.round.hud(), `⭐ ${ch.total + (ch.card ? 0 : ch.round.score)}`]
+        [ch.cpu ? T.cpuPlaying : T.round(ch.index + 1, ROUNDS.length), ch.round.title, ch.round.hud(), `⭐ ${ch.total + (ch.card || ch.done ? 0 : ch.round.score)}`]
           .filter(Boolean)
           .join('   ·   '),
       );
@@ -544,10 +560,11 @@ class CreatureInstance implements GameInstance {
       hint: (text) => (this.hint.textContent = text),
       buttons: (defs) => this.roundButtons(defs),
       finish: (score, summary) => this.roundOver(score, summary),
+      auto: () => this.challenge?.cpu ?? false,
     };
   }
 
-  private startChallenge(): void {
+  private startChallenge(cpu = false): void {
     this.closeDelve();
     this.flow?.dispose();
     this.flow = null;
@@ -557,7 +574,7 @@ class CreatureInstance implements GameInstance {
     this.toggle.element.classList.add('hidden');
     this.hud.classList.remove('hidden');
     this.roundBar.classList.remove('hidden');
-    this.challenge = { index: 0, total: 0, round: ROUNDS[0](this.roundHost()), card: null };
+    this.challenge = { index: 0, total: 0, round: ROUNDS[0](this.roundHost()), card: null, cpu, cardAge: 0, done: false };
   }
 
   private nextRound(): void {
@@ -565,6 +582,7 @@ class CreatureInstance implements GameInstance {
     if (!ch) return;
     ch.card?.remove();
     ch.card = null;
+    ch.cardAge = 0;
     ch.round.dispose();
     ch.index++;
     this.roundBar.classList.remove('hidden');
@@ -608,14 +626,20 @@ class CreatureInstance implements GameInstance {
     if (!ch) return;
     ch.card?.remove();
     ch.card = null;
+    ch.done = true;
     const T = pick(TEXT).challenge;
     this.flow = scoreFlow({
       gameId: 'creature',
-      heading: T.heading,
+      heading: ch.cpu ? T.cpuDone : T.heading,
       score: ch.total,
       scoreLabel: T.points(ch.total),
+      // The computer posts under CPU and keeps only its best, as in the other games.
+      presetInitials: ch.cpu ? 'CPU' : undefined,
       actions: [
-        { label: T.playAgain, onClick: () => this.startChallenge() },
+        { label: T.playAgain, onClick: () => this.startChallenge(false) },
+        ch.cpu
+          ? { label: T.cpuAgain, onClick: () => this.startChallenge(true) }
+          : { label: T.computersTurn, onClick: () => this.startChallenge(true) },
         { label: T.freePlay, onClick: () => this.exitChallenge() },
       ],
     });
@@ -704,7 +728,7 @@ class CreatureInstance implements GameInstance {
     this.parkBar = bar('game-toolbar');
     this.makeButton(this.parkBar, { emoji: '🧠', label: T.park.teach, onClick: () => this.enterTeach() }, 'teach');
     this.makeButton(this.parkBar, { emoji: '👑', label: T.park.race, onClick: () => this.startRace('park') }, 'race');
-    this.makeButton(this.parkBar, { emoji: '🏆', label: T.park.challenge, onClick: () => this.startChallenge() });
+    this.makeButton(this.parkBar, { emoji: '🏆', label: T.park.challenge, onClick: () => this.startChallenge(false) });
 
     this.editPresets = bar('game-toolbar creature-presets hidden');
     for (const p of PRESETS) {

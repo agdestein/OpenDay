@@ -9,7 +9,7 @@
 import { Creature, FIXED_DT, simulate, type Genome } from './physics';
 import { babiesOf, randomGenome } from './evolve';
 import { preset } from './presets';
-import type { Round, RoundHost } from './rounds';
+import { CPU_PAUSE, type Round, type RoundHost } from './rounds';
 import { fmtMetres } from './text';
 import { COLOR, drawChart, drawCreature, drawGround, label, panel, type View } from './view';
 import { fmtNumber, pick, type Localized } from '../../lib/i18n';
@@ -103,6 +103,8 @@ export class PickRound implements Round {
   private cpu: number[] = [];
   private cpuGenomes: Genome[] = [];
   private flashAge = 9;
+  /** The computer's turn: how long it has looked at the frozen pens. */
+  private wait = 0;
 
   constructor(private host: RoundHost) {
     this.genomes = Array.from({ length: PENS }, () => randomGenome(this.plan));
@@ -139,10 +141,17 @@ export class PickRound implements Round {
           this.startCpu();
         } else {
           this.phase = 'pick';
+          this.wait = 0;
           sound.play('ding');
           this.host.hint(pick(TEXT).pickNow);
         }
       }
+    } else if (this.phase === 'pick' && this.host.auto()) {
+      // The computer's turn: it always picks the farthest, after a look.
+      this.wait += dt;
+      const d = this.pens.map((c) => c.dist());
+      this.hover = d.indexOf(Math.max(...d));
+      if (this.wait > CPU_PAUSE) this.choose(this.hover);
     } else if (this.phase === 'cpu') {
       const t0 = performance.now();
       while (this.cpu.length <= CPU_PICKS && performance.now() - t0 < CPU_BUDGET) {
@@ -239,11 +248,14 @@ export class PickRound implements Round {
   }
 
   down(x: number, y: number): void {
-    if (!this.canPick()) return;
+    if (!this.canPick() || this.host.auto()) return;
+    const i = this.rects.findIndex((r) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h);
+    if (i >= 0) this.choose(i);
+  }
+
+  private choose(i: number): void {
     // A pick before the pens froze: this season counts as far as it got.
     if (this.phase === 'walk') this.mine.push(Math.max(0, this.best()));
-    const i = this.rects.findIndex((r) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h);
-    if (i < 0) return;
     this.picks++;
     const babies = babiesOf(this.genomes[i], PENS);
     // The parent's copy stays in its pen; babies fill the others.
@@ -264,6 +276,7 @@ export class PickRound implements Round {
   }
 
   move(x: number, y: number): void {
+    if (this.host.auto()) return;
     this.hover = this.rects.findIndex((r) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h);
   }
 

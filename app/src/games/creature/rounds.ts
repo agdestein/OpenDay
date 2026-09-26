@@ -15,7 +15,12 @@ export interface RoundHost {
   buttons(defs: ButtonDef[]): HTMLButtonElement[];
   /** The round is over: its score and one sentence on what it showed. */
   finish(score: number, summary: string): void;
+  /** The computer is playing this round (the "computer's turn"), not a person. */
+  auto(): boolean;
 }
+
+/** Seconds the computer waits before each move in its turn, so watchers can follow. */
+export const CPU_PAUSE = 1.2;
 
 export interface Round {
   /** Emoji and name, for the HUD and the cards. */

@@ -8,7 +8,7 @@
 // tests/creature.test.ts.)
 import type { Reward } from './evolve';
 import { preset } from './presets';
-import type { Round, RoundHost } from './rounds';
+import { CPU_PAUSE, type Round, type RoundHost } from './rounds';
 import { Teacher } from './teach';
 import { Trial } from './trial';
 import { fmtMetres } from './text';
@@ -107,6 +107,9 @@ export class WalkRound implements Round {
   private trial: Trial | null = null;
   private tries: { card: Card; air: number; counts: number }[] = [];
   private idle: Creature;
+  /** The computer's turn: seconds since its last move. */
+  private wait = 0;
+  private finished = false;
 
   constructor(private host: RoundHost) {
     this.idle = new Creature(this.plan, randomGenome(this.plan));
@@ -116,6 +119,7 @@ export class WalkRound implements Round {
   private choose(): void {
     const T = pick(TEXT);
     this.phase = 'choose';
+    this.wait = 0;
     this.host.hint(T.intro);
     this.host.buttons([
       { emoji: '🏁', label: T.cards.far, onClick: () => this.train('far') },
@@ -151,6 +155,7 @@ export class WalkRound implements Round {
     this.tries.push({ card: this.card, air: c.airborne(), counts });
     this.score = Math.round(Math.max(...this.tries.map((x) => x.counts)) * POINTS_PER_M);
     this.phase = 'result';
+    this.wait = 0;
     this.host.hint(c.airborne() > 0.3 ? T.hopped : T.walked);
     sound.play(c.airborne() > 0.3 ? 'thud' : 'cheer');
     const defs = [];
@@ -160,6 +165,8 @@ export class WalkRound implements Round {
   }
 
   private finish(): void {
+    if (this.finished) return;
+    this.finished = true;
     const T = pick(TEXT);
     this.host.finish(
       this.score,
@@ -173,6 +180,15 @@ export class WalkRound implements Round {
   }
 
   step(dt: number): void {
+    // The computer's turn: it tries both rewards and keeps the better, like an engineer would.
+    if (this.host.auto() && (this.phase === 'choose' || this.phase === 'result')) {
+      this.wait += dt;
+      if (this.wait > CPU_PAUSE) {
+        if (this.phase === 'choose') this.train(this.tries.length === 0 ? 'far' : 'ground');
+        else if (this.tries.length < TRIES) this.choose();
+        else this.finish();
+      }
+    }
     if (this.phase === 'choose') {
       this.idle.step();
       this.idle.step();

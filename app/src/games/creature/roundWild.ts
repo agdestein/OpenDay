@@ -12,7 +12,7 @@ import { bumpyGround, Creature, FLAT, type Ground } from './physics';
 import { steadiest } from './evolve';
 import { preset, COURSE_SEED } from './presets';
 import { TRAINED } from './brains';
-import type { Round, RoundHost } from './rounds';
+import { CPU_PAUSE, type Round, type RoundHost } from './rounds';
 import { Teacher } from './teach';
 import { Trial } from './trial';
 import { fmtMetres } from './text';
@@ -117,6 +117,9 @@ export class WildRound implements Round {
   private trial: Trial | null = null;
   private tries: { practice: Practice; dist: number }[] = [];
   private idle: Creature;
+  /** The computer's turn: seconds since its last move. */
+  private wait = 0;
+  private finished = false;
   private seed = Math.floor(Math.random() * 1e6);
 
   constructor(private host: RoundHost) {
@@ -127,6 +130,7 @@ export class WildRound implements Round {
   private choose(): void {
     const T = pick(TEXT);
     this.phase = 'choose';
+    this.wait = 0;
     this.host.hint(T.intro);
     this.host.buttons([
       { emoji: '🟫', label: T.cards.flat, onClick: () => this.train('flat') },
@@ -163,6 +167,7 @@ export class WildRound implements Round {
     this.tries.push({ practice: this.practice, dist: d });
     this.score = Math.round(Math.max(0, ...this.tries.map((t) => t.dist)) * POINTS_PER_M);
     this.phase = 'result';
+    this.wait = 0;
     const good = d > 4;
     this.host.hint(T.outcome[`${this.practice}-${good ? 'good' : 'bad'}`]);
     sound.play(good ? 'cheer' : 'thud');
@@ -173,6 +178,8 @@ export class WildRound implements Round {
   }
 
   private finish(): void {
+    if (this.finished) return;
+    this.finished = true;
     const T = pick(TEXT);
     this.host.finish(this.score, T.summary(this.tries.map((t) => ({ card: T.cards[t.practice], dist: fmtMetres(Math.max(0, t.dist)) }))));
   }
@@ -183,6 +190,15 @@ export class WildRound implements Round {
   }
 
   step(dt: number): void {
+    // The computer's turn: it tries both practice worlds and keeps the better.
+    if (this.host.auto() && (this.phase === 'choose' || this.phase === 'result')) {
+      this.wait += dt;
+      if (this.wait > CPU_PAUSE) {
+        if (this.phase === 'choose') this.train(this.tries.length === 0 ? 'flat' : 'bumps');
+        else if (this.tries.length < TRIES) this.choose();
+        else this.finish();
+      }
+    }
     if (this.phase === 'choose') {
       this.idle.step();
       this.idle.step();
