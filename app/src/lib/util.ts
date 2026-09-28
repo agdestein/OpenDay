@@ -13,7 +13,7 @@ export function clamp(x: number, lo: number, hi: number): number {
  */
 const MAX_CANVAS_PIXELS = 2.2e6;
 /** `?dpr=1.5` pins the ratio on a machine (staff tuning for a slow or huge screen). */
-const DPR_OVERRIDE = Number(new URLSearchParams(location.search).get('dpr')) || 0;
+let dprOverride: number | undefined;
 
 /**
  * Device pixel ratio for canvas backing stores: capped at 2 (phones have 3+),
@@ -21,7 +21,9 @@ const DPR_OVERRIDE = Number(new URLSearchParams(location.search).get('dpr')) || 
  * MAX_CANVAS_PIXELS. Never below 1 unless `?dpr=` asks for it.
  */
 export function cappedDpr(): number {
-  if (DPR_OVERRIDE > 0) return DPR_OVERRIDE;
+  // Read lazily: the Node tests import this module without a `location`.
+  dprOverride ??= Number(new URLSearchParams(location.search).get('dpr')) || 0;
+  if (dprOverride > 0) return dprOverride;
   const area = Math.max(1, window.innerWidth * window.innerHeight);
   const budget = Math.max(1, Math.sqrt(MAX_CANVAS_PIXELS / area));
   return Math.min(window.devicePixelRatio || 1, 2, budget);

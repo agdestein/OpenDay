@@ -5,6 +5,11 @@ import { STEAM, makeSteam } from '../src/games/bounce/steam.ts';
 import { FLOOR, FloorSim } from '../src/games/bounce/floorsim.ts';
 import assert from 'node:assert/strict';
 
+// The game draws its randomness (hot-plate kicks, silo knocks) from
+// Math.random; seed it so every run of this file sees the same pit. Unseeded,
+// a rare run had knocked silos deliver fewer balls than lazy ones.
+Math.random = seededRandom(20261003);
+
 // A pit like the game's on a 1280×720 screen: 620 px tall, so unit = 1.
 const box: Box = { x0: 10, y0: 10, x1: 1270, y1: 630 };
 const bh = box.y1 - box.y0;
