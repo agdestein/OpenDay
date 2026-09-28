@@ -358,7 +358,9 @@ class CreatureInstance implements GameInstance {
     const sel = this.park.selected;
     this.editor.load(plan ?? (sel ? sel.plan : PRESETS[0].plan));
     this.toggle.element.classList.remove('hidden');
-    this.editPresets.classList.remove('hidden');
+    // The design challenge is about the kid's own body: no ready-made ones
+    // (an unchanged Wiggler would top the board).
+    this.editPresets.classList.toggle('hidden', this.designing);
     this.editBar.classList.remove('hidden');
     this.hud.classList.remove('hidden');
     this.setTool('draw');
@@ -398,8 +400,8 @@ class CreatureInstance implements GameInstance {
 
   /** Build a body that crosses the bumps, practising only on a flat floor. It starts from the Doggo, which trips. */
   private startDesign(plan: BodyPlan = PRESETS[0].plan): void {
-    this.enterEditor(plan);
     this.designing = true;
+    this.enterEditor(plan);
     this.refreshEditor();
     this.hint.textContent = pick(DESIGN_TEXT).brief;
   }
@@ -667,7 +669,8 @@ class CreatureInstance implements GameInstance {
     if (!ch || ch.card) return;
     ch.total += score;
     const T = pick(TEXT).challenge;
-    this.roundBar.classList.add('hidden');
+    // Stop stays while the card is up, as it does in every game.
+    this.roundButtons([]);
     this.hint.textContent = '';
     const last = ch.index === ROUNDS.length - 1;
     const card = document.createElement('div');
@@ -803,8 +806,8 @@ class CreatureInstance implements GameInstance {
     this.parkBar = bar('game-toolbar');
     this.makeButton(this.parkBar, { emoji: '🧠', label: T.park.teach, onClick: () => this.enterTeach() }, 'teach');
     this.makeButton(this.parkBar, { emoji: '👑', label: T.park.race, onClick: () => this.startRace('park') }, 'race');
-    this.makeButton(this.parkBar, { emoji: '🏆', label: T.park.challenge, onClick: () => this.startChallenge(false) });
     this.makeButton(this.parkBar, { emoji: '⛰️', label: pick(DESIGN_TEXT).button, onClick: () => this.startDesign() });
+    this.makeButton(this.parkBar, { emoji: '🏆', label: T.park.challenge, onClick: () => this.startChallenge(false) }).classList.add('challenge-button');
 
     this.editPresets = bar('game-toolbar creature-presets hidden');
     for (const p of PRESETS) {
@@ -817,6 +820,8 @@ class CreatureInstance implements GameInstance {
     this.makeButton(this.editBar, { emoji: '🧽', label: T.editor.erase, onClick: () => this.setTool('erase') }, 'erase');
     this.makeButton(this.editBar, { emoji: '↩️', label: T.editor.undo, onClick: () => this.editor.undo() }, 'undo');
     this.makeButton(this.editBar, { emoji: '🗑️', label: T.editor.clear, onClick: () => this.editor.clear() });
+    // A way out that doesn't need a finished body (Done waits for a muscle).
+    this.makeButton(this.editBar, { emoji: '🌳', label: pick(DESIGN_TEXT).park, onClick: () => this.enterPark() });
     this.makeButton(this.editBar, { emoji: '✅', label: T.editor.done, onClick: () => this.finishEditor() }, 'editDone');
 
     this.rewardBar = bar('game-toolbar creature-presets hidden');

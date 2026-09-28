@@ -99,7 +99,7 @@ class FloodInstance implements GameInstance {
   // Layout and DOM.
   private ctx!: CanvasRenderingContext2D;
   private transform = { scale: 1, ox: 0, oy: 0 };
-  private bars: Record<'toy' | 'storm1' | 'plan2' | 'storm2' | 'plan3' | 'storm4' | 'replay', HTMLElement> = {} as never;
+  private bars: Record<'toy' | 'storm1' | 'plan2' | 'storm2' | 'plan3' | 'storm4' | 'replay' | 'card', HTMLElement> = {} as never;
   private buttons: Record<string, HTMLButtonElement> = {};
   private hud!: HTMLElement;
   private hint!: HTMLElement;
@@ -196,12 +196,12 @@ class FloodInstance implements GameInstance {
       return b;
     };
     const bar = () => { const b = document.createElement('div'); b.className = 'game-toolbar delta-toolbar'; return b; };
-    for (const key of Object.keys({ toy: 0, storm1: 0, plan2: 0, storm2: 0, plan3: 0, storm4: 0, replay: 0 }) as (keyof typeof this.bars)[]) this.bars[key] = bar();
+    for (const key of Object.keys({ toy: 0, storm1: 0, plan2: 0, storm2: 0, plan3: 0, storm4: 0, replay: 0, card: 0 }) as (keyof typeof this.bars)[]) this.bars[key] = bar();
     const xray = (b: HTMLElement, key: string) => add(b, key, '🔍', t.xray, () => { this.xray = !this.xray; });
     add(this.bars.toy, 'storm', '🌊', t.storm, () => { this.stormStart = this.time; });
     xray(this.bars.toy, 'xrayToy');
     add(this.bars.toy, 'reset', '🧹', t.startOver, () => this.enterToy());
-    add(this.bars.toy, 'challenge', '🏆', t.challenge, () => this.enterChallenge());
+    add(this.bars.toy, 'challenge', '🏆', t.challenge, () => this.enterChallenge()).classList.add('challenge-button');
     xray(this.bars.storm1, 'xray1');
     add(this.bars.storm1, 'stop1', '⏹', t.stop, () => this.enterToy());
     add(this.bars.plan2, 'test', '🖥️', t.testStorm(WEAK_TESTS), () => this.startTest());
@@ -233,6 +233,8 @@ class FloodInstance implements GameInstance {
     });
     add(this.bars.replay, 'replayNext', '▶️', t.next, () => (this.round === 3 ? this.finishChallenge() : this.enterRound(this.round + 1)));
     add(this.bars.replay, 'replayStop', '⏹', t.stop, () => this.enterToy());
+    // Round cards and the century: nothing to do but read or watch, and leave.
+    add(this.bars.card, 'cardStop', '⏹', t.stop, () => this.enterToy());
     this.hud = document.createElement('div'); this.hud.className = 'challenge-hud delta-hud';
     this.hint = document.createElement('p'); this.hint.className = 'challenge-hint delta-hint';
     this.message = document.createElement('div'); this.message.className = 'delta-banner'; this.message.textContent = `⚠️ ${t.breach}`;
@@ -255,6 +257,7 @@ class FloodInstance implements GameInstance {
     if (this.mode === 'replay') return 'replay';
     if (this.mode === 'storm') return this.round === 0 ? 'storm1' : this.round === 3 ? 'storm4' : 'storm2';
     if (this.mode === 'plan') return this.round === 1 ? 'plan2' : 'plan3';
+    if (this.mode === 'century' || (this.mode === 'card' && !this.flow)) return 'card';
     return null;
   }
 
@@ -433,7 +436,7 @@ class FloodInstance implements GameInstance {
     this.mode = 'card';
     if (dry === HOMES.length) sound.play('cheer');
     this.showCard(t.roundLabel(this.round), t.roundHeading(dry, HOMES.length), [gate ? t.shipBreakdown(dry, this.shipsThrough) : t.breakdown(dry, sand)], '', [
-      gate ? { label: `🏆 ${t.total}`, onClick: () => this.finishChallenge() } : { label: `▶️ ${t.next}`, onClick: () => this.enterRound(this.round + 1) },
+      gate ? { label: `🏆 ${t.total}`, onClick: () => this.finishChallenge() } : { label: `${t.next} ▶`, onClick: () => this.enterRound(this.round + 1) },
       { label: `⏪ ${t.watchAgain}`, onClick: () => this.enterReplay() },
     ], t.points(score));
     this.updateUi();
@@ -481,7 +484,7 @@ class FloodInstance implements GameInstance {
       score: total,
       scoreLabel: t.points(total),
       actions: [
-        { label: `🏆 ${t.playAgain}`, onClick: () => this.enterChallenge() },
+        { label: `🔁 ${t.playAgain}`, onClick: () => this.enterChallenge() },
         { label: `🌊 ${t.freePlay}`, onClick: () => this.enterToy() },
       ],
     });

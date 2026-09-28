@@ -19,9 +19,11 @@ const TEXT: Localized<{
   blocks: string;
   wind: string;
   clear: string;
-  windFarm: string;
+  challenge: string;
   computer: string;
   stop: string;
+  stirHint: string;
+  blocksHint: string;
   delveHeading: string;
 }> = {
   en: {
@@ -30,9 +32,11 @@ const TEXT: Localized<{
     blocks: 'Blocks',
     wind: 'Wind',
     clear: 'Clear',
-    windFarm: 'Wind farm',
+    challenge: 'Challenge!',
     computer: 'Computer',
     stop: 'Stop',
+    stirHint: 'Drag across the screen to stir the air 👆',
+    blocksHint: 'Click to put down a rock, and watch the wind swirl behind it 🪨',
     delveHeading: '🔬 The science of Swirl Lab',
   },
   nl: {
@@ -41,9 +45,11 @@ const TEXT: Localized<{
     blocks: 'Blokken',
     wind: 'Wind',
     clear: 'Wissen',
-    windFarm: 'Windmolenpark',
+    challenge: 'Uitdaging!',
     computer: 'Computer',
     stop: 'Stop',
+    stirHint: 'Sleep over het scherm om de lucht te laten wervelen 👆',
+    blocksHint: 'Klik om een rots neer te zetten, en kijk hoe de wind erachter wervelt 🪨',
     delveHeading: '🔬 De wetenschap van het Wervel-lab',
   },
   no: {
@@ -52,9 +58,11 @@ const TEXT: Localized<{
     blocks: 'Blokker',
     wind: 'Vind',
     clear: 'Tøm',
-    windFarm: 'Vindpark',
+    challenge: 'Utfordring!',
     computer: 'Datamaskin',
     stop: 'Stopp',
+    stirHint: 'Dra over skjermen for å røre i lufta 👆',
+    blocksHint: 'Klikk for å sette ned en stein, og se vinden virvle bak den 🪨',
     delveHeading: '🔬 Vitenskapen bak Virvellab',
   },
 };
@@ -65,6 +73,8 @@ const OBSTACLE_RADIUS = 0.07; // fraction of screen height
 const MAX_PLACED_OBSTACLES = 12;
 const WIND_SPEED = 60; // reference-grid cells/sec (256 across the screen)
 const TOY_STREAKS = 6;
+/** Seconds without touching the fluid before the free-play hint comes back (for the next kid). */
+const HINT_AFTER = 12;
 /** Shoulder dye of the blocks: [side (+1 top, -1 bottom), color]. */
 const SHOULDER_COLORS: [number, [number, number, number]][] = [
   [1, [1.0, 0.5, 0.15]],
@@ -121,6 +131,9 @@ class FluidInstance implements GameInstance {
   private stage: DelveStage | null = null;
   /** Sim time of the player's last stir (the delve's auto-stirrer waits for a pause). */
   private lastStir = -Infinity;
+  /** Sim time of the last stir or block, and the free-play hint it hides. */
+  private lastTouch = -Infinity;
+  private toyHint: HTMLElement | null = null;
 
   private onContextMenu = (e: Event) => e.preventDefault();
   private onPointerDown = (e: PointerEvent) => {
@@ -129,6 +142,7 @@ class FluidInstance implements GameInstance {
       this.challenge.onPointerDown(x, y);
       return;
     }
+    this.lastTouch = this.time;
     if (e.button === 2 || this.mode === 'blocks') {
       this.toggleObstacle(x, y);
       return;
@@ -225,6 +239,13 @@ class FluidInstance implements GameInstance {
     this.stage?.applyView(solver);
     solver.render();
     this.stage?.drawOverlay();
+
+    if (this.toyHint) {
+      const idle = this.time - Math.max(this.lastStir, this.lastTouch) > HINT_AFTER;
+      this.toyHint.hidden = !idle || this.challenge !== null || this.delve !== null;
+      const text = this.mode === 'blocks' ? pick(TEXT).blocksHint : pick(TEXT).stirHint;
+      if (this.toyHint.textContent !== text) this.toyHint.textContent = text;
+    }
 
     // One-time quality reduction if this machine can't hold ~42 fps (unless
     // the stand forced a tier with ?quality=).
@@ -419,15 +440,18 @@ class FluidInstance implements GameInstance {
       this.solver!.setObstacles(this.obstacles);
       this.solver!.reset();
     });
-    add(this.toyBar, '⚡', T.windFarm, () => this.startChallenge(false));
     add(this.toyBar, '🤖', T.computer, () => this.startChallenge(true));
+    add(this.toyBar, '🏆', T.challenge, () => this.startChallenge(false)).classList.add('challenge-button');
 
     this.challengeBar = document.createElement('div');
     this.challengeBar.className = 'game-toolbar hidden';
     add(this.challengeBar, '⏹', T.stop, () => this.challenge?.abort());
 
+    this.toyHint = document.createElement('p');
+    this.toyHint.className = 'challenge-hint';
+
     this.setMode('stir');
-    this.host.overlay.append(this.toyBar, this.challengeBar);
+    this.host.overlay.append(this.toyBar, this.challengeBar, this.toyHint);
   }
 
   private setMode(mode: Mode): void {

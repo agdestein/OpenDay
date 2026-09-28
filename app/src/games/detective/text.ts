@@ -26,6 +26,7 @@ interface Text {
   peek: string;
   clear: string;
   cases: string;
+  stop: string;
   days: Record<DayId, { name: string; emoji: string; when: string }>;
   guessTag: (mean: number, sd: number) => string;
   homeBias: (b: number) => string;
@@ -70,7 +71,8 @@ const en: Text = {
   knmi: '🏛 KNMI’s stations',
   peek: '👁 Peek',
   clear: '🧹 Clear',
-  cases: '🕵️ Solve the cases!',
+  cases: '🏆 Challenge!',
+  stop: '⏹ Stop',
   days: {
     heatwave: { name: 'Heatwave', emoji: '🔥', when: '1 July 2025, 16:20' },
     seabreeze: { name: 'Sea breeze', emoji: '🌊', when: '14 July 2025, 11:50' },
@@ -98,7 +100,7 @@ const en: Text = {
       tip: 'The computer’s trick: predict every station from all the others. One that disagrees a lot is suspicious. Real home-station data is checked the same way.',
     },
   },
-  start: 'Start ▶',
+  start: 'Go! ▶',
   thermometersLeft: (n) => `🌡 × ${n} left`,
   accusationsLeft: (n) => `☝️ ${n} accusation${n === 1 ? '' : 's'} left`,
   makeMap: '📺 Make the map',
@@ -117,8 +119,8 @@ const en: Text = {
   finish: 'Your detective score ▶',
   totalHeading: 'Case closed!',
   totalLabel: (p) => `${p} points`,
-  playAgain: '🕵️ Play again',
-  backToFree: 'Free play',
+  playAgain: '🔁 Play again',
+  backToFree: '🌡️ Free play',
   looTag: (r, o) => `reads ${deg(r)} · the others say ${deg(o)}`,
   deg,
   delveHeading: '🔬 The science of Weather Detective',
@@ -139,7 +141,8 @@ const nl: Text = {
   knmi: '🏛 KNMI-stations',
   peek: '👁 Spieken',
   clear: '🧹 Wissen',
-  cases: '🕵️ Los de zaken op!',
+  cases: '🏆 Uitdaging!',
+  stop: '⏹ Stop',
   days: {
     heatwave: { name: 'Hittegolf', emoji: '🔥', when: '1 juli 2025, 16:20' },
     seabreeze: { name: 'Zeewind', emoji: '🌊', when: '14 juli 2025, 11:50' },
@@ -167,7 +170,7 @@ const nl: Text = {
       tip: 'De truc van de computer: voorspel elk station uit alle andere. Wie sterk afwijkt, is verdacht. Echte thuisstations worden net zo gecontroleerd.',
     },
   },
-  start: 'Start ▶',
+  start: 'Start! ▶',
   thermometersLeft: (n) => `🌡 × ${n} over`,
   accusationsLeft: (n) => `☝️ nog ${n} beschuldiging${n === 1 ? '' : 'en'}`,
   makeMap: '📺 Maak de kaart',
@@ -186,8 +189,8 @@ const nl: Text = {
   finish: 'Jouw detectivescore ▶',
   totalHeading: 'Zaak gesloten!',
   totalLabel: (p) => `${p} punten`,
-  playAgain: '🕵️ Nog een keer',
-  backToFree: 'Vrij spelen',
+  playAgain: '🔁 Nog een keer',
+  backToFree: '🌡️ Vrij spelen',
   looTag: (r, o) => `meet ${deg(r)} · de anderen zeggen ${deg(o)}`,
   deg,
   delveHeading: '🔬 De wetenschap van Weerdetective',
@@ -208,7 +211,8 @@ const no: Text = {
   knmi: '🏛 KNMIs stasjoner',
   peek: '👁 Kikk',
   clear: '🧹 Tøm',
-  cases: '🕵️ Løs sakene!',
+  cases: '🏆 Utfordring!',
+  stop: '⏹ Stopp',
   days: {
     heatwave: { name: 'Hetebølge', emoji: '🔥', when: '1. juli 2025, 16:20' },
     seabreeze: { name: 'Havbris', emoji: '🌊', when: '14. juli 2025, 11:50' },
@@ -236,7 +240,7 @@ const no: Text = {
       tip: 'Datamaskinens triks: forutsi hver stasjon fra alle de andre. En som er veldig uenig, er mistenkelig. Ekte hjemmestasjoner sjekkes på samme måte.',
     },
   },
-  start: 'Start ▶',
+  start: 'Kjør! ▶',
   thermometersLeft: (n) => `🌡 × ${n} igjen`,
   accusationsLeft: (n) => `☝️ ${n} anklage${n === 1 ? '' : 'r'} igjen`,
   makeMap: '📺 Lag kartet',
@@ -255,8 +259,8 @@ const no: Text = {
   finish: 'Din detektivscore ▶',
   totalHeading: 'Saken er løst!',
   totalLabel: (p) => `${p} poeng`,
-  playAgain: '🕵️ Spill igjen',
-  backToFree: 'Fri lek',
+  playAgain: '🔁 Spill igjen',
+  backToFree: '🌡️ Fri lek',
   looTag: (r, o) => `måler ${deg(r)} · de andre sier ${deg(o)}`,
   deg,
   delveHeading: '🔬 Vitenskapen bak Værdetektiv',

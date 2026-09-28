@@ -152,7 +152,7 @@ const TEXT: Localized<{
     closeMarket: 'Close market',
     openMarket: 'Open market',
     reset: 'Reset',
-    challenge: 'Challenge',
+    challenge: 'Challenge!',
     stop: 'Stop',
     groups: { elder: 'Grandparents', adult: 'Parents', kid: 'Kids' },
     roundOf: (round, total) => `Round ${round} of ${total}`,
@@ -177,7 +177,7 @@ const TEXT: Localized<{
     futuresRunning: (done, total) =>
       `💻 Simulating this town ${total} times without you… ${done}/${total}`,
     futuresReady: (total) => `💻 ${total} futures without you: ready to compare.`,
-    go: '▶ GO!',
+    go: 'Go! ▶',
     hintArrived: 'Sick travellers have arrived in town…',
     hintImported: 'Another sick traveller arrived.',
     hintBatch: '💉 A vaccine batch has arrived — who should get it?',
@@ -199,7 +199,7 @@ const TEXT: Localized<{
       fever: 'Tip: close before the wave gets big. Once the hospital is already full, closing comes too late.',
       unknown: 'Tip: closing early buys time until the vaccine arrives.',
     },
-    nextRound: '▶ Next round',
+    nextRound: 'Next round ▶',
     seeScore: '🏁 Your score',
     finalHeading: '🏁 Challenge complete!',
     livesSaved: (n) => `${fmtNumber(n)} ${n === 1 ? 'life' : 'lives'} saved`,
@@ -243,7 +243,7 @@ const TEXT: Localized<{
     closeMarket: 'Markt dicht',
     openMarket: 'Markt open',
     reset: 'Opnieuw',
-    challenge: 'Uitdaging',
+    challenge: 'Uitdaging!',
     stop: 'Stop',
     groups: { elder: 'Opa’s & oma’s', adult: 'Ouders', kid: 'Kinderen' },
     roundOf: (round, total) => `Ronde ${round} van ${total}`,
@@ -268,7 +268,7 @@ const TEXT: Localized<{
     futuresRunning: (done, total) =>
       `💻 De computer simuleert deze stad ${total} keer zonder jou… ${done}/${total}`,
     futuresReady: (total) => `💻 ${total} toekomsten zonder jou: klaar om te vergelijken.`,
-    go: '▶ Start!',
+    go: 'Start! ▶',
     hintArrived: 'Er zijn zieke reizigers in de stad aangekomen…',
     hintImported: 'Er is weer een zieke reiziger aangekomen.',
     hintBatch: '💉 Er is een partij vaccin aangekomen — wie krijgt het?',
@@ -290,7 +290,7 @@ const TEXT: Localized<{
       fever: 'Tip: sluit voordat de golf groot wordt. Als het ziekenhuis al vol ligt, komt sluiten te laat.',
       unknown: 'Tip: vroeg sluiten koopt tijd tot het vaccin er is.',
     },
-    nextRound: '▶ Volgende ronde',
+    nextRound: 'Volgende ronde ▶',
     seeScore: '🏁 Jouw score',
     finalHeading: '🏁 Uitdaging voltooid!',
     livesSaved: (n) => `${fmtNumber(n)} ${n === 1 ? 'leven' : 'levens'} gered`,
@@ -334,7 +334,7 @@ const TEXT: Localized<{
     closeMarket: 'Steng torget',
     openMarket: 'Åpne torget',
     reset: 'Nullstill',
-    challenge: 'Utfordring',
+    challenge: 'Utfordring!',
     stop: 'Stopp',
     groups: { elder: 'Besteforeldre', adult: 'Foreldre', kid: 'Barn' },
     roundOf: (round, total) => `Runde ${round} av ${total}`,
@@ -359,7 +359,7 @@ const TEXT: Localized<{
     futuresRunning: (done, total) =>
       `💻 Datamaskinen simulerer byen ${total} ganger uten deg… ${done}/${total}`,
     futuresReady: (total) => `💻 ${total} fremtider uten deg: klare til å sammenligne.`,
-    go: '▶ KJØR!',
+    go: 'Kjør! ▶',
     hintArrived: 'Syke reisende har kommet til byen…',
     hintImported: 'Enda en syk reisende har kommet.',
     hintBatch: '💉 En vaksineleveranse har kommet — hvem skal få den?',
@@ -381,7 +381,7 @@ const TEXT: Localized<{
       fever: 'Tips: steng før bølgen blir stor. Når sykehuset allerede er fullt, kommer stengingen for sent.',
       unknown: 'Tips: å stenge tidlig kjøper tid til vaksinen kommer.',
     },
-    nextRound: '▶ Neste runde',
+    nextRound: 'Neste runde ▶',
     seeScore: '🏁 Poengsummen din',
     finalHeading: '🏁 Utfordringen er fullført!',
     livesSaved: (n) => `${fmtNumber(n)} liv reddet`,
@@ -1025,7 +1025,7 @@ class OutbreakInstance implements GameInstance {
       this.syncToyVenueButtons();
       this.hint.textContent = pick(TEXT).clickToStart;
     });
-    add(this.toyBar, 'challenge', '😷', T.challenge, () => this.startGame());
+    add(this.toyBar, 'challenge', '🏆', T.challenge, () => this.startGame()).classList.add('challenge-button');
 
     this.gameBar = document.createElement('div');
     this.gameBar.className = 'game-toolbar hidden';

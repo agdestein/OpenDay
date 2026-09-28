@@ -43,6 +43,7 @@ const TEXT: Localized<{
   full: string;
   delveHeading: string;
   stop: string;
+  toyHint: string;
   round: (i: number, n: number) => string;
   roundPoints: (n: number) => string;
   nextRound: string;
@@ -72,14 +73,15 @@ const TEXT: Localized<{
     full: 'Full!',
     delveHeading: '🔬 The science of the Ball Pit',
     stop: 'Stop',
+    toyHint: 'Tap for a handful of balls, hold to pour 👆',
     round: (i, n) => `Round ${i}/${n}`,
     roundPoints: (n) => `+${fmtNumber(n)} points`,
     nextRound: 'Next round ▶',
     finalScore: 'Final score ▶',
     challengeHeading: '🏀 Ball Pit challenge',
     points: (n) => `${fmtNumber(n)} points`,
-    playAgain: 'Play again',
-    freePlay: 'Ball pit',
+    playAgain: '🔁 Play again',
+    freePlay: '🏀 Free play',
   },
   nl: {
     ballCount: (n) => `${n} ballen, elk 240 keer per seconde verplaatst`,
@@ -101,14 +103,15 @@ const TEXT: Localized<{
     full: 'Vol!',
     delveHeading: '🔬 De wetenschap van de Ballenbak',
     stop: 'Stop',
+    toyHint: 'Tik voor een handvol ballen, houd ingedrukt om te gieten 👆',
     round: (i, n) => `Ronde ${i}/${n}`,
     roundPoints: (n) => `+${fmtNumber(n)} punten`,
     nextRound: 'Volgende ronde ▶',
     finalScore: 'Eindscore ▶',
     challengeHeading: '🏀 Ballenbak-uitdaging',
     points: (n) => `${fmtNumber(n)} punten`,
-    playAgain: 'Nog een keer',
-    freePlay: 'Ballenbak',
+    playAgain: '🔁 Nog een keer',
+    freePlay: '🏀 Vrij spelen',
   },
   no: {
     ballCount: (n) => `${n} baller, hver flyttet 240 ganger i sekundet`,
@@ -130,14 +133,15 @@ const TEXT: Localized<{
     full: 'Fullt!',
     delveHeading: '🔬 Vitenskapen bak Ballbinga',
     stop: 'Stopp',
+    toyHint: 'Trykk for en neve baller, hold inne for å helle 👆',
     round: (i, n) => `Runde ${i}/${n}`,
     roundPoints: (n) => `+${fmtNumber(n)} poeng`,
     nextRound: 'Neste runde ▶',
     finalScore: 'Sluttpoeng ▶',
     challengeHeading: '🏀 Ballbinge-utfordring',
     points: (n) => `${fmtNumber(n)} poeng`,
-    playAgain: 'Spill igjen',
-    freePlay: 'Ballbinge',
+    playAgain: '🔁 Spill igjen',
+    freePlay: '🏀 Fri lek',
   },
 };
 
@@ -159,6 +163,8 @@ const KICK = 1.4;
 /** Balls per second while the button is held, and on a single tap. */
 const POUR_RATE = 30;
 const HANDFUL = 5;
+/** Seconds without touching the pit before the free-play hint comes back (for the next kid). */
+const HINT_AFTER = 12;
 /** The pit is full when balls cover this fraction of it. */
 const FILL_LIMIT = 0.6;
 /** Height fraction filled when the game opens. */
@@ -222,6 +228,9 @@ class BounceInstance implements GameInstance {
   private hud!: HTMLElement;
   private hint!: HTMLElement;
   private delve: DelveHandle | null = null;
+  /** Seconds of play, and when the pit was last touched (the free-play hint waits for a pause). */
+  private clock = 0;
+  private lastTouch = -Infinity;
   private toggle!: DelveToggleHandle;
   private demos = new BounceDemos((name) => this.switches[name]);
 
@@ -379,6 +388,7 @@ class BounceInstance implements GameInstance {
       return;
     }
     // A tap drops a handful; holding keeps pouring (see frame).
+    this.lastTouch = this.clock;
     this.pour(HANDFUL);
     this.pourAcc = 0;
   };
@@ -439,6 +449,12 @@ class BounceInstance implements GameInstance {
   // ---- frame ----
 
   frame(dt: number): void {
+    this.clock += dt;
+    if (!this.challenge) {
+      const idle = !this.pointer.down && this.clock - this.lastTouch > HINT_AFTER;
+      const text = idle && !this.delve ? pick(TEXT).toyHint : '';
+      if (this.hint.textContent !== text) this.hint.textContent = text;
+    }
     const { canvas, dpr } = this.host;
     const w = canvas.width / dpr;
     const h = canvas.height / dpr;
@@ -666,7 +682,8 @@ class BounceInstance implements GameInstance {
     if (!ch) return;
     ch.total += score;
     const T = pick(TEXT);
-    this.gameBar.classList.add('hidden');
+    // Stop stays while the card is up, as it does in every game.
+    this.roundButtons([]);
     this.hint.textContent = '';
     const last = ch.index === ROUNDS.length - 1;
     const card = document.createElement('div');
@@ -786,9 +803,15 @@ class BounceInstance implements GameInstance {
     // The zoom slider lives in a tool-button-shaped box (a range input can't sit in a button).
     const zoom = document.createElement('label');
     zoom.className = 'tool-button';
+    const head = document.createElement('span');
+    head.className = 'tool-head';
     const icon = document.createElement('span');
     icon.className = 'tool-emoji';
     icon.textContent = '🔭';
+    const caption = document.createElement('span');
+    caption.className = 'tool-label';
+    caption.textContent = T.zoom;
+    head.append(icon, caption);
     this.zoomInput = document.createElement('input');
     this.zoomInput.type = 'range';
     this.zoomInput.min = '0';
@@ -798,11 +821,11 @@ class BounceInstance implements GameInstance {
     this.zoomInput.setAttribute('aria-label', T.zoom);
     this.zoomInput.style.cssText = 'width:6.5rem;margin:0.1rem 0 0;accent-color:#7dd3fc;';
     this.zoomInput.addEventListener('input', () => (this.zoom = Number(this.zoomInput.value)));
-    zoom.append(icon, this.zoomInput);
+    zoom.append(head, this.zoomInput);
     this.toyBar.appendChild(zoom);
 
     this.makeButton(this.toyBar, { emoji: '🧹', label: T.reset, onClick: () => this.fillToy() });
-    this.makeButton(this.toyBar, { emoji: '🎯', label: T.challenge, onClick: () => this.startChallenge() });
+    this.makeButton(this.toyBar, { emoji: '🏆', label: T.challenge, onClick: () => this.startChallenge() }).classList.add('challenge-button');
 
     this.gameBar = document.createElement('div');
     this.gameBar.className = 'game-toolbar hidden';

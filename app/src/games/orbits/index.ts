@@ -80,8 +80,8 @@ const TEXT: Localized<{
     finalScore: 'Final score ▶',
     challengeHeading: '🪐 Gravity Doodle challenge',
     points: (n) => `${fmtNumber(n)} points`,
-    playAgain: 'Play again',
-    freePlay: 'Free play',
+    playAgain: '🔁 Play again',
+    freePlay: '🪐 Free play',
     computersTurn: '🤖 Computer’s turn',
     cpuDone: '🤖 The computer is done!',
     cpuAgain: '🤖 Again',
@@ -115,8 +115,8 @@ const TEXT: Localized<{
     finalScore: 'Eindscore ▶',
     challengeHeading: '🪐 Zwaartekracht-doodle-uitdaging',
     points: (n) => `${fmtNumber(n)} punten`,
-    playAgain: 'Nog een keer',
-    freePlay: 'Vrij spelen',
+    playAgain: '🔁 Nog een keer',
+    freePlay: '🪐 Vrij spelen',
     computersTurn: '🤖 Beurt van de computer',
     cpuDone: '🤖 De computer is klaar!',
     cpuAgain: '🤖 Nog een keer',
@@ -150,8 +150,8 @@ const TEXT: Localized<{
     finalScore: 'Sluttpoeng ▶',
     challengeHeading: '🪐 Tyngdekraft-doodle-utfordring',
     points: (n) => `${fmtNumber(n)} poeng`,
-    playAgain: 'Spill igjen',
-    freePlay: 'Fri lek',
+    playAgain: '🔁 Spill igjen',
+    freePlay: '🪐 Fri lek',
     computersTurn: '🤖 Datamaskinens tur',
     cpuDone: '🤖 Datamaskinen er ferdig!',
     cpuAgain: '🤖 En gang til',
@@ -731,7 +731,8 @@ class OrbitsInstance implements GameInstance {
     ch.total += score;
     ch.banked = true;
     const T = pick(TEXT);
-    this.gameBar.classList.add('hidden');
+    // Stop stays while the card is up, as it does in every game.
+    this.roundButtons([]);
     this.hint.textContent = '';
     const last = ch.index === ROUNDS.length - 1;
     const card = document.createElement('div');
@@ -869,9 +870,15 @@ class OrbitsInstance implements GameInstance {
     // A slider can't sit in a button, so this is a label shaped like one.
     const steps = document.createElement('label');
     steps.className = 'tool-button';
+    const head = document.createElement('span');
+    head.className = 'tool-head';
     const icon = document.createElement('span');
     icon.className = 'tool-emoji';
     icon.textContent = '🧮';
+    const caption = document.createElement('span');
+    caption.className = 'tool-label';
+    caption.textContent = T.steps;
+    head.append(icon, caption);
     this.stepsInput = document.createElement('input');
     this.stepsInput.type = 'range';
     this.stepsInput.min = '0';
@@ -891,12 +898,12 @@ class OrbitsInstance implements GameInstance {
       e.preventDefault();
       this.setMethod(this.method === 'smart' ? 'simple' : 'smart');
     });
-    steps.append(icon, this.stepsInput, this.methodChip);
+    steps.append(head, this.stepsInput, this.methodChip);
     this.toyBar.appendChild(steps);
     this.setMethod('smart');
 
     this.makeButton(this.toyBar, { emoji: '🧹', label: T.clear, onClick: () => this.seed() });
-    this.makeButton(this.toyBar, { emoji: '🎯', label: T.challenge, onClick: () => this.startChallenge() });
+    this.makeButton(this.toyBar, { emoji: '🏆', label: T.challenge, onClick: () => this.startChallenge() }).classList.add('challenge-button');
 
     this.presetBar = document.createElement('div');
     this.presetBar.className = 'game-toolbar orbits-presets';

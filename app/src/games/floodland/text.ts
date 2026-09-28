@@ -4,7 +4,7 @@ interface Round { title: string; text: string; science: string }
 interface Chapter { title: string; paragraphs: string[]; formula?: string }
 
 const en = {
-  storm: 'Storm!', xray: 'X-ray', startOver: 'Start over', challenge: 'Challenge',
+  storm: 'Storm!', xray: 'X-ray', startOver: 'Start over', challenge: 'Challenge!',
   stop: 'Stop', play: 'Play', pause: 'Pause', next: 'Next round', total: 'See your score', watchAgain: 'Watch again',
   playAgain: 'Play again', freePlay: 'Free play',
   testStorm: (left: number) => `Test a storm (${left})`, startStorm: 'Start the storm',
@@ -25,7 +25,7 @@ const en = {
     { title: 'How high?', text: 'Nobody knows which storms are coming. A higher dike costs more, but a flood costs even more. Choose the height, then live through 100 years.', science: 'After the 1953 flood, David van Dantzig of the Mathematisch Centrum, now CWI, worked out how high Dutch dikes should be by weighing these same costs.' },
     { title: 'Close the gate', text: 'Ships sail in and out of the harbour. When a storm comes, close the gate, but while it is shut the ships must wait. The computer forecasts each storm: 20 possible storms, surer as it comes.', science: 'The Maeslantkering near Rotterdam closes by itself when the computer forecast says the water will rise more than 3 m above NAP. It first closed for a real storm in November 2007.' },
   ] as Round[],
-  go: 'Go!',
+  go: 'Go! ▶',
   closeGate: 'Close the gate', openGate: 'Open the gate', ships: 'Ships',
   gateHint: 'Close the gate before the water comes over the quay. Every ship that gets through earns points.',
   forecastSays: (n: number, total: number) => n ? `${n} of ${total} forecasts: water over the quay!` : `${total} forecasts: the quay stays dry`,
@@ -100,7 +100,7 @@ const en = {
 const T: Localized<typeof en> = {
   en,
   nl: {
-    storm: 'Storm!', xray: 'Röntgen', startOver: 'Opnieuw', challenge: 'Uitdaging',
+    storm: 'Storm!', xray: 'Röntgen', startOver: 'Opnieuw', challenge: 'Uitdaging!',
     stop: 'Stop', play: 'Afspelen', pause: 'Pauze', next: 'Volgende ronde', total: 'Naar je score', watchAgain: 'Terugkijken',
     playAgain: 'Nog een keer', freePlay: 'Vrij spelen',
     testStorm: (left: number) => `Test een storm (${left})`, startStorm: 'Start de storm',
@@ -121,7 +121,7 @@ const T: Localized<typeof en> = {
       { title: 'Hoe hoog?', text: 'Niemand weet welke stormen er komen. Een hogere dijk kost meer, maar een overstroming kost nog meer. Kies de hoogte en beleef dan 100 jaar.', science: 'Na de watersnood van 1953 berekende David van Dantzig van het Mathematisch Centrum, nu het CWI, hoe hoog Nederlandse dijken moeten zijn, door precies deze kosten af te wegen.' },
       { title: 'Sluit de kering', text: 'Schepen varen de haven in en uit. Komt er een storm, sluit dan de kering, maar zolang die dicht is moeten de schepen wachten. De computer voorspelt elke storm: 20 mogelijke stormen, zekerder naarmate hij dichterbij komt.', science: 'De Maeslantkering bij Rotterdam sluit vanzelf als de computervoorspelling zegt dat het water meer dan 3 meter boven NAP komt. In november 2007 sloot hij voor het eerst voor een echte storm.' },
     ],
-    go: 'Start!',
+    go: 'Start! ▶',
     closeGate: 'Sluit de kering', openGate: 'Open de kering', ships: 'Schepen',
     gateHint: 'Sluit de kering voordat het water over de kade komt. Elk schip dat erdoor komt levert punten op.',
     forecastSays: (n: number, total: number) => n ? `${n} van de ${total} voorspellingen: water over de kade!` : `${total} voorspellingen: de kade blijft droog`,
@@ -193,7 +193,7 @@ const T: Localized<typeof en> = {
     ],
   },
   no: {
-    storm: 'Storm!', xray: 'Røntgen', startOver: 'Begynn på nytt', challenge: 'Utfordring',
+    storm: 'Storm!', xray: 'Røntgen', startOver: 'Begynn på nytt', challenge: 'Utfordring!',
     stop: 'Stopp', play: 'Spill av', pause: 'Pause', next: 'Neste runde', total: 'Se poengene', watchAgain: 'Se igjen',
     playAgain: 'Spill igjen', freePlay: 'Fri lek',
     testStorm: (left: number) => `Test en storm (${left})`, startStorm: 'Start stormen',
@@ -214,7 +214,7 @@ const T: Localized<typeof en> = {
       { title: 'Hvor høyt?', text: 'Ingen vet hvilke stormer som kommer. Et høyere dike koster mer, men en flom koster enda mer. Velg høyden, og lev så gjennom 100 år.', science: 'Etter flommen i 1953 regnet David van Dantzig ved Mathematisch Centrum, nå CWI, ut hvor høye nederlandske diker burde være, ved å veie nettopp disse kostnadene.' },
       { title: 'Steng porten', text: 'Skip seiler inn og ut av havna. Når en storm kommer, stenger du porten, men så lenge den er stengt må skipene vente. Datamaskinen varsler hver storm: 20 mulige stormer, sikrere jo nærmere den kommer.', science: 'Maeslantkering ved Rotterdam stenger av seg selv når datamaskinens varsel sier at vannet vil stige mer enn 3 meter over NAP. Den stengte for første gang for en ekte storm i november 2007.' },
     ],
-    go: 'Kjør!',
+    go: 'Kjør! ▶',
     closeGate: 'Steng porten', openGate: 'Åpne porten', ships: 'Skip',
     gateHint: 'Steng porten før vannet kommer over kaia. Hvert skip som kommer gjennom gir poeng.',
     forecastSays: (n: number, total: number) => n ? `${n} av ${total} varsler: vann over kaia!` : `${total} varsler: kaia holder seg tørr`,

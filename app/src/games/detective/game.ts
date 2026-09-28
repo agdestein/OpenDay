@@ -403,6 +403,7 @@ export class DetectiveGame implements GameInstance {
   }
 
   private backToFree(): void {
+    this.autoRevealAt = -1;
     this.stations = [];
     this.view = 'dream';
     this.phase = 'intro';
@@ -977,6 +978,9 @@ export class DetectiveGame implements GameInstance {
       );
       const go = this.button(t.cases, () => this.startChallenge(), 'wd-primary');
       this.toolbar.append(tools, go);
+    } else if (!this.scoreHandle) {
+      // During a case: a way back to free play, as ⏹ Stop in every game.
+      this.toolbar.append(this.button(t.stop, () => this.backToFree()));
     }
 
     // Cards.
