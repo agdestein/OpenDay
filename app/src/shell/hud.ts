@@ -11,8 +11,11 @@ const TEXT: Localized<{ clickToPlay: string; backToMenu: string; sure: string; s
 /** How long the home button waits for its second tap. */
 const CONFIRM_MS = 3000;
 
-/** Full-screen overlay shown when a game opens; one tap dismisses it and starts play. */
-export function titleCard(game: ArcadeGame, onStart: () => void): HTMLElement {
+/**
+ * See-through card over a game that is already running, shown when it opens;
+ * one tap dismisses it. The first thing anyone sees is the world moving.
+ */
+export function titleCard(game: ArcadeGame): HTMLElement {
   const overlay = document.createElement('div');
   overlay.className = 'title-card';
 
@@ -29,14 +32,7 @@ export function titleCard(game: ArcadeGame, onStart: () => void): HTMLElement {
   hint.textContent = pick(TEXT).clickToPlay;
 
   overlay.append(emoji, heading, science, hint);
-  overlay.addEventListener(
-    'pointerdown',
-    () => {
-      overlay.remove();
-      onStart();
-    },
-    { once: true },
-  );
+  overlay.addEventListener('pointerdown', () => overlay.remove(), { once: true });
   return overlay;
 }
 

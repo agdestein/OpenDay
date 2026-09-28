@@ -15,6 +15,13 @@ const TEXT: Localized<{ clearScores: string; scoresCleared: string }> = {
   no: { clearScores: 'Slette alle dagens poeng og kroner?', scoresCleared: 'Poengene er slettet' },
 };
 
+/**
+ * `?home=windfarm`: this machine opens on that game (behind its title card)
+ * instead of the menu, and goes back to it after an idle reset — so each screen
+ * at the stand shows a different live simulation from a distance.
+ */
+const HOME = new URLSearchParams(location.search).get('home');
+
 /** Clamp dt so a backgrounded tab doesn't produce a huge physics step. */
 const MAX_DT = 0.05;
 /** A game whose frame throws this many times in a row goes back to the menu. */
@@ -58,7 +65,7 @@ export class Shell {
     });
     guardBrowserControls();
     keepScreenAwake();
-    new IdleWatchdog(() => this.inGame);
+    new IdleWatchdog(() => this.inGame, () => this.resting(), HOME !== null);
     window.addEventListener(GL_LOST_EVENT, () => {
       if (this.inGame) this.showMenu();
     });
@@ -154,19 +161,7 @@ export class Shell {
     };
 
     element.appendChild(backButton(() => this.showMenu()));
-    element.appendChild(
-      titleCard(game, () => {
-        try {
-          instance.start();
-        } catch (error) {
-          console.error(`${game.id}: start failed`, error);
-          this.showMenu();
-          return;
-        }
-        last = performance.now();
-        raf = requestAnimationFrame(loop);
-      }),
-    );
+    element.appendChild(titleCard(game));
 
     this.inGame = true;
     this.setScreen({
@@ -182,6 +177,28 @@ export class Shell {
       },
     });
     resize();
+    // The game starts at once, behind its see-through title card.
+    try {
+      instance.start();
+    } catch (error) {
+      console.error(`${game.id}: start failed`, error);
+      this.showMenu();
+      return;
+    }
+    last = performance.now();
+    raf = requestAnimationFrame(loop);
+  }
+
+  /** The game this machine rests on (`?home=`), if any: shown at start and after an idle reset. */
+  showHome(): void {
+    const home = this.games.find((g) => g.id === HOME);
+    if (home) this.launch(home);
+    else this.showMenu();
+  }
+
+  /** On the home game's title card, untouched since it opened: a quiet state to rest in. */
+  private resting(): boolean {
+    return this.inGame && !!this.root.querySelector('.title-card');
   }
 
   private setScreen(next: Screen): void {

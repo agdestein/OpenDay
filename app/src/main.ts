@@ -9,4 +9,4 @@ const wanted = filter ? filter.split(',').map((s) => s.trim()) : null;
 const selected = wanted ? games.filter((g) => wanted.includes(g.id)) : games;
 
 const shell = new Shell(document.getElementById('app')!, selected.length > 0 ? selected : games);
-shell.showMenu();
+shell.showHome();

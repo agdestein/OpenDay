@@ -107,6 +107,13 @@ Useful at the stand:
   Translations live next to the code that uses them as typed `Localized<...>`
   dictionaries (see `app/src/lib/i18n.ts`) — a missing translation is a compile
   error, so the three languages cannot silently drift apart.
+- Add `?home=windfarm` (any game id) to make a machine rest on that game instead
+  of the menu: it opens there, running behind its see-through title card, and goes
+  back to it after an idle reset (a home game nobody touched reloads quietly every
+  idle period, restarting its opening animation). Give each machine a different
+  home, so the stand shows several live simulations from a distance; ⌂ still leads
+  to the menu with all the games. Swirl Lab stirs itself (a "ghost hand") whenever
+  it is left alone for a few seconds.
 - Add `?quality=low` on a slow machine to run Swirl Lab's fluid solver on its
   coarse grid from the start (`?quality=high` pins the fine grid). By default
   it starts fine and drops to coarse by itself if the first seconds stutter.

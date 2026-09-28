@@ -1,9 +1,11 @@
 // Kiosk reset for an unattended stand. With `?idle` (90 s) or `?idle=180`, a
 // game left alone shows a short countdown and then the page reloads: back to
-// the menu, in the machine's own language and sound setting, with any stuck
-// state gone. On the menu nothing happens unless a visitor changed the
-// language or muted the machine. Off by default, so nobody reading a science
-// explainer at home gets kicked out mid-sentence.
+// the menu (or the machine's `?home=` game), in the machine's own language and
+// sound setting, with any stuck state gone. On the menu nothing happens unless
+// a visitor changed the language or muted the machine, or the machine has a
+// home game to go back to. A home game nobody touched reloads quietly, which
+// also restarts its opening animation. Off by default, so nobody reading a
+// science explainer at home gets kicked out mid-sentence.
 //
 // The watchdog runs on its own timer, not in a game's frame loop, so a game
 // that freezes still gets reset.
@@ -49,8 +51,17 @@ export class IdleWatchdog {
   private lastInput = performance.now();
   private banner: HTMLElement | null = null;
 
-  /** `inGame` tells whether a game (rather than the menu) is on screen. */
-  constructor(private inGame: () => boolean) {
+  /**
+   * `inGame`: a game (rather than the menu) is on screen. `resting`: nobody has
+   * touched it since it opened (its title card is up), so it resets without a
+   * countdown. `hasHome`: the machine has a home game (`?home=`), so the menu,
+   * left alone, goes back to it too.
+   */
+  constructor(
+    private inGame: () => boolean,
+    private resting: () => boolean = () => false,
+    private hasHome = false,
+  ) {
     if (IDLE_LIMIT_MS === Infinity) return;
     // Capture phase: the initials entry stops key events from bubbling.
     for (const type of ['pointerdown', 'pointermove', 'keydown', 'wheel']) {
@@ -68,11 +79,11 @@ export class IdleWatchdog {
   private tick = () => {
     const idle = performance.now() - this.lastInput;
     if (!this.inGame()) {
-      if (idle >= IDLE_LIMIT_MS && visitorChangedMachine()) resetMachine();
+      if (idle >= IDLE_LIMIT_MS && (this.hasHome || visitorChangedMachine())) resetMachine();
       return;
     }
     if (idle >= IDLE_LIMIT_MS) resetMachine();
-    else if (idle >= IDLE_LIMIT_MS - WARNING_MS) this.showBanner(Math.ceil((IDLE_LIMIT_MS - idle) / 1000));
+    else if (idle >= IDLE_LIMIT_MS - WARNING_MS && !this.resting()) this.showBanner(Math.ceil((IDLE_LIMIT_MS - idle) / 1000));
   };
 
   private showBanner(seconds: number): void {

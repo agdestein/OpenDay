@@ -7,6 +7,7 @@
 //
 //   cd app && npm run build                       # once, after every change
 //   node tools/kiosk/kiosk.mjs                     # all games, Dutch, idle reset 180 s
+//   node tools/kiosk/kiosk.mjs --home=windfarm     # rests on Swirl Lab, not the menu
 //   node tools/kiosk/kiosk.mjs --games=windfarm,bounce --quality=low
 //   node tools/kiosk/kiosk.mjs --windowed          # a normal window, for testing
 //   node tools/kiosk/kiosk.mjs --serve-only        # just the server; open the URL yourself

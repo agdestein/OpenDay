@@ -75,6 +75,12 @@ const WIND_SPEED = 60; // reference-grid cells/sec (256 across the screen)
 const TOY_STREAKS = 6;
 /** Seconds without touching the fluid before the free-play hint comes back (for the next kid). */
 const HINT_AFTER = 12;
+/**
+ * Left alone this long, free play stirs itself along a slow, wide loop (a
+ * "ghost hand"), so an idle screen at the stand stays alive; any stir stops it.
+ */
+const GHOST_AFTER = 6;
+const GHOST_PATH = { cx: 0.5, cy: 0.5, ax: 0.3, ay: 0.3, wx: 0.9, wy: 1.45, force: 0.8 };
 /** Shoulder dye of the blocks: [side (+1 top, -1 bottom), color]. */
 const SHOULDER_COLORS: [number, [number, number, number]][] = [
   [1, [1.0, 0.5, 0.15]],
@@ -134,6 +140,8 @@ class FluidInstance implements GameInstance {
   /** Sim time of the last stir or block, and the free-play hint it hides. */
   private lastTouch = -Infinity;
   private toyHint: HTMLElement | null = null;
+  /** Time along the ghost hand's loop. */
+  private ghostTime = 0;
 
   private onContextMenu = (e: Event) => e.preventDefault();
   private onPointerDown = (e: PointerEvent) => {
@@ -231,6 +239,9 @@ class FluidInstance implements GameInstance {
       this.stage?.tick(dt);
       solver.step(dt);
       this.challenge?.tick(dt);
+    }
+    if (!this.challenge && !this.stage && this.time - Math.max(this.lastStir, this.lastTouch) > GHOST_AFTER) {
+      this.ghostStir(solver, dt);
     }
     solver.view = wakeView ? 'speed' : 'dye';
     solver.cellsAcross = 0;
@@ -453,6 +464,19 @@ class FluidInstance implements GameInstance {
 
     this.setMode('stir');
     this.host.overlay.append(this.toyBar, this.challengeBar, this.toyHint);
+  }
+
+  /** One frame of the ghost hand: a stir along GHOST_PATH, as a slow drag would make. */
+  private ghostStir(solver: FluidSolver, dt: number): void {
+    const p = GHOST_PATH;
+    const at = (t: number) => ({ x: p.cx + p.ax * Math.sin(t * p.wx), y: p.cy + p.ay * Math.sin(t * p.wy + 0.7) });
+    const a = at(this.ghostTime);
+    this.ghostTime += dt;
+    const b = at(this.ghostTime);
+    solver.splatVelocity(b.x, b.y, (b.x - a.x) * SPLAT_FORCE * p.force, (b.y - a.y) * SPLAT_FORCE * p.force);
+    this.hue = (this.hue + dt * 0.06) % 1;
+    const [r, g, bl] = hsvToRgb(this.hue, 0.85, 1);
+    solver.splatDye(b.x, b.y, r * 0.12, g * 0.12, bl * 0.12, DYE_RADIUS);
   }
 
   private setMode(mode: Mode): void {

@@ -1056,7 +1056,9 @@ input[type='range'] {
   gap: 1rem;
   padding: 2rem;
   text-align: center;
-  background: rgba(5, 8, 20, 0.88);
+  /* See-through at the edges: the game is already running behind it. */
+  background: radial-gradient(ellipse at 50% 50%, rgba(5, 8, 20, 0.86) 0%, rgba(5, 8, 20, 0.78) 35%, rgba(5, 8, 20, 0.35) 100%);
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
   cursor: pointer;
 }
 
