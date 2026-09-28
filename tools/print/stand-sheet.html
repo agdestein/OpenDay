@@ -28,7 +28,7 @@ ul { padding-left: 3.2mm; }
 .box li { margin-bottom: .3mm; break-inside: avoid; }
 .ops ul { columns: 2; column-gap: 5mm; }
 .avoid { border-color: #fca5a5; background: #fff7f7; }
-kbd { font-family: inherit; font-size: 7.6pt; font-weight: 700; padding: 0 1mm; border: .25mm solid #94a3b8; border-radius: 1mm; background: #f8fafc; }
+kbd { white-space: nowrap; font-family: 'Noto Sans Mono', ui-monospace, monospace; font-size: 7pt; font-weight: 700; padding: 0 1mm; border: .25mm solid #94a3b8; border-radius: 1mm; background: #f8fafc; }
 </style>
 <body>
 <div id="root"></div>
@@ -43,7 +43,7 @@ const L = {
     who: 'Who to name: ',
     ops: 'Running the stand',
     opsItems: [
-      'Start a machine: <kbd>node tools/kiosk/kiosk.mjs</kbd> (Windows: double-click <kbd>tools/kiosk/kiosk.bat</kbd>). Dutch, back to the menu after 3 minutes untouched.',
+      'Start a machine: <kbd>node tools/kiosk/kiosk.mjs --home=windfarm</kbd> (Windows: <kbd>kiosk.bat --home=…</kbd>). Give each machine its own home game (big screen windfarm; laptops floodland, bounce, outbreak): it rests there and returns after 3 minutes untouched.',
       'Morning: <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Backspace</kbd> clears the test scores. Then run each game\'s 🤖 computer\'s turn once, so every board has a score to beat.',
       '<kbd>Esc</kbd> = back to the menu; it also rescues a black or frozen game. ⌂ asks "Menu?" first.',
       'Browser closed by a visitor? It reopens by itself. Quit: <kbd>Alt</kbd>+<kbd>F4</kbd> twice within 10 s.',
@@ -75,7 +75,7 @@ const L = {
     who: 'Wie noemen: ',
     ops: 'De stand draaien',
     opsItems: [
-      'Machine starten: <kbd>node tools/kiosk/kiosk.mjs</kbd> (Windows: dubbelklik <kbd>tools/kiosk/kiosk.bat</kbd>). Nederlands, na 3 minuten niets terug naar het menu.',
+      'Machine starten: <kbd>node tools/kiosk/kiosk.mjs --home=windfarm</kbd> (Windows: <kbd>kiosk.bat --home=…</kbd>). Geef elke machine een eigen thuisspel (groot scherm windfarm; laptops floodland, bounce, outbreak): daar rust hij, en daar gaat hij na 3 minuten niets weer heen.',
       '\'s Ochtends: <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Backspace</kbd> wist de testscores. Speel daarna bij elk spel één keer de 🤖 beurt van de computer, zodat elk scorebord iets heeft om te verslaan.',
       '<kbd>Esc</kbd> = terug naar het menu; redt ook een zwart of vastgelopen spel. ⌂ vraagt eerst "Naar het menu?".',
       'Browser dichtgedaan door een bezoeker? Hij gaat vanzelf weer open. Stoppen: twee keer <kbd>Alt</kbd>+<kbd>F4</kbd> binnen 10 s.',
