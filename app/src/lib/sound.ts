@@ -1,7 +1,8 @@
 // Small synthesized sound effects for the whole arcade: no audio files, so
 // nothing to load and nothing to break offline. Every game can call
 // `sound.play('splash')`; the shell owns the mute button. Muting is remembered
-// on the machine; `?sound=off` in the URL starts a machine muted.
+// on the machine until the idle reset (`?idle`) forgets it; `?sound=off` in the
+// URL starts a machine muted.
 
 export type SoundName =
   | 'click' | 'thud' | 'splash' | 'alarm' | 'flood' | 'cheer' | 'fanfare' | 'tick' | 'gate' | 'horn' | 'ding' | 'clack' | 'whoosh' | 'sizzle' | 'boing' | 'squeak' | 'pop';
@@ -98,5 +99,7 @@ export const sound = {
     try { localStorage.setItem(KEY, value ? '1' : '0'); } catch { /* private window */ }
     listeners.forEach(l => l(muted));
   },
+  /** Forget the mute button's choice, so the next load uses the machine's default. */
+  forgetChoice(): void { try { localStorage.removeItem(KEY); } catch { /* private window */ } },
   onChange(listener: (muted: boolean) => void): () => void { listeners.add(listener); return () => listeners.delete(listener); },
 };

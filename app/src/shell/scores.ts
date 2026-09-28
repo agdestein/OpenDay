@@ -53,3 +53,24 @@ function allScores(gameId: string): ScoreEntry[] {
     return [];
   }
 }
+
+/**
+ * Every per-day record in the arcade: the boards here and Creature Lab's
+ * crowns (games/creature/race.ts). A game that adds its own daily record
+ * adds its key prefix here, so the staff reset clears it too.
+ */
+const DAILY_RECORD_PREFIXES = ['arcade-scores:', 'creature-crowns:'];
+
+/** Staff reset: forget all boards and crowns (e.g. the morning's test runs). */
+export function clearAllScores(): void {
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && DAILY_RECORD_PREFIXES.some((p) => k.startsWith(p))) keys.push(k);
+    }
+    keys.forEach((k) => localStorage.removeItem(k));
+  } catch {
+    // Storage blocked: there were no scores to clear.
+  }
+}

@@ -86,11 +86,23 @@ Useful at the stand:
   full model there too (the challenge always has it). See
   [the remake notes](docs/outbreak-remake.md).
 - Sound: the 🔊 button on the menu mutes the whole arcade (remembered on that
-  machine); `?sound=off` starts a machine muted. All sounds are synthesized, no files.
-- Press `F` (or the corner button) for fullscreen; `Esc` returns to the menu.
-- Add `?idle` to reset a game back to the menu after 90 seconds without input
-  (`?idle=120` for a different number of seconds). Off by default, so nobody
-  reading a science explainer gets kicked out mid-sentence.
+  machine until the next idle reset); `?sound=off` starts a machine muted. All
+  sounds are synthesized, no files.
+- Press `F` (or the corner button) for fullscreen; `Esc` returns to the menu (it
+  also rescues a game that went black or froze).
+- Add `?idle` to reset a game after 90 seconds without input (`?idle=180` for a
+  different number of seconds): a "Still playing?" countdown shows for the last 10
+  seconds, then the page reloads to the menu in the machine's own language and sound
+  setting (a visitor's 🇳🇴 or 🔇 is forgotten). Off by default, so nobody reading a
+  science explainer at home gets kicked out mid-sentence.
+- Staff: `Ctrl+Shift+Backspace` clears all of today's scoreboards and Creature Lab
+  crowns (after the morning's test runs); `?reset-scores` in the URL does the same
+  on load. Rude initials (and `CPU`, the computer's name) are refused.
+- Canvases render at most about 1080p worth of pixels, so a 4K big screen costs no
+  more than a 1080p one; `?dpr=1` (or any ratio) pins the resolution on a machine.
+- The arcade blocks the browser's right-click menu and Ctrl+wheel zoom, asks the
+  screen not to sleep, and goes back to the menu by itself if a game keeps
+  failing or loses its WebGL context.
 
 ## Credits
 

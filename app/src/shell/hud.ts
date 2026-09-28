@@ -48,8 +48,12 @@ export function backButton(onExit: () => void): HTMLElement {
   return button;
 }
 
-/** Mute toggle for the whole arcade; `extraClass` places it. */
-export function soundButton(extraClass: string): HTMLElement {
+/**
+ * Mute toggle for the whole arcade; `extraClass` places it. Call `dispose`
+ * with its screen: the mute subscription would otherwise keep the whole
+ * detached screen (and its full-screen canvas) alive.
+ */
+export function soundButton(extraClass: string): { element: HTMLElement; dispose: () => void } {
   const button = document.createElement('button');
   button.className = `corner-button sound-button ${extraClass}`;
   const show = (muted: boolean) => {
@@ -58,9 +62,17 @@ export function soundButton(extraClass: string): HTMLElement {
     button.setAttribute('aria-pressed', String(!muted));
   };
   show(sound.muted);
-  // Screens are thrown away whole: a detached button drops its listener.
-  const stop = sound.onChange((muted) => (button.isConnected ? show(muted) : stop()));
+  const dispose = sound.onChange(show);
   button.addEventListener('pointerdown', (e) => e.stopPropagation());
   button.addEventListener('click', () => { sound.setMuted(!sound.muted); sound.play('click'); });
-  return button;
+  return { element: button, dispose };
+}
+
+/** A short message floating at the top of the screen for a few seconds. */
+export function toast(text: string): void {
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.textContent = text;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2500);
 }

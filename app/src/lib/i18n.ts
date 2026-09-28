@@ -52,6 +52,15 @@ export function setLang(lang: Lang): void {
   }
 }
 
+/** Forget an in-session language switch, so the next load uses the machine's default. */
+export function forgetLangChoice(): void {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // Storage blocked: nothing was remembered.
+  }
+}
+
 /** The current language's variant of a localized value. */
 export function pick<T>(localized: Localized<T>): T {
   return localized[current];

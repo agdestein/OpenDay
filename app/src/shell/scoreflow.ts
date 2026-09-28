@@ -5,20 +5,33 @@ import { addScore, type ScoreEntry } from './scores';
 import { fmtNumber, pick, type Localized } from '../lib/i18n';
 import { sound } from '../lib/sound';
 
-const TEXT: Localized<{ todaysBest: string; initialsPrompt: string }> = {
+const TEXT: Localized<{ todaysBest: string; initialsPrompt: string; otherLetters: string }> = {
   en: {
     todaysBest: "Today's best",
     initialsPrompt: 'Your name on the scoreboard — pick three letters!',
+    otherLetters: 'Pick some other letters 🙂',
   },
   nl: {
     todaysBest: 'De beste van vandaag',
     initialsPrompt: 'Jouw naam op het scorebord — kies drie letters!',
+    otherLetters: 'Kies eens andere letters 🙂',
   },
   no: {
     todaysBest: 'Dagens beste',
     initialsPrompt: 'Navnet ditt på poengtavla — velg tre bokstaver!',
+    otherLetters: 'Velg noen andre bokstaver 🙂',
   },
 };
+
+/**
+ * Initials the board refuses: rude words in Dutch and English, a few hateful
+ * ones, and CPU (the computer's name; a kid posting as CPU would be merged
+ * with the computer's best-only entry). Parents read the board from two metres.
+ */
+const REFUSED_INITIALS = new Set([
+  'CPU', 'KUT', 'LUL', 'PIK', 'KAK', 'PIS', 'TET', 'GVD', 'TYF', 'SEX', 'FUK', 'FUC', 'FCK',
+  'FUX', 'ASS', 'TIT', 'CUM', 'WTF', 'FAG', 'NIG', 'KKK', 'NSB', 'NAZ', 'SSS',
+]);
 
 export interface ScoreFlowAction {
   label: string;
@@ -147,7 +160,15 @@ export function scoreFlow(opts: {
     refresh();
   };
   const submit = () => {
-    if (letters.length === 3) showBoard(letters);
+    if (letters.length < 3) return;
+    if (REFUSED_INITIALS.has(letters)) {
+      letters = '';
+      prompt.textContent = pick(TEXT).otherLetters;
+      sound.play('boing');
+      refresh();
+      return;
+    }
+    showBoard(letters);
   };
 
   for (let i = 0; i < 26; i++) {
@@ -169,12 +190,14 @@ export function scoreFlow(opts: {
   refresh();
 
   // Physical keyboard too (the stand has one). Capture phase + stopPropagation
-  // so consumed keys don't reach the shell's shortcuts (e.g. F = fullscreen).
+  // so consumed keys don't reach the shell's shortcuts (F = fullscreen, and
+  // Escape = menu, which would lose the score).
   const onKey = (e: KeyboardEvent) => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (/^[a-zA-Z]$/.test(e.key)) push(e.key.toUpperCase());
     else if (e.key === 'Backspace') pop();
     else if (e.key === 'Enter') submit();
-    else return;
+    else if (e.key !== 'Escape') return;
     e.stopPropagation();
     e.preventDefault();
   };

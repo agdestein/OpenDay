@@ -977,6 +977,37 @@ input[type='range'] {
   }
 }
 
+/* The idle reset's countdown and the staff toast: above everything, never in the way. */
+.idle-banner,
+.toast {
+  position: fixed;
+  z-index: 1000;
+  left: 50%;
+  top: 5.5rem;
+  transform: translateX(-50%);
+  pointer-events: none;
+  padding: 0.9rem 1.6rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(11, 16, 32, 0.92);
+  box-shadow: 0 0.5rem 2rem rgba(0, 0, 0, 0.5);
+  text-align: center;
+}
+
+.idle-banner strong {
+  display: block;
+  font-size: 1.8rem;
+}
+
+.idle-banner span {
+  font-size: 1.1rem;
+  opacity: 0.8;
+}
+
+.toast {
+  font-size: 1.2rem;
+}
+
 .corner-button {
   position: absolute;
   z-index: 30;

@@ -4,6 +4,7 @@
 // greys out, blurs and marks with question marks where the computer is
 // unsure. The 2D-canvas path in game.ts is the fallback.
 import { LUT_RGBA, type Scale } from './render';
+import { watchContextLoss } from '../../lib/gl';
 
 /** A grid field covering the map from its north-west corner. */
 export interface FieldLayer {
@@ -188,6 +189,7 @@ export class MapGL {
   private landSize: [number, number];
   /** Filled copies of fields that contain NaN (truth, error): computed once each. */
   private filled = new WeakMap<Float32Array, Float32Array | null>();
+  private releaseGl = () => {};
 
   /** Returns null when WebGL2 is unavailable (the caller falls back to 2D). */
   static create(land: Uint8Array, nx: number, ny: number, widthKm: number, heightKm: number): MapGL | null {
@@ -203,6 +205,7 @@ export class MapGL {
     const gl = this.canvas.getContext('webgl2', { premultipliedAlpha: true, preserveDrawingBuffer: true, antialias: false });
     if (!gl) throw new Error('webgl2 unavailable');
     this.gl = gl;
+    this.releaseGl = watchContextLoss(this.canvas);
     const shader = (type: number, src: string) => {
       const s = gl.createShader(type)!;
       gl.shaderSource(s, src);
@@ -331,6 +334,7 @@ export class MapGL {
   }
 
   dispose(): void {
+    this.releaseGl();
     this.gl.getExtension('WEBGL_lose_context')?.loseContext();
   }
 }

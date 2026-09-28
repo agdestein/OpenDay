@@ -7,6 +7,7 @@
 // (https://github.com/PavelDoGreat/WebGL-Fluid-Simulation, Copyright (c) 2017
 // Pavel Dobryakov, MIT License), rewritten in TypeScript on WebGL2 — see
 // shaders.ts for which passes are ported and which are our own.
+import { watchContextLoss } from '../../lib/gl';
 import {
   MAX_LENSES,
   MAX_OBSTACLES,
@@ -213,6 +214,7 @@ export class FluidSolver {
   private simW = 0;
   private simH = 0;
   private pressureIterations = 0;
+  private releaseGl = () => {};
 
   /** lowQuality starts on the coarse tier (for machines known to be slow). */
   constructor(
@@ -230,6 +232,7 @@ export class FluidSolver {
       return;
     }
     this.gl = gl;
+    this.releaseGl = watchContextLoss(canvas);
     this.ok = true;
 
     // One shared quad covering the screen.
@@ -576,6 +579,7 @@ export class FluidSolver {
 
   destroy(): void {
     if (!this.ok) return;
+    this.releaseGl();
     this.gl.getExtension('WEBGL_lose_context')?.loseContext();
   }
 

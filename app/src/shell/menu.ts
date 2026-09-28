@@ -78,7 +78,8 @@ export function renderMenu(
   footer.textContent = T.footer;
   element.appendChild(footer);
 
-  element.appendChild(soundButton(fullscreenSupported ? 'menu-sound' : 'menu-sound alone'));
+  const mute = soundButton(fullscreenSupported ? 'menu-sound' : 'menu-sound alone');
+  element.appendChild(mute.element);
 
   if (fullscreenSupported) {
     const fullscreen = document.createElement('button');
@@ -156,6 +157,11 @@ export function renderMenu(
 
   return {
     element,
-    dispose: () => cancelAnimationFrame(raf),
+    dispose: () => {
+      cancelAnimationFrame(raf);
+      mute.dispose();
+      // A detached screen can linger until garbage collection; drop its pixels now.
+      bg.width = bg.height = 0;
+    },
   };
 }
