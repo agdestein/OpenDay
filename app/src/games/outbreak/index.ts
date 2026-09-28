@@ -7,7 +7,6 @@ import type { ArcadeGame, GameHost, GameInstance } from '../../shell/types';
 import { scoreFlow, type ScoreFlowHandle } from '../../shell/scoreflow';
 import { AGES, CITY_H, CITY_W, COLOR, MAP_W, OutbreakSim, TOY_DISEASE, type Age } from './sim';
 import {
-  BATCH_DOSES,
   FORECAST_DAYS,
   Futures,
   ROUNDS,
@@ -37,7 +36,9 @@ const FUTURES_BUDGET_MS = 5;
 const FORECAST_RUNS = 8;
 /** How close (virtual pixels) a click must be to a sick person to isolate them. */
 const PICK_RADIUS = 40;
-/** Quiet spells (few sick people) run this many times faster. */
+/** Game days per second during a round: a stand queue can't wait 80 s a round. */
+const ROUND_SPEED = 1.5;
+/** Quiet spells (few sick people) run this many days per second. */
 const QUIET_SPEEDUP = 3;
 const QUIET_BELOW = 6;
 
@@ -60,7 +61,6 @@ const TEXT: Localized<{
   hintIsolate: string;
   hintIsolated: string;
   hintNoTests: (every: number) => string;
-  toolsIsolate: (every: number, max: number) => string;
   hiddenNote: string;
   toolForecast: string;
   forecastTitle: (days: number) => string;
@@ -85,10 +85,6 @@ const TEXT: Localized<{
   roundBlurbs: Record<RoundId, string>;
   contagious: string;
   serious: string;
-  toolsIntro: string;
-  vaccineNow: (n: number, doses: number) => string;
-  vaccineLater: (day: number, doses: number) => string;
-  closing: (days: number) => string;
   futuresRunning: (done: number, total: number) => string;
   futuresReady: (total: number) => string;
   go: string;
@@ -127,9 +123,8 @@ const TEXT: Localized<{
     isolateCount: (n) => `Isolate ×${n}`,
     hintIsolate: 'Click a sick (red) person to test them and send them home until they are better.',
     hintIsolated: '🏠 Isolated: they stay home until they are better.',
-    hintNoTests: (every) => `No tests left — a new one arrives every ${every} days.`,
-    toolsIsolate: (every, max) =>
-      `🏠 isolate sick people by clicking them: a new test every ${every} days (up to ${max} saved)`,
+    hintNoTests: (every) =>
+      every === 1 ? 'No tests left — a new one arrives tomorrow.' : `No tests left — a new one arrives every ${every} days.`,
     hiddenNote: 'Careful: people spread it before they look sick. You only see the known cases.',
     toolForecast: 'Forecast',
     forecastTitle: (days) => `🔮 Asking the model: the next ${days} days`,
@@ -168,12 +163,6 @@ const TEXT: Localized<{
     },
     contagious: 'Contagious',
     serious: 'Serious',
-    toolsIntro: 'Your tools:',
-    vaccineNow: (n, doses) =>
-      `💉 ${n > 1 ? `${n} vaccine batches (${doses} people each)` : `a vaccine batch (${doses} people)`}, ready now`,
-    vaccineLater: (day, doses) => `💉 a vaccine batch (${doses} people) on day ${day}`,
-    closing: (days) =>
-      `🏫🛒 ${days} days of closing the school or the market (closing both uses two a day)`,
     futuresRunning: (done, total) =>
       `💻 Simulating this town ${total} times without you… ${done}/${total}`,
     futuresReady: (total) => `💻 ${total} futures without you: ready to compare.`,
@@ -218,9 +207,8 @@ const TEXT: Localized<{
     isolateCount: (n) => `Isoleren ×${n}`,
     hintIsolate: 'Klik op een zieke (rode) persoon om die te testen en naar huis te sturen tot die beter is.',
     hintIsolated: '🏠 Geïsoleerd: blijft thuis tot die beter is.',
-    hintNoTests: (every) => `Geen tests meer — elke ${every} dagen komt er een nieuwe.`,
-    toolsIsolate: (every, max) =>
-      `🏠 zieken isoleren door erop te klikken: elke ${every} dagen een nieuwe test (maximaal ${max} bewaren)`,
+    hintNoTests: (every) =>
+      every === 1 ? 'Geen tests meer — morgen komt er een nieuwe.' : `Geen tests meer — elke ${every} dagen komt er een nieuwe.`,
     hiddenNote: 'Let op: mensen verspreiden het al voordat ze er ziek uitzien. Je ziet alleen de bekende gevallen.',
     toolForecast: 'Voorspellen',
     forecastTitle: (days) => `🔮 Het model vragen: de komende ${days} dagen`,
@@ -259,12 +247,6 @@ const TEXT: Localized<{
     },
     contagious: 'Besmettelijk',
     serious: 'Ernstig',
-    toolsIntro: 'Jouw hulpmiddelen:',
-    vaccineNow: (n, doses) =>
-      `💉 ${n > 1 ? `${n} partijen vaccin (${doses} mensen per partij)` : `een partij vaccin (${doses} mensen)`}, nu klaar`,
-    vaccineLater: (day, doses) => `💉 een partij vaccin (${doses} mensen) op dag ${day}`,
-    closing: (days) =>
-      `🏫🛒 ${days} dagen om de school of de markt te sluiten (allebei dicht kost twee per dag)`,
     futuresRunning: (done, total) =>
       `💻 De computer simuleert deze stad ${total} keer zonder jou… ${done}/${total}`,
     futuresReady: (total) => `💻 ${total} toekomsten zonder jou: klaar om te vergelijken.`,
@@ -309,9 +291,8 @@ const TEXT: Localized<{
     isolateCount: (n) => `Isoler ×${n}`,
     hintIsolate: 'Klikk på en syk (rød) person for å teste dem og sende dem hjem til de er friske.',
     hintIsolated: '🏠 Isolert: blir hjemme til de er friske.',
-    hintNoTests: (every) => `Ingen tester igjen — en ny kommer hver ${every}. dag.`,
-    toolsIsolate: (every, max) =>
-      `🏠 isoler syke ved å klikke på dem: en ny test hver ${every}. dag (opptil ${max} spart opp)`,
+    hintNoTests: (every) =>
+      every === 1 ? 'Ingen tester igjen — en ny kommer i morgen.' : `Ingen tester igjen — en ny kommer hver ${every}. dag.`,
     hiddenNote: 'Obs: folk sprer det før de ser syke ut. Du ser bare de kjente tilfellene.',
     toolForecast: 'Prognose',
     forecastTitle: (days) => `🔮 Spør modellen: de neste ${days} dagene`,
@@ -350,12 +331,6 @@ const TEXT: Localized<{
     },
     contagious: 'Smittsom',
     serious: 'Alvorlig',
-    toolsIntro: 'Verktøyene dine:',
-    vaccineNow: (n, doses) =>
-      `💉 ${n > 1 ? `${n} vaksineleveranser (${doses} personer hver)` : `én vaksineleveranse (${doses} personer)`}, klar nå`,
-    vaccineLater: (day, doses) => `💉 én vaksineleveranse (${doses} personer) på dag ${day}`,
-    closing: (days) =>
-      `🏫🛒 ${days} dager med stengt skole eller torg (begge stengt bruker to per dag)`,
     futuresRunning: (done, total) =>
       `💻 Datamaskinen simulerer byen ${total} ganger uten deg… ${done}/${total}`,
     futuresReady: (total) => `💻 ${total} fremtider uten deg: klare til å sammenligne.`,
@@ -430,6 +405,8 @@ class OutbreakInstance implements GameInstance {
   private futures: Futures | null = null;
   private totalSaved = 0;
   private quiet = false;
+  /** Fractional game steps carried to the next frame (see ROUND_SPEED). */
+  private stepCredit = 0;
   /** A free-play outbreak is under way (for the "it's over" hints). */
   private toyOutbreak = false;
   private testsShown = -1;
@@ -584,23 +561,6 @@ class OutbreakInstance implements GameInstance {
       const blurb = document.createElement('p');
       blurb.className = 'score-flow-prompt';
       blurb.textContent = T.roundBlurbs[round.id];
-      const tools = document.createElement('ul');
-      tools.className = 'outbreak-tools';
-      const now = round.batches.filter((d) => d === 0).length;
-      const lines: string[] = [];
-      if (now > 0) lines.push(T.vaccineNow(now, BATCH_DOSES));
-      for (const day of round.batches.filter((d) => d > 0)) lines.push(T.vaccineLater(day, BATCH_DOSES));
-      lines.push(T.toolsIsolate(round.tests.every, round.tests.max));
-      lines.push(T.closing(round.closureDays));
-      lines.push(`🔮 ${T.toolForecast}`);
-      for (const text of lines) {
-        const li = document.createElement('li');
-        li.textContent = text;
-        tools.appendChild(li);
-      }
-      const toolsIntro = document.createElement('p');
-      toolsIntro.className = 'outbreak-tools-intro';
-      toolsIntro.textContent = T.toolsIntro;
       this.futuresLine = document.createElement('p');
       this.futuresLine.className = 'outbreak-futures';
       this.updateFuturesLine();
@@ -620,7 +580,9 @@ class OutbreakInstance implements GameInstance {
       const hidden = document.createElement('p');
       hidden.className = 'outbreak-tip';
       hidden.textContent = T.hiddenNote;
-      card.append(heading, name, rating, blurb, hidden, toolsIntro, tools, this.futuresLine, actions);
+      // No tool list: the toolbar, the HUD (closing days left) and the hint
+      // line (a vaccine batch arrives) say it while it matters.
+      card.append(heading, name, rating, blurb, hidden, this.futuresLine, actions);
     });
   }
 
@@ -637,7 +599,10 @@ class OutbreakInstance implements GameInstance {
     const T = pick(TEXT);
     const c = this.sim.counts;
     this.quiet = c.i + c.waiting < QUIET_BELOW;
-    const steps = this.quiet ? QUIET_SPEEDUP : 1;
+    // Whole steps of dt, as many per frame as the speed asks (1.5 -> 1, 2, 1, 2…).
+    this.stepCredit += this.quiet ? QUIET_SPEEDUP : ROUND_SPEED;
+    const steps = Math.floor(this.stepCredit);
+    this.stepCredit -= steps;
     for (let k = 0; k < steps && !run.finished; k++) {
       const hadClosure = run.closureLeft > 0;
       const { arrived, batches } = run.step(dt);
@@ -913,6 +878,7 @@ class OutbreakInstance implements GameInstance {
       heading: T.finalHeading,
       score: this.totalSaved,
       scoreLabel: T.livesSaved(this.totalSaved),
+      formatScore: (s) => `💚 ${fmtNumber(Math.round(s))}`,
       actions: [
         { label: T.playAgain, onClick: () => this.startGame() },
         { label: T.freePlay, onClick: () => this.exitToToy() },

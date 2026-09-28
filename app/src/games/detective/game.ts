@@ -2,6 +2,7 @@
 // one canvas, with DOM controls in the overlay.
 import type { GameHost, GameInstance } from '../../shell/types';
 import { scoreFlow, type ScoreFlowHandle } from '../../shell/scoreflow';
+import { addScore } from '../../shell/scores';
 import { delvePanel, delveToggle, type DelveHandle, type DelveToggleHandle } from '../../shell/delve';
 import { pointerPos } from '../../lib/util';
 import { Dreamer, GP } from './gp';
@@ -93,6 +94,8 @@ export class DetectiveGame implements GameInstance {
   private revealT = 0;
   private revealView: RevealView = 'truth';
   private total = 0;
+  /** The computer's points over the same cases: posted to the board as CPU, to beat. */
+  private cpuTotal = 0;
   private cpu: Station[] = [];
   private cpuMean: Float32Array | null = null;
   private errField: Float32Array | null = null;
@@ -306,6 +309,7 @@ export class DetectiveGame implements GameInstance {
 
   private startChallenge(): void {
     this.total = 0;
+    this.cpuTotal = 0;
     this.openCase(0);
   }
 
@@ -363,31 +367,35 @@ export class DetectiveGame implements GameInstance {
     this.renderUI();
   }
 
-  private caseResult(): { lines: string[]; points: number } {
+  private caseResult(): { lines: string[]; points: number; cpuPoints: number } {
     const t = text();
     if (this.def.id === 'hottest') {
       const you = hottestPoints(this.truth, this.stations);
       const cpu = hottestPoints(this.truth, this.cpu);
-      return { lines: t.hottestResult(you.best, you.max, cpu.best), points: you.points };
+      return { lines: t.hottestResult(you.best, you.max, cpu.best), points: you.points, cpuPoints: cpu.points };
     }
     if (this.def.id === 'map') {
       const you = mapError(this.truth, this.mean);
       const cpu = mapError(this.truth, this.cpuMean!);
-      return { lines: t.mapResult(you.mae, cpu.mae), points: mapPoints(you.mae, you.flat) };
+      return { lines: t.mapResult(you.mae, cpu.mae), points: mapPoints(you.mae, you.flat), cpuPoints: mapPoints(cpu.mae, cpu.flat) };
     }
     const you = liarPoints(this.stations);
     const cpu = liarPoints(this.cpu);
-    return { lines: t.liarsResult(you.caught, LIARS, you.wrong, cpu.caught, cpu.wrong), points: you.points };
+    return { lines: t.liarsResult(you.caught, LIARS, you.wrong, cpu.caught, cpu.wrong), points: you.points, cpuPoints: cpu.points };
   }
 
-  private nextCase(points: number): void {
+  private nextCase(points: number, cpuPoints: number): void {
     this.total += points;
+    this.cpuTotal += cpuPoints;
     if (this.caseIndex + 1 < CASES.length) {
       this.openCase(this.caseIndex + 1);
       return;
     }
     this.closeCard();
     const t = text();
+    // The computer played every case too: it goes on the board first (best
+    // only, as in the other games), so there is always something to beat.
+    addScore('detective', 'CPU', this.cpuTotal, true);
     this.scoreHandle?.dispose();
     this.scoreHandle = scoreFlow({
       gameId: 'detective',
@@ -1035,7 +1043,7 @@ export class DetectiveGame implements GameInstance {
 
   private showResult(): void {
     const t = text();
-    const { lines, points } = this.caseResult();
+    const { lines, points, cpuPoints } = this.caseResult();
     const card = document.createElement('div');
     card.className = 'wd-card wd-result';
     const h = document.createElement('h2');
@@ -1052,7 +1060,7 @@ export class DetectiveGame implements GameInstance {
     const tip = document.createElement('p');
     tip.className = 'wd-tip';
     tip.textContent = t.caseText[this.def.id].tip;
-    const next = this.button(this.caseIndex + 1 < CASES.length ? t.next : t.finish, () => this.nextCase(points), 'wd-primary');
+    const next = this.button(this.caseIndex + 1 < CASES.length ? t.next : t.finish, () => this.nextCase(points, cpuPoints), 'wd-primary');
     card.append(h, list, pts, tip, next);
     // Let the wipe play before the card covers anything (first time only).
     if (this.revealT < 1.3) card.style.animationDelay = `${(1.3 - this.revealT).toFixed(2)}s`;

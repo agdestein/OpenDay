@@ -295,6 +295,10 @@ input[type='range'] {
   transform: translateX(-50%);
   display: flex;
   gap: 0.75rem;
+  /* Centred with left: 50%, a bar would only get half the screen to lay out
+     in and squeeze its labels onto several lines; size it to its buttons. */
+  width: max-content;
+  max-width: calc(100vw - 2rem);
 }
 
 .tool-button {
@@ -532,6 +536,14 @@ input[type='range'] {
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
   /* Beats the `.game-overlay > *` auto, so this strip never eats canvas clicks. */
   pointer-events: none !important;
+}
+
+/* A free-play hint that would sit on the game's busy bottom (Ball Pit's pile). */
+.challenge-hint.toy-hint {
+  top: 8.5rem;
+  bottom: auto;
+  font-size: 1.2rem;
+  font-weight: 700;
 }
 
 /* ---------- Score flow (end of round) ---------- */
@@ -1407,6 +1419,7 @@ input[type='range'] {
   .game-toolbar {
     left: 0.5rem;
     right: 0.5rem;
+    width: auto;
     transform: none;
     flex-wrap: wrap;
     justify-content: center;

@@ -68,7 +68,9 @@ sections keeps everyone dry, reinforcing three others does not.
 ### Round 3: How high? *(storms are random; van Dantzig)*
 
 One height for the whole dike, 1.5–4 m in 0.25 m steps, 150 points per metre above
-1.5 m. **Live 100 years** first runs six full storms against that dike (0.2 m
+1.5 m. The slider starts at 1.5 m, which floods the century (0 points), so the kid
+has to choose; it used to start at 2 m, which already earned 592 of the best 772.
+**Live 100 years** first runs six full storms against that dike (0.2 m
 below the crest to 0.45 m above), shown side by side as they compute (~2–5 s):
 together they are the dike's *fragility curve* (homes flooded against storm
 height). Then a century plays in 5 s: each year's highest storm is drawn from a

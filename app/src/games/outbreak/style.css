@@ -19,20 +19,6 @@
   opacity: 0.85;
 }
 
-.outbreak-tools-intro {
-  margin-top: 1rem;
-  font-weight: 700;
-}
-
-.outbreak-tools {
-  margin: 0.3rem auto 0;
-  padding: 0;
-  list-style: none;
-  max-width: 34rem;
-  text-align: left;
-  line-height: 1.6;
-}
-
 .outbreak-futures {
   margin-top: 1rem;
   font-size: 0.95rem;

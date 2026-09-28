@@ -5,7 +5,8 @@
 // for the giant to come round, and launch when the line reaches the ring.
 // Stuck? "🤖 Computer, fly one" spends a probe on the computer's search: time
 // stops while it tries every direction at a few strengths (drawn as a fan of
-// routes), then it flies the gentlest one that arrives, for half the points.
+// routes), then it flies the gentlest one that arrives, for half the points —
+// once per round, so pressing it five times isn't a way to score.
 // In the computer's turn it plays the whole round that way.
 import { pick, type Localized } from '../../lib/i18n';
 import { sound } from '../../lib/sound';
@@ -16,6 +17,9 @@ import { drawBodies, drawPath, PACE, Poofs, Trails } from './scene';
 import type { Round, RoundHost } from './rounds';
 import { bestRoute, candidates, CPU_SLING, HELP_SLING, SLING, SlingSim, type Route, type SlingOutcome } from './sling';
 import { setLabel } from './rounds';
+
+/** The computer flies one probe for the player per round; the rest is theirs to find. */
+const HELPS_PER_ROUND = 1;
 
 const TEXT: Localized<{
   title: string;
@@ -143,6 +147,8 @@ export class SlingRound implements Round {
   /** A probe the player gave the computer, still to be flown. */
   private owed = false;
   private askButton: HTMLButtonElement | null = null;
+  /** Probes the computer flew for the player this round (at most HELPS_PER_ROUND). */
+  private helpsUsed = 0;
 
   constructor(private host: RoundHost) {
     const a = host.area();
@@ -159,7 +165,7 @@ export class SlingRound implements Round {
   }
 
   private ask(): void {
-    if (this.owed || this.search || this.sim.left <= 0 || this.sim.time >= SLING.seconds) return;
+    if (this.owed || this.search || this.helpsUsed >= HELPS_PER_ROUND || this.sim.left <= 0 || this.sim.time >= SLING.seconds) return;
     this.drag = null;
     this.owed = true;
     this.startSearch(true);
@@ -179,6 +185,7 @@ export class SlingRound implements Round {
       s.showFor -= dt;
       if (s.showFor <= 0) {
         this.sim.launch(s.pick.dvx, s.pick.dvy, s.helped);
+        if (s.helped) this.helpsUsed++;
         sound.play('whoosh', { pitch: 1.3 });
         this.search = null;
         this.owed = false;
@@ -268,7 +275,8 @@ export class SlingRound implements Round {
     const T = pick(TEXT);
     const u = sim.u;
     if (this.askButton) {
-      this.askButton.disabled = !!this.search || this.owed || sim.left <= 0 || sim.time >= SLING.seconds;
+      this.askButton.disabled =
+        !!this.search || this.owed || this.helpsUsed >= HELPS_PER_ROUND || sim.left <= 0 || sim.time >= SLING.seconds;
       setLabel(this.askButton, T.ask);
     }
     // The computer thinking: the sky stands still until it has chosen.

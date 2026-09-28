@@ -191,7 +191,7 @@ Goldilocks (keep planets in the water zone; life grows on calm ones, crashes mel
 Slingshot (reach the golden ring by a flyby of the giant) and Save the Earth (an
 asteroid nobody knows exactly is a cloud of possible asteroids; look to shrink it, then
 push once, early). Presets show our inner solar system to scale, a two-sun system and
-the three-star figure-8; in Slingshot the computer can fly a probe for you (watch it try
+the three-star figure-8; in Slingshot the computer can fly one probe a round for you (watch it try
 192 routes), and after a challenge it can take its own turn and post a CPU score. The
 delve ends in chaos twins and clouds of possible futures. See
 [the proposal](docs/orbits-proposal.md) (`npm run test:orbits`).

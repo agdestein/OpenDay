@@ -455,6 +455,8 @@ class BounceInstance implements GameInstance {
       const text = idle && !this.delve ? pick(TEXT).toyHint : '';
       if (this.hint.textContent !== text) this.hint.textContent = text;
     }
+    // Free play fills the pit to the bottom: its hint sits up top, under the counter.
+    this.hint.classList.toggle('toy-hint', !this.challenge);
     const { canvas, dpr } = this.host;
     const w = canvas.width / dpr;
     const h = canvas.height / dpr;

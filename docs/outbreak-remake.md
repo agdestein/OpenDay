@@ -76,7 +76,11 @@ simulated second is one day.
 Three rounds (`rounds.ts`), each a different fictional disease with its own
 lesson. Three sick travellers arrive on day 3 and one more every 6 days, so an
 early lockdown can delay the epidemic but not end it. A round lasts 80–90 days
-(one day per second; quiet spells run three times faster). The score is **lives
+(1.5 days per second since 28 September 2026, so a round takes under a minute at
+the stand; quiet spells run at three days per second). Each round's intro card is
+the disease's name, its stars, one sentence and the "you only see known cases"
+warning; the list of tools was cut, since the toolbar, the HUD and the hint line
+show them while they matter. The score is **lives
 saved**: the mean deaths of 8 do-nothing futures minus deaths in the player's
 town, summed over rounds (a round never scores below zero). The dashboard shows
 only known cases.

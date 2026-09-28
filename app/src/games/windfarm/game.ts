@@ -15,6 +15,7 @@ const TEXT: Localized<{
   windTurned: string;
   legendFull: string;
   legendWake: string;
+  building: (seconds: number) => string;
   barWind: string;
   barPower: string;
   headingComputerDone: string;
@@ -34,6 +35,7 @@ const TEXT: Localized<{
     windTurned: '🌬️ The wind has turned! Are your turbines in each other’s wakes now?',
     legendFull: 'full wind',
     legendWake: 'wake (slow)',
+    building: (n) => `🏗️ Building… the meter starts in ${n}`,
     barWind: 'wind',
     barPower: 'power',
     headingComputerDone: '🤖 The computer is done!',
@@ -53,6 +55,7 @@ const TEXT: Localized<{
     windTurned: '🌬️ De wind is gedraaid! Staan je turbines nu in elkaars zog?',
     legendFull: 'volle wind',
     legendWake: 'zog (langzaam)',
+    building: (n) => `🏗️ Bouwen… de meter start over ${n}`,
     barWind: 'wind',
     barPower: 'vermogen',
     headingComputerDone: '🤖 De computer is klaar!',
@@ -72,6 +75,7 @@ const TEXT: Localized<{
     windTurned: '🌬️ Vinden har snudd! Står turbinene dine i kjølvannet til hverandre nå?',
     legendFull: 'full vind',
     legendWake: 'kjølvann (sakte)',
+    building: (n) => `🏗️ Bygger… måleren starter om ${n}`,
     barWind: 'vind',
     barPower: 'kraft',
     headingComputerDone: '🤖 Datamaskinen er ferdig!',
@@ -86,6 +90,12 @@ const TEXT: Localized<{
 
 export const TURBINE_BUDGET = 8;
 export const ROUND_SECONDS = 60;
+/**
+ * The first seconds are for building: energy counts only after them, so the
+ * layout decides the score, not how fast a kid clicks (a straight column
+ * clicked in 3 s used to beat the computer, which places one turbine at a time).
+ */
+export const BUILD_SECONDS = 5;
 /** Rotor radius as a fraction of the screen height (drag disk and sprite). */
 const TURBINE_R = 0.045;
 /** Free-stream wind, must match WIND_SPEED in index.ts (reference cells/sec). */
@@ -119,7 +129,8 @@ const TURN_WARNING = 5;
 const SAMPLE_INTERVAL = 0.05;
 const MARGIN = { x0: 0.05, x1: 0.9, y0: 0.08, y1: 0.92 };
 const MIN_SPACING = TURBINE_R * 2.1;
-const CPU_PLACE_INTERVAL = 1.5;
+/** The computer's eight turbines are all down before BUILD_SECONDS (first at 0.5 s). */
+const CPU_PLACE_INTERVAL = 0.55;
 
 /** What the player chose on the results panel. */
 export type ChallengeNext = 'human' | 'cpu' | 'toy';
@@ -451,7 +462,7 @@ export class Challenge {
       }
       let total = 0;
       for (const t of this.turbines) total += t.power;
-      this.energy += total * dt;
+      if (ROUND_SECONDS - this.timeLeft >= BUILD_SECONDS) this.energy += total * dt;
       this.timeLeft -= dt;
       shedTurbulence(this.solver, this.turbines, dt, this.aspect());
       if (this.computer) this.cpuTick(dt);
@@ -560,7 +571,11 @@ export class Challenge {
   private updateHud(totalPower: number): void {
     this.hudTime.textContent = `⏱ ${Math.max(0, Math.ceil(this.timeLeft))}`;
     this.hudTime.classList.toggle('urgent', this.timeLeft <= 10 && !this.over);
-    this.hudEnergy.textContent = `⚡ ${fmtNumber(Math.round(this.energy))} kJ (${fmtNumber(Math.round(totalPower))} kW)`;
+    const building = BUILD_SECONDS - (ROUND_SECONDS - this.timeLeft);
+    this.hudEnergy.textContent =
+      building > 0 && !this.over
+        ? pick(TEXT).building(Math.ceil(building))
+        : `⚡ ${fmtNumber(Math.round(this.energy))} kJ (${fmtNumber(Math.round(totalPower))} kW)`;
     this.hudLeft.textContent = `🌀 ×${TURBINE_BUDGET - this.turbines.length}`;
     // Screen y points down, so an upward (positive) wind angle is a
     // counterclockwise, i.e. negative, CSS rotation.
@@ -584,6 +599,7 @@ export class Challenge {
       heading: this.computer ? T.headingComputerDone : T.headingTimeUp,
       score,
       scoreLabel: `⚡ ${fmtNumber(score)} kJ`,
+      formatScore: (s) => `${fmtNumber(Math.round(s))} kJ`,
       presetInitials: this.computer ? 'CPU' : undefined,
       actions: this.computer
         ? [

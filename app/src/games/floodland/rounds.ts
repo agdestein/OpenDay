@@ -87,7 +87,8 @@ export function finish<T, R>(run: Generator<T, R>): R {
 
 // ---- Round 3: how high? ----
 
-export const HEIGHT = { min: 1.5, max: 4, step: .25, start: 2 };
+// It starts at the lowest height, which floods the century (0 points): the kid has to choose.
+export const HEIGHT = { min: 1.5, max: 4, step: .25, start: 1.5 };
 /** Points per metre of dike raised above the minimum, and per home flooded. */
 export const COST_PER_METRE = 150;
 export const DAMAGE_PER_HOME = 10;
