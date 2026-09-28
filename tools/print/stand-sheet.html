@@ -1,0 +1,126 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Stand sheet</title>
+<!-- The staff's A4 for the stand: what to say per game, and how to run the machines.
+     Page 1 English, page 2 Dutch. Print with tools/print/print.mjs (or the browser, A4 landscape). -->
+<style>
+@page { size: A4 landscape; margin: 9mm 10mm; }
+* { box-sizing: border-box; margin: 0; }
+body { font-family: 'Noto Sans', system-ui, sans-serif; color: #111827; font-size: 7.7pt; line-height: 1.24; }
+.page { page-break-after: always; height: 191mm; overflow: hidden; display: flex; flex-direction: column; gap: 1.8mm; }
+.page:last-child { page-break-after: auto; }
+header { display: flex; align-items: baseline; justify-content: space-between; gap: 6mm; }
+h1 { font-size: 15pt; font-weight: 900; color: #6d28d9; } /* no gradient text: it prints with hairline box edges */
+.lead { font-size: 8.6pt; font-weight: 700; text-align: right; }
+.recipe { display: flex; flex-wrap: wrap; gap: 1mm 2.5mm; align-items: center; font-size: 8pt; padding: 1.3mm 3mm; border-radius: 2mm; background: #f1f5f9; }
+.recipe .luck { margin-left: auto; font-style: italic; }
+.recipe b { white-space: nowrap; }
+table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+th { text-align: left; font-size: 7pt; text-transform: uppercase; letter-spacing: .04em; color: #475569; padding: 1mm 1.6mm; border-bottom: .5mm solid #cbd5e1; }
+td { vertical-align: top; padding: .9mm 1.4mm; border-bottom: .25mm solid #e2e8f0; }
+td.game { font-weight: 800; font-size: 8.6pt; }
+td.game span { display: block; font-size: 12pt; line-height: 1.1; }
+td .who { display: block; margin-top: .6mm; color: #64748b; }
+ul { padding-left: 3.2mm; }
+.cols { display: grid; grid-template-columns: 1.9fr 1fr; gap: 3mm; margin-top: auto; }
+.box { border: .35mm solid #cbd5e1; border-radius: 2mm; padding: 1.4mm 2.6mm; font-size: 7.4pt; }
+.box h2 { font-size: 8.6pt; margin-bottom: .6mm; }
+.box li { margin-bottom: .3mm; break-inside: avoid; }
+.ops ul { columns: 2; column-gap: 5mm; }
+.avoid { border-color: #fca5a5; background: #fff7f7; }
+kbd { font-family: inherit; font-size: 7.6pt; font-weight: 700; padding: 0 1mm; border: .25mm solid #94a3b8; border-radius: 1mm; background: #f8fafc; }
+</style>
+<body>
+<div id="root"></div>
+<script>
+const L = {
+  en: {
+    title: 'The Simulation Arcade — stand sheet',
+    lead: 'The one message: with maths and computers you can simulate anything, and that is our job.',
+    recipe: ['📜 a rule of nature', '🔲 chop the world into squares or balls', '⏱ take tiny steps in time', '🎲 run many possible futures'],
+    luck: 'One run is luck; many runs are science.',
+    head: ['Game', 'Kids: what to do, what to point at', 'Parents: one line', 'Our link', 'If asked'],
+    who: 'Who to name: ',
+    ops: 'Running the stand',
+    opsItems: [
+      'Start a machine: <kbd>node tools/kiosk/kiosk.mjs</kbd> (Windows: double-click <kbd>tools/kiosk/kiosk.bat</kbd>). Dutch, back to the menu after 3 minutes untouched.',
+      'Morning: <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Backspace</kbd> clears the test scores. Then run each game\'s 🤖 computer\'s turn once, so every board has a score to beat.',
+      '<kbd>Esc</kbd> = back to the menu; it also rescues a black or frozen game. ⌂ asks "Menu?" first.',
+      'Browser closed by a visitor? It reopens by itself. Quit: <kbd>Alt</kbd>+<kbd>F4</kbd> twice within 10 s.',
+      'Busy? Free play first; the gold 🏆 challenge (2–6 min) is for kids who stay. Swirl Lab and Ball Pit are the fastest.',
+      'Stamp card: stamp a game when a kid shows you its score screen. QR on the menu and poster: play again at home.',
+    ],
+    avoid: 'Don\'t say',
+    avoidItems: [
+      '"CWI computed the storm surges behind the Delta Works" — not confirmed. Say: van Dantzig worked out how high the dikes must be.',
+      '"The RIVM used a model like Outbreak" — theirs was not agent-based.',
+      'That the games are exact: they are small, fast versions; "looks right" was the goal.',
+    ],
+    games: [
+      ['🌀', 'Swirl Lab', 'Drag to stir the air. 🏆: place 8 turbines — the orange wakes steal wind from the ones behind, and the wind turns twice.', 'Turbine wakes cost wind farms real money; simulating turbulence is our daily work.', 'Turbulence, wind energy, AI that speeds up simulations.', ['Power grows with the wind speed cubed: half the wind, an eighth of the power.', 'The flow equations are ~200 years old; proving they always behave is a $1M prize.']],
+      ['🦠', 'Outbreak!', 'Click someone to infect them; watch the wave and the curve. 🏆: vaccinate, close the school, isolate — save lives.', '500 simulated people; your score is compared with 8 futures the computer ran without you.', 'The group has worked on simulating real epidemics, and on how sure such models can be.', ['The SIR model is from 1927.', 'R₀: flu about 1.3, measles 12–18. Below 1 an epidemic fizzles out.']],
+      ['🌊', 'Save the Netherlands', 'Hold the mouse on the land to pile sand; press Storm! 🏆: four rounds, from holding the line to closing the barrier.', 'After 1953 David van Dantzig of the Mathematisch Centrum (now CWI) worked out how high dikes should be — round 3 is his trade-off.', 'With Deltares: methods to compute where dikes can fail, so money goes where the risk is.', ['The 1953 flood killed 1,836 people.', 'The Maeslantkering closes by itself on a 3 m forecast; first real closure: November 2007.']],
+      ['🌡️', 'Weather Detective', 'Click to place thermometers; the computer guesses the rest, and grey question marks show where it is unsure.', 'With KNMI we turn official and home weather stations into one map, and the maths says how sure it is.', 'Our KNMI project: combining thousands of home stations with the official ones.', ['The maps are real KNMI maps of four days in 2025.', 'Home stations are many but less reliable; the model learns how much to trust them.']],
+      ['🦿', 'Creature Lab', 'Grab and throw a creature. 🧠 teach one to walk: an hour of practice every minute. 🏆: pick the parents.', 'Nobody programs the walk: evolution practises in a simulation. Real robots learn to walk in simulations first.', 'Learning inside simulations (AI), and making those simulations trustworthy.', ['Thousands of robot copies can practise at once on one chip.', 'Without a speed limit on muscles, evolution learned cartwheels: learners find every flaw.']],
+      ['🏀', 'Ball Pit', 'Tap to pour balls, 🔥 heat into a gas, ❄️ cool back. 🔭 zoom out until it looks like a fluid.', 'The arcade\'s microscope: water and air are really particles, but far too many — so we write equations for the crowd.', 'Rules that stand in for what is too small to simulate (closure models).', ['Some of the first computer simulations of molecules (1953, 1957) were balls like these.', 'Plinko: one ball is luck, 300 make a bell curve.']],
+      ['🪐', 'Gravity Doodle', 'Drag and let go to throw a planet; the dotted line is the computer\'s forecast. 🏆: keep planets in the green zone.', 'Three bodies have no formula: the only way to see their future is to compute it — how space missions are planned.', 'Smart time steps that keep energy honest.', ['Asteroid 2024 YR4 briefly had a 3 % chance of hitting Earth in 2032.', 'NASA\'s DART (2022) shifted an asteroid\'s orbit by about half an hour.']],
+    ],
+  },
+  nl: {
+    title: 'De Simulatie-arcade — standkaart',
+    lead: 'De boodschap: met wiskunde en computers kun je alles simuleren, en dat is ons vak.',
+    recipe: ['📜 een regel uit de natuur', '🔲 hak de wereld in vakjes of balletjes', '⏱ zet kleine stapjes in de tijd', '🎲 reken veel mogelijke toekomsten door'],
+    luck: 'Eén keer rekenen is geluk; heel vaak rekenen is wetenschap.',
+    head: ['Spel', 'Kinderen: wat doen, waar wijzen', 'Ouders: één zin', 'Onze link', 'Als ze het vragen'],
+    who: 'Wie noemen: ',
+    ops: 'De stand draaien',
+    opsItems: [
+      'Machine starten: <kbd>node tools/kiosk/kiosk.mjs</kbd> (Windows: dubbelklik <kbd>tools/kiosk/kiosk.bat</kbd>). Nederlands, na 3 minuten niets terug naar het menu.',
+      '\'s Ochtends: <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Backspace</kbd> wist de testscores. Speel daarna bij elk spel één keer de 🤖 beurt van de computer, zodat elk scorebord iets heeft om te verslaan.',
+      '<kbd>Esc</kbd> = terug naar het menu; redt ook een zwart of vastgelopen spel. ⌂ vraagt eerst "Naar het menu?".',
+      'Browser dichtgedaan door een bezoeker? Hij gaat vanzelf weer open. Stoppen: twee keer <kbd>Alt</kbd>+<kbd>F4</kbd> binnen 10 s.',
+      'Druk? Eerst vrij spelen; de gouden 🏆-uitdaging (2–6 min) is voor wie blijft. Wervel-lab en Ballenbak zijn het snelst.',
+      'Stempelkaart: stempel een spel als een kind zijn scorescherm laat zien. QR op het menu en de poster: thuis verder spelen.',
+    ],
+    avoid: 'Niet zeggen',
+    avoidItems: [
+      '"Het CWI berekende de stormvloeden achter de Deltawerken" — niet bevestigd. Wel: van Dantzig berekende hoe hoog de dijken moeten zijn.',
+      '"Het RIVM gebruikte een model zoals Uitbraak!" — dat van hen was niet agent-based.',
+      'Dat de spellen exact zijn: het zijn kleine, snelle versies; "ziet er goed uit" was het doel.',
+    ],
+    games: [
+      ['🌀', 'Wervel-lab', 'Sleep om de lucht te laten wervelen. 🏆: zet 8 turbines neer — het oranje zog steelt wind van de turbines erachter, en de wind draait twee keer.', 'Het zog van turbines kost windparken echt geld; turbulentie simuleren is ons dagelijks werk.', 'Turbulentie, windenergie, AI die simulaties versnelt.', ['Het vermogen groeit met de windsnelheid tot de derde: halve wind, een achtste van het vermogen.', 'De stromingsvergelijkingen zijn ~200 jaar oud; bewijzen dat ze zich altijd netjes gedragen levert $1 miljoen op.']],
+      ['🦠', 'Uitbraak!', 'Klik iemand aan om hem te besmetten; kijk naar de golf en de curve. 🏆: vaccineren, school dicht, isoleren — levens redden.', '500 gesimuleerde mensen; je score wordt vergeleken met 8 toekomsten die de computer zonder jou doorrekende.', 'De groep heeft gewerkt aan het simuleren van echte epidemieën, en aan hoe zeker zulke modellen kunnen zijn.', ['Het SIR-model is uit 1927.', 'R₀: griep rond 1,3, mazelen 12–18. Onder de 1 dooft een epidemie uit.']],
+      ['🌊', 'Red Nederland', 'Houd de muis op het land om zand te storten; druk op Storm! 🏆: vier rondes, van de dijk houden tot de kering sluiten.', 'Na 1953 berekende David van Dantzig van het Mathematisch Centrum (nu CWI) hoe hoog dijken moeten zijn — ronde 3 is zijn afweging.', 'Met Deltares: methoden om te berekenen waar dijken kunnen bezwijken, zodat het geld gaat naar waar het risico zit.', ['De watersnood van 1953 kostte 1.836 mensen het leven.', 'De Maeslantkering sluit vanzelf bij een voorspelling van 3 m; voor het eerst echt in november 2007.']],
+      ['🌡️', 'Weerdetective', 'Klik om thermometers neer te zetten; de computer raadt de rest, en grijze vraagtekens tonen waar hij het niet zeker weet.', 'Met het KNMI maken we van officiële en thuisweerstations één kaart, en de wiskunde zegt hoe zeker die is.', 'Ons KNMI-project: duizenden thuisstations combineren met de officiële.', ['De kaarten zijn echte KNMI-kaarten van vier dagen in 2025.', 'Thuisstations zijn talrijk maar minder betrouwbaar; het model leert hoeveel het ze kan vertrouwen.']],
+      ['🦿', 'Beestenlab', 'Pak een beestje en gooi het. 🧠 leer er een lopen: een uur oefenen per minuut. 🏆: kies de ouders.', 'Niemand programmeert het lopen: evolutie oefent in een simulatie. Echte robots leren eerst lopen in simulaties.', 'Leren in simulaties (AI), en die simulaties betrouwbaar maken.', ['Duizenden robotkopieën kunnen tegelijk oefenen op één chip.', 'Zonder snelheidslimiet op spieren leerde evolutie radslagen: wie leert, vindt elke fout.']],
+      ['🏀', 'Ballenbak', 'Tik om ballen te gieten, 🔥 verwarm tot een gas, ❄️ koel weer af. 🔭 zoom uit tot het op een vloeistof lijkt.', 'De microscoop van de arcade: water en lucht zijn eigenlijk deeltjes, maar veel te veel — dus schrijven we vergelijkingen voor de menigte.', 'Regels die in de plaats komen van wat te klein is om te simuleren (sluitingsmodellen).', ['Een paar van de allereerste computersimulaties van moleculen (1953, 1957) waren ballen zoals deze.', 'Plinko: één bal is geluk, 300 maken een klokvorm.']],
+      ['🪐', 'Zwaartekracht-doodle', 'Sleep en laat los om een planeet te gooien; de stippellijn is de voorspelling van de computer. 🏆: houd planeten in de groene zone.', 'Voor drie hemellichamen bestaat geen formule: hun toekomst zie je alleen door hem uit te rekenen — zo worden ruimtemissies gepland.', 'Slimme tijdstappen die de energie eerlijk houden.', ['Planetoïde 2024 YR4 had even 3 % kans om in 2032 de Aarde te raken.', 'NASA\'s DART (2022) verschoof de baan van een planetoïde met zo\'n half uur.']],
+    ],
+  },
+};
+const esc = (t) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+document.getElementById('root').innerHTML = ['en', 'nl'].map((k) => {
+  const t = L[k];
+  return `<section class="page">
+    <header><h1>${t.title}</h1><p class="lead">${t.lead}</p></header>
+    <div class="recipe">${t.recipe.map((r) => `<b>${r}</b>`).join('→')}<span class="luck">${t.luck}</span></div>
+    <table>
+      <colgroup><col style="width:11%"><col style="width:25%"><col style="width:23%"><col style="width:17%"><col style="width:24%"></colgroup>
+      <tr>${t.head.map((h) => `<th>${h}</th>`).join('')}</tr>
+      ${t.games.map(([emoji, name, kids, parents, link, facts]) => `<tr>
+        <td class="game"><span>${emoji}</span>${name}</td>
+        <td>${esc(kids)}</td>
+        <td>${esc(parents)}</td>
+        <td>${esc(link)}<span class="who">${t.who}______________</span></td>
+        <td><ul>${facts.map((f) => `<li>${esc(f)}</li>`).join('')}</ul></td>
+      </tr>`).join('')}
+    </table>
+    <div class="cols">
+      <div class="box ops"><h2>⚙️ ${t.ops}</h2><ul>${t.opsItems.map((i) => `<li>${i}</li>`).join('')}</ul></div>
+      <div class="box avoid"><h2>🚫 ${t.avoid}</h2><ul>${t.avoidItems.map((i) => `<li>${esc(i)}</li>`).join('')}</ul></div>
+    </div>
+  </section>`;
+}).join('');
+</script>
+</body>

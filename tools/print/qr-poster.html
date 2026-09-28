@@ -1,0 +1,35 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>QR poster</title>
+<!-- The "play again at home" poster the programme form promises: A4 portrait,
+     scales up to A3 when printed. The code opens the GitHub Pages build
+     (push main first). Print with print.mjs. -->
+<style>
+@page { size: A4 portrait; margin: 0; }
+* { box-sizing: border-box; margin: 0; }
+body { font-family: 'Noto Sans', system-ui, sans-serif; }
+.poster { width: 210mm; height: 297mm; padding: 18mm 16mm 14mm; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 7mm;
+  background: radial-gradient(ellipse at 50% 22%, #1b2550 0%, #0b1020 68%); color: #eef2ff;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+h1 { font-size: 38pt; font-weight: 900; line-height: 1.02; color: #c4b5fd; } /* no gradient text: it prints with hairline box edges */
+.sub { font-size: 16pt; font-weight: 700; }
+.qr { background: #fff; padding: 6mm; border-radius: 6mm; box-shadow: 0 3mm 10mm rgba(0, 0, 0, .5); }
+.qr img { width: 105mm; height: 105mm; display: block; }
+.url { font-size: 15pt; font-weight: 800; letter-spacing: .02em; color: #7dd3fc; }
+.games { font-size: 26pt; letter-spacing: 3mm; }
+.msg { font-size: 14pt; font-weight: 700; max-width: 160mm; }
+.en { font-size: 11pt; color: #aab3d6; }
+.credit { margin-top: auto; font-size: 10pt; font-weight: 700; letter-spacing: .12em; color: #aab3d6; }
+</style>
+<body>
+<div class="poster">
+  <h1>Speel thuis verder!</h1>
+  <p class="sub">De Simulatie-arcade — op je telefoon, tablet of computer</p>
+  <div class="qr"><img src="../../app/src/shell/qr-play.svg" alt=""></div>
+  <p class="url">agdestein.github.io/OpenDay</p>
+  <p class="games">🌀 🦠 🌊 🌡️ 🦿 🏀 🪐</p>
+  <p class="msg">Met wiskunde en computers kun je alles simuleren: wind, water, epidemieën, het weer, robots en planeten. Dat is ons vak.</p>
+  <p class="en">Play again at home — the Simulation Arcade in English, Dutch and Norwegian.</p>
+  <p class="credit">SCIENTIFIC COMPUTING · CWI · WETENSCHAPSDAG 2026</p>
+</div>
+</body>

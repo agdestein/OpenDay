@@ -85,6 +85,10 @@ node tools/kiosk/kiosk.mjs --games=windfarm,bounce --reset-scores
 node tools/kiosk/kiosk.mjs --windowed                   # a normal window, to test
 ```
 
+The stand's paper (the staff's stand sheet in English and Dutch, the kids' stamp
+cards, and the "play at home" QR poster) prints from `tools/print/` to
+`promo/print/*.pdf` with `node tools/promo/cdp.mjs ../print/print.mjs`.
+
 On Windows, double-click `tools/kiosk/kiosk.bat` (or drag it into a terminal with
 options). Every `--name=value` other than the launcher's own (`--port`, `--browser`,
 `--windowed`, `--serve-only`, `--dry-run`) becomes one of the URL options below. The
@@ -217,5 +221,6 @@ the model, the cases and their calibration (`npm run test:detective`).
 - `docs/arcade-assessment.md` — assessment of the arcade as a whole (menu, shared
   controls, pacing, science thread, Dutch, stand readiness) and the plan for the last
   week before the event.
-- `tools/` — one-off data preparation scripts (not shipped).
+- `tools/` — scripts that are not shipped: data preparation, promo stills, printables
+  (`tools/print/`) and the stand launcher (`tools/kiosk/`).
 - `app/` — the arcade web app (Vite + TypeScript; games live in `app/src/games/`).

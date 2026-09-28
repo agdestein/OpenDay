@@ -1,0 +1,41 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Stamp card</title>
+<!-- Kids' stamp card ("simulatie-paspoort"), four A6 cards per A4 with cut lines.
+     Staff stamp a game when a kid shows its score screen: it pulls kids across the
+     machines and gives staff a moment to talk to the parents. Print with print.mjs. -->
+<style>
+@page { size: A4 portrait; margin: 0; }
+* { box-sizing: border-box; margin: 0; }
+body { font-family: 'Noto Sans', system-ui, sans-serif; color: #111827; }
+.sheet { width: 210mm; height: 297mm; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); }
+.card { position: relative; overflow: hidden; padding: 9mm 8mm 7mm; display: flex; flex-direction: column; gap: 3mm; border: .2mm dashed #cbd5e1; }
+h1 { font-size: 17pt; font-weight: 900; line-height: 1.05; color: #6d28d9; } /* no gradient text: it prints with hairline box edges */
+.sub { font-size: 9pt; font-weight: 600; color: #334155; }
+.name { font-size: 9pt; color: #475569; border-bottom: .3mm solid #94a3b8; padding-bottom: 1mm; }
+.stamps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4mm 2mm; margin-top: 3mm; }
+.stamp { display: flex; flex-direction: column; align-items: center; gap: 1mm; }
+.circle { width: 20mm; height: 20mm; border-radius: 50%; border: .5mm dashed #94a3b8; display: grid; place-items: center; font-size: 19pt; }
+.label { font-size: 7.2pt; font-weight: 700; text-align: center; line-height: 1.1; }
+.foot { margin-top: auto; display: flex; align-items: flex-end; justify-content: space-between; gap: 3mm; }
+.foot p { font-size: 7.4pt; color: #475569; line-height: 1.3; }
+.foot img { width: 17mm; height: 17mm; }
+.en { font-size: 6.8pt; color: #64748b; font-style: italic; }
+</style>
+<body>
+<div class="sheet" id="sheet"></div>
+<script>
+const games = [['🌀', 'Wervel-lab'], ['🦠', 'Uitbraak!'], ['🌊', 'Red Nederland'], ['🌡️', 'Weerdetective'], ['🦿', 'Beestenlab'], ['🏀', 'Ballenbak'], ['🪐', 'Zwaartekracht-doodle']];
+const card = `<div class="card">
+  <h1>Mijn simulatie-paspoort</h1>
+  <p class="sub">Speel een spel, laat je score zien en krijg een stempel. Hoeveel werelden simuleer jij vandaag?</p>
+  <p class="name">Naam:</p>
+  <div class="stamps">${games.map(([e, n]) => `<div class="stamp"><div class="circle">${e}</div><div class="label">${n}</div></div>`).join('')}</div>
+  <div class="foot">
+    <p>Met wiskunde en computers kun je alles simuleren.<br><b>Speel thuis verder →</b><br><span class="en">My simulation passport: play a game, show your score, get a stamp.</span></p>
+    <img src="../../app/src/shell/qr-play.svg" alt="">
+  </div>
+</div>`;
+document.getElementById('sheet').innerHTML = card.repeat(4);
+</script>
+</body>
