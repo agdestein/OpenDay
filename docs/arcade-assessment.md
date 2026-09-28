@@ -24,6 +24,39 @@ changes the priorities:
 - Laptops mean 1366×768 or 1536×864 (1920×1080 at 125 % scaling) is likely.
 - The form also promises a **poster with a QR code** to the game.
 
+## Status (28 September, evening)
+
+The Monday–Tuesday batch of §9 is built:
+
+- **§1 in full.**
+  - The menu leak is fixed: node and listener counts stayed flat over 80 menu/game
+    switches.
+  - A game whose frame throws three times in a row, whose handlers keep throwing, or
+    that loses its WebGL context goes back to the menu.
+  - Idle reset runs on its own timer, shows a "Still playing?" countdown and reloads
+    to the machine's defaults.
+  - No context menu, no Ctrl zoom, Screen Wake Lock, and a canvas pixel cap with
+    `?dpr=`.
+  - Staff can clear the day's scores (Ctrl+Shift+Backspace or `?reset-scores`).
+  - Rude initials and CPU are refused, and `Esc` no longer loses a score.
+  - Kiosk launcher: `tools/kiosk/kiosk.mjs`, with `npm run kiosk` and `kiosk.bat`.
+  - The Ball Pit test is seeded.
+  - Not done: `?langs=off`.
+- **§5 claim fixes and §6 Dutch fixes.**
+  - The about layer gained a sixth card, "One recipe for everything"; it filled the
+    empty grid slot.
+  - The "CWI and our group" card now names KNMI and AI, and "And these games?" covers
+    all seven games.
+  - The claims marked "confirm with the named people" are still to confirm.
+- **§2 tiles.**
+  - Each tile has a hook and today's record (🤖 for the computer).
+  - The booklet's title, the message in the footer, and a QR code (top left) to the
+    GitHub Pages build.
+  - The menu fits 1366×768 and 1536×864.
+  - The QR code opens whatever was last pushed to `main`, so push before Saturday.
+
+Still open: everything from Wednesday on in §9.
+
 ## Verdict
 
 The games are the strong part. Each has a real simulation, a hook that works without
