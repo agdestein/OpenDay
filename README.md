@@ -178,5 +178,8 @@ the model, the cases and their calibration (`npm run test:detective`).
 - `docs/message.md` — goals: what the stand should achieve and communicate.
 - `docs/ideas.md` — catalog of game ideas (built, planned, and future).
 - `docs/plan.md` — architecture and phased implementation plan.
+- `docs/arcade-assessment.md` — assessment of the arcade as a whole (menu, shared
+  controls, pacing, science thread, Dutch, stand readiness) and the plan for the last
+  week before the event.
 - `tools/` — one-off data preparation scripts (not shipped).
 - `app/` — the arcade web app (Vite + TypeScript; games live in `app/src/games/`).
