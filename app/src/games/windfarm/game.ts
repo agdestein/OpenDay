@@ -56,11 +56,11 @@ const TEXT: Localized<{
     barWind: 'wind',
     barPower: 'vermogen',
     headingComputerDone: '🤖 De computer is klaar!',
-    headingTimeUp: '⏱ Tijd is om!',
+    headingTimeUp: '⏱ De tijd is om!',
     yourTurn: '🙋 Jouw beurt',
     cpuAgain: '🤖 Nog een keer',
     freePlay: '🌀 Vrij spelen',
-    playAgain: '🔁 Opnieuw spelen',
+    playAgain: '🔁 Nog een keer',
     computersTurn: '🤖 Beurt van de computer',
   },
   no: {

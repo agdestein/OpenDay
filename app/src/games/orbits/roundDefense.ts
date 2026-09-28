@@ -64,7 +64,7 @@ const TEXT: Localized<{
     look: 'Kijk',
     lookLeft: (n) => `Kijk (nog ${n})`,
     lookWait: 'Telescoop bezig…',
-    lookNone: 'Niet meer kijken',
+    lookNone: 'Geen kijkbeurten meer',
     years: (y) => `⏳ nog ${y} jaar`,
     chance: (p) => `☄️ ${p} kans op inslag`,
     hintStart: 'Niemand weet precies waar de planetoïde is: elke stip is er een die het zou kunnen zijn. De rode raken de Aarde! 🔭 Kijk om de echte te vinden.',

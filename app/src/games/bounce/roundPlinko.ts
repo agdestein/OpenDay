@@ -36,11 +36,11 @@ const TEXT: Localized<{
     drop: 'Los!',
     dropsIn: (s) => `Los! (${s})`,
     hudBalls: (n) => `⚪ nog ${n}`,
-    hintPlace: 'Sleep de witte stuiters op het bord en stuur de ballen naar het 🥇 gouden bakje!',
+    hintPlace: 'Sleep de witte bumpers op het bord en stuur de ballen naar het 🥇 gouden bakje!',
     hintTwins: 'Twee tweelingballen, een duizendste pixel uit elkaar losgelaten…',
     twinsApart: (n) => `…en ze landen ${n} bakjes uit elkaar! Eén bal is geluk. Kijk nu wat 300 ballen doen.`,
     twinsSame: '…één bal is geluk. Kijk nu wat 300 ballen doen.',
-    hintPour: 'Blijf sturen: je mag de stuiters verslepen terwijl de ballen vallen.',
+    hintPour: 'Blijf sturen: je mag de bumpers verslepen terwijl de ballen vallen.',
     summary: (gold) =>
       `${fmtNumber(gold)} ballen in het gouden bakje. Niemand weet waar één bal landt, maar 300 ballen maken elke keer dezelfde klokvorm: zo gebruiken weersverwachtingen veel berekeningen tegelijk.`,
   },

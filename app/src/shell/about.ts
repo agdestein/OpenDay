@@ -40,8 +40,8 @@ const CARDS: Localized<AboutCard[]> = {
       emoji: '🖥️',
       title: 'Why computers were built',
       paragraphs: [
-        "Scientific calculation was the original reason to build computers at all — before the machines, 'computer' was a job title: a person calculating by hand.",
-        "CWI's predecessor, the Mathematisch Centrum, built the first computer in the Netherlands (the ARRA, 1952). After the 1953 flood it helped compute the storm surges behind the Delta Works that protect the country today.",
+        "Scientific calculation was one of the main reasons to build computers at all — before the machines, 'computer' was a job title: a person calculating by hand.",
+        "CWI's predecessor, the Mathematisch Centrum, built the first computer in the Netherlands (the ARRA, 1952). After the 1953 flood, one of its founders, David van Dantzig, worked out how high the dikes must be — his way of calculating is still used today.",
       ],
     },
     {
@@ -49,15 +49,23 @@ const CARDS: Localized<AboutCard[]> = {
       title: 'CWI and our group',
       paragraphs: [
         'CWI is the Dutch national research institute for mathematics and computer science, at Amsterdam Science Park. Our Scientific Computing group develops the mathematics that makes simulations faster and more trustworthy.',
-        "The same craft applies everywhere: we have worked on turbulence and wind energy, epidemic spread, dike safety, and the uncertainty in climate-scale models.",
+        "The same craft applies everywhere: we have worked on turbulence and wind energy, epidemics, dike safety, weather maps with KNMI, AI that speeds up simulations, and uncertainty in climate models.",
       ],
     },
     {
       emoji: '🎮',
       title: 'And these games?',
       paragraphs: [
-        'Every game in this arcade runs a genuine simulation — a miniature version of what runs on supercomputers. The wind farm solves flow equations, the flood game moves real shallow water, the outbreak follows a true epidemic model.',
+        'Every game in this arcade runs a genuine simulation — a miniature version of what runs on supercomputers: wind, water, an epidemic, the weather, walking creatures, a pit of balls and a sky full of planets.',
         "Curious? Open any game and press '🔬 How does this work?' to look under the hood.",
+      ],
+    },
+    {
+      emoji: '🍳',
+      title: 'One recipe for everything',
+      paragraphs: [
+        '📜 a rule of nature → 🔲 chop the world into squares or balls → ⏱ take tiny steps in time → 🎲 run many possible futures.',
+        'Every game here follows that recipe, from the wind to the planets. One run is luck; many runs are science. Doing this well is our job.',
       ],
     },
   ],
@@ -82,8 +90,8 @@ const CARDS: Localized<AboutCard[]> = {
       emoji: '🖥️',
       title: 'Waarom computers zijn gebouwd',
       paragraphs: [
-        "Wetenschappelijk rekenwerk was dé reden om überhaupt computers te bouwen — vóór de machines was 'computer' een beroep: iemand die met de hand rekende.",
-        'De voorloper van het CWI, het Mathematisch Centrum, bouwde de eerste computer van Nederland (de ARRA, 1952). Na de watersnoodramp van 1953 hielp het de stormvloedberekeningen te maken achter de Deltawerken die het land vandaag beschermen.',
+        "Wetenschappelijk rekenwerk was een van de belangrijkste redenen om überhaupt computers te bouwen — vóór de machines was 'computer' een beroep: iemand die met de hand rekende.",
+        'De voorloper van het CWI, het Mathematisch Centrum, bouwde de eerste computer van Nederland (de ARRA, 1952). Na de watersnoodramp van 1953 berekende een van de oprichters, David van Dantzig, hoe hoog de dijken moeten zijn — zijn manier van rekenen wordt nog steeds gebruikt.',
       ],
     },
     {
@@ -91,15 +99,23 @@ const CARDS: Localized<AboutCard[]> = {
       title: 'CWI en onze groep',
       paragraphs: [
         'Het CWI is het nationale onderzoeksinstituut voor wiskunde en informatica, op het Amsterdam Science Park. Onze Scientific Computing-groep ontwikkelt de wiskunde die simulaties sneller en betrouwbaarder maakt.',
-        'Hetzelfde vak duikt overal op: we werkten aan turbulentie en windenergie, de verspreiding van epidemieën, dijkveiligheid en de onzekerheid in klimaatmodellen.',
+        'Hetzelfde vak duikt overal op: we werkten aan turbulentie en windenergie, epidemieën, dijkveiligheid, weerkaarten met het KNMI, AI die simulaties versnelt en onzekerheid in klimaatmodellen.',
       ],
     },
     {
       emoji: '🎮',
       title: 'En deze spellen?',
       paragraphs: [
-        'Elk spel in deze arcade draait een echte simulatie — een minivariant van wat op supercomputers draait. Het windpark lost stromingsvergelijkingen op, het overstromingsspel verplaatst echt ondiep water, de uitbraak volgt een echt epidemiemodel.',
+        'Elk spel in deze arcade draait een echte simulatie — een minivariant van wat op supercomputers draait: wind, water, een epidemie, het weer, lopende beestjes, een bak vol ballen en een hemel vol planeten.',
         "Nieuwsgierig? Open een spel en druk op '🔬 Hoe werkt dit?' om onder de motorkap te kijken.",
+      ],
+    },
+    {
+      emoji: '🍳',
+      title: 'Eén recept voor alles',
+      paragraphs: [
+        '📜 een regel uit de natuur → 🔲 hak de wereld in vakjes of balletjes → ⏱ zet kleine stapjes in de tijd → 🎲 reken veel mogelijke toekomsten door.',
+        'Elk spel hier volgt dat recept, van de wind tot de planeten. Eén keer rekenen is geluk; heel vaak rekenen is wetenschap. Dat goed doen is ons vak.',
       ],
     },
   ],
@@ -124,8 +140,8 @@ const CARDS: Localized<AboutCard[]> = {
       emoji: '🖥️',
       title: 'Derfor ble datamaskinen bygget',
       paragraphs: [
-        "Vitenskapelige beregninger var selve grunnen til å bygge datamaskiner — før maskinene var 'computer' en jobbtittel: et menneske som regnet for hånd.",
-        'CWIs forgjenger, Mathematisch Centrum, bygde Nederlands første datamaskin (ARRA, 1952). Etter stormflommen i 1953 hjalp det til med stormflo-beregningene bak Deltaverkene som beskytter landet i dag.',
+        "Vitenskapelige beregninger var en av hovedgrunnene til å bygge datamaskiner — før maskinene var 'computer' en jobbtittel: et menneske som regnet for hånd.",
+        'CWIs forgjenger, Mathematisch Centrum, bygde Nederlands første datamaskin (ARRA, 1952). Etter stormflommen i 1953 regnet en av grunnleggerne, David van Dantzig, ut hvor høye dikene må være — hans måte å regne på brukes fortsatt.',
       ],
     },
     {
@@ -133,15 +149,23 @@ const CARDS: Localized<AboutCard[]> = {
       title: 'CWI og gruppen vår',
       paragraphs: [
         'CWI er Nederlands nasjonale forskningsinstitutt for matematikk og informatikk, på Amsterdam Science Park. Scientific Computing-gruppen vår utvikler matematikken som gjør simuleringer raskere og mer pålitelige.',
-        'Det samme håndverket dukker opp overalt: vi har jobbet med turbulens og vindkraft, epidemispredning, dikesikkerhet og usikkerheten i klimamodeller.',
+        'Det samme håndverket dukker opp overalt: vi har jobbet med turbulens og vindkraft, epidemier, dikesikkerhet, værkart med KNMI, KI som gjør simuleringer raskere, og usikkerhet i klimamodeller.',
       ],
     },
     {
       emoji: '🎮',
       title: 'Og disse spillene?',
       paragraphs: [
-        'Hvert spill i denne arkaden kjører en ekte simulering — en miniversjon av det som kjører på superdatamaskiner. Vindparken løser strømningsligninger, flomspillet flytter ekte gruntvann, utbruddet følger en ekte epidemimodell.',
+        'Hvert spill i denne arkaden kjører en ekte simulering — en miniversjon av det som kjører på superdatamaskiner: vind, vann, en epidemi, været, gående skapninger, en binge full av baller og en himmel full av planeter.',
         "Nysgjerrig? Åpne et spill og trykk på '🔬 Hvordan virker dette?' for å se under panseret.",
+      ],
+    },
+    {
+      emoji: '🍳',
+      title: 'Én oppskrift for alt',
+      paragraphs: [
+        '📜 en regel fra naturen → 🔲 del verden opp i ruter eller baller → ⏱ ta små steg i tiden → 🎲 regn gjennom mange mulige fremtider.',
+        'Hvert spill her følger den oppskriften, fra vinden til planetene. Én kjøring er flaks; mange kjøringer er vitenskap. Å gjøre dette godt er jobben vår.',
       ],
     },
   ],

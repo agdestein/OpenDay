@@ -154,9 +154,9 @@ system) says the water will rise above 3 m NAP at Rotterdam (2.9 m at Dordrecht)
 it first closed for a real storm on 8–9 November 2007
 ([Wikipedia](https://en.wikipedia.org/wiki/Maeslantkering),
 [Rijkswaterstaat](https://www.rijkswaterstaat.nl/en/projects/iconic-structures/maeslant-barrier)).
-The arcade's general explainer (`shell/about.ts`) says the Mathematisch Centrum
-"helped compute the storm surges behind the Delta Works"; that is not confirmed
-by these sources.
+The arcade's general explainer (`shell/about.ts`) used to say the Mathematisch
+Centrum "helped compute the storm surges behind the Delta Works", which these
+sources do not confirm; since 28 September 2026 it uses the van Dantzig wording.
 
 ## Look and feedback
 

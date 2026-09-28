@@ -17,12 +17,12 @@ const TEXT: Localized<{ subtitle: string; footer: string; fullscreen: string }> 
   },
   nl: {
     subtitle: 'Kies een wereld om te simuleren!',
-    footer: 'Scientific Computing-groep · CWI Open Dag',
+    footer: 'Scientific Computing-groep · Wetenschapsdag CWI',
     fullscreen: 'Volledig scherm (F)',
   },
   no: {
     subtitle: 'Velg en verden å simulere!',
-    footer: 'Scientific Computing-gruppen · CWI åpen dag',
+    footer: 'Scientific Computing-gruppen · CWIs vitenskapsdag',
     fullscreen: 'Fullskjerm (F)',
   },
 };

@@ -131,7 +131,7 @@ const CHAPTERS: Localized<ChapterText[]> = {
       paragraphs: [
         'Hier is een zomerdag in Europa: witte stippen zijn officiële stations, gekleurde stippen thuisstations (maar 1 op de 5 is getekend). Het zijn er meer dan 100.000.',
         'Om goed te raden, vergelijkt de computer elk station met elk ander. Het aantal paren groeit veel sneller dan het aantal stations. Schuif het aantal stations en zie wat er gebeurt met de rekentijd van de simpele methode.',
-        'Onze trucs: een thermometer praat alleen met zijn buren (verre paren tellen precies nul, die slaan we over), en de stations worden samengevat door zo’n 1000 ijkpunten. Zo worden dagen rekenen een paar minuten op één computer.',
+        'Onze trucs: een thermometer praat alleen met zijn buren (verre paren tellen precies nul, die slaan we over), en de stations worden samengevat door zo’n 1000 steunpunten. Zo worden dagen rekenen een paar minuten op één computer.',
       ],
       formula: 'paren = N × (N − 1) / 2',
     },

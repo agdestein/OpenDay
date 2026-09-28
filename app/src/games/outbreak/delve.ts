@@ -121,7 +121,7 @@ const TEXT: Localized<{
         'During the challenge you can also ask the model yourself: 🔮 runs your town 8 times for the next 30 days as things are, and 8 times with the school and market closed (or reopened) — the kind of scenario comparison modellers give to governments. For the unknown virus every future also guesses the virus’s numbers differently: uncertainty in the inputs becomes uncertainty in the forecast, and it shrinks as more cases come in.',
       ],
       [
-        'Models like this — with millions of agents, real travel data and real hospital numbers — advised governments through COVID-19 (in the Netherlands: the RIVM), guide vaccination campaigns, and are used against measles, malaria and animal diseases.',
+        'Models like this — with millions of agents, real travel data and real hospital numbers — advised governments through COVID-19 (in Britain, for example, the CovidSim model), guide vaccination campaigns, and are used against measles, malaria and animal diseases.',
         'Researchers in CWI’s Scientific Computing group have worked on simulating real epidemics — including the hard part: how uncertainty in the inputs (how contagious is a new variant, really?) changes what a model can honestly tell a decision-maker.',
         'What this toy leaves out: real towns are much bigger; real people differ in far more ways than three ages; immunity fades; and our diseases are far deadlier than flu, on purpose, so a 500-person town can show the effect at all. Every model is a simplification — the craft is knowing which simplifications you can afford.',
       ],
@@ -180,7 +180,7 @@ const TEXT: Localized<{
     chapterParagraphs: [
       [
         'Elke stip in de stad is één gesimuleerde persoon, en de kleur laat de status zien. Kleine stippen zijn kinderen; stippen met een lichte ring zijn opa’s en oma’s.',
-        'Dit is het SIRD-model: Vatbaar → Besmet → Hersteld, of Overleden (Susceptible, Infected, Recovered, Died). De eerste versie (SIR) werd in 1927 opgeschreven en is nog steeds de basis van ziektemodellen. Vaccinatie is de snelweg direct naar veiligheid, zonder ooit ziek te worden.',
+        'Dit is het SIRD-model: Vatbaar → Besmet → Hersteld, of Overleden (Susceptible, Infected, Recovered, Died). De eerste versie (SIR) werd in 1927 opgeschreven en is nog steeds de basis van ziektemodellen. Vaccinatie is de kortste weg naar veiligheid, zonder ooit ziek te worden.',
         'De aantallen rechts zijn live: jouw stad, op dit moment.',
       ],
       [
@@ -196,7 +196,7 @@ const TEXT: Localized<{
         'Het dashboard laat R live zien, gemeten uit wie wie besmette: hoeveel mensen elk recent geval heeft besmet, waarbij wie nog ziek is meetelt naar hoe lang die al ziek is. Het loopt een paar dagen achter op de epidemie — net als elke echte schatting van R. Zieken isoleren, plekken sluiten en vaccineren duwen hem allemaal omlaag.',
       ],
       [
-        'Voor een heel land kun je de individuen overslaan en met calculus alleen de grootte van de groepen bijhouden:',
+        'Voor een heel land kun je de individuen overslaan en met een paar vergelijkingen alleen de grootte van de groepen bijhouden:',
       ],
       [
         'Speel dezelfde stad nog een keer en je krijgt een andere epidemie: wie wie ontmoet, en wie de ziekte krijgt, is deels toeval. Eén simulatie bewijst dus weinig.',
@@ -205,8 +205,8 @@ const TEXT: Localized<{
         'Tijdens de uitdaging kun je het model ook zelf vragen: 🔮 draait je stad 8 keer voor de komende 30 dagen zoals het nu gaat, en 8 keer met de school en de markt dicht (of weer open) — het soort scenariovergelijking dat modelleurs aan overheden geven. Bij het onbekende virus schat elke toekomst ook de getallen van het virus anders: onzekerheid in de invoer wordt onzekerheid in de voorspelling, en die krimpt naarmate er meer gevallen binnenkomen.',
       ],
       [
-        'Modellen zoals dit — met miljoenen agents, echte reisgegevens en echte ziekenhuiscijfers — adviseerden overheden tijdens COVID-19 (in Nederland: het RIVM), sturen vaccinatiecampagnes, en worden gebruikt tegen mazelen, malaria en dierziekten.',
-        'Onderzoekers van de Scientific Computing-groep van het CWI werken aan het simuleren van echte epidemieën — inclusief het lastige deel: hoe onzekerheid in de invoer (hoe besmettelijk is een nieuwe variant, écht?) verandert wat een model een beleidsmaker eerlijk kan vertellen.',
+        'Modellen zoals dit — met miljoenen agents, echte reisgegevens en echte ziekenhuiscijfers — adviseerden overheden tijdens COVID-19 (in Groot-Brittannië bijvoorbeeld het model CovidSim), sturen vaccinatiecampagnes, en worden gebruikt tegen mazelen, malaria en dierziekten.',
+        'Onderzoekers van de Scientific Computing-groep van het CWI hebben gewerkt aan het simuleren van echte epidemieën — inclusief het lastige deel: hoe onzekerheid in de invoer (hoe besmettelijk is een nieuwe variant, écht?) verandert wat een model een beleidsmaker eerlijk kan vertellen.',
         'Wat dit speelgoedmodel weglaat: echte steden zijn veel groter; echte mensen verschillen op veel meer manieren dan drie leeftijden; immuniteit neemt af; en onze ziektes zijn met opzet veel dodelijker dan griep, zodat een stadje van 500 mensen het effect überhaupt kan laten zien. Elk model is een vereenvoudiging — het vak is weten welke vereenvoudigingen je je kunt veroorloven.',
       ],
     ],
@@ -289,7 +289,7 @@ const TEXT: Localized<{
         'Under utfordringen kan du også spørre modellen selv: 🔮 kjører byen din 8 ganger de neste 30 dagene slik det går nå, og 8 ganger med skolen og torget stengt (eller åpnet igjen) — den typen scenariosammenligning modellerere gir myndighetene. For det ukjente viruset gjetter hver fremtid også virusets tall forskjellig: usikkerhet i inndataene blir usikkerhet i prognosen, og den krymper etter hvert som flere tilfeller kommer inn.',
       ],
       [
-        'Modeller som denne — med millioner av agenter, ekte reisedata og ekte sykehustall — ga myndighetene råd gjennom covid-19 (i Nederland: RIVM), styrer vaksinasjonskampanjer, og brukes mot meslinger, malaria og dyresykdommer.',
+        'Modeller som denne — med millioner av agenter, ekte reisedata og ekte sykehustall — ga myndighetene råd gjennom covid-19 (i Storbritannia for eksempel modellen CovidSim), styrer vaksinasjonskampanjer, og brukes mot meslinger, malaria og dyresykdommer.',
         'Forskere i CWIs Scientific Computing-gruppe har jobbet med å simulere ekte epidemier — inkludert den vanskelige delen: hvordan usikkerhet i inndataene (hvor smittsom er egentlig en ny variant?) endrer hva en modell ærlig kan fortelle en beslutningstaker.',
         'Hva denne lekemodellen utelater: ekte byer er mye større; ekte mennesker er forskjellige på mange flere måter enn tre aldre; immunitet avtar; og sykdommene våre er med vilje mye dødeligere enn influensa, slik at en by med 500 mennesker i det hele tatt kan vise effekten. Enhver modell er en forenkling — håndverket er å vite hvilke forenklinger man har råd til.',
       ],

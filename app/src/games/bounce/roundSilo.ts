@@ -37,7 +37,7 @@ const TEXT: Localized<{
     hudOut: (n) => `⬇ ${fmtNumber(n)}`,
     noKnocks: 'Geen klopjes meer!',
     summary: (jams) =>
-      `Je silo's zaten ${jams} keer vast. Niemand kan zeggen wánnéér een silo vastloopt, alleen hoe vaak, door heel veel silo's te simuleren. Echte silo's lopen ook vast en hebben er kloppers en trilmotoren voor.`,
+      `Je silo's zaten ${jams} keer vast. Niemand kan zeggen wánneer een silo vastloopt, alleen hoe vaak, door heel veel silo's te simuleren. Echte silo's lopen ook vast en hebben er kloppers en trilmotoren voor.`,
   },
   no: {
     hint: 'Ballene kan kile seg fast i en bue og tette en silo. Klikk på en tett silo for å banke den løs! 🔨',

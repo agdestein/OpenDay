@@ -142,7 +142,7 @@ const CHAPTERS: Localized<ChapterText[]> = {
     {
       title: 'Robots gaan naar school in simulaties',
       paragraphs: [
-        'Echte robots met poten leren nu zo lopen: duizenden kopieën oefenen tegelijk in een simulatie op één computerchip, vallen miljoenen keren, en daarna wordt het brein in echte poten gezet. Jaren vallen kosten een paar uur.',
+        'Echte robots met poten leren nu zo lopen: duizenden kopieën oefenen tegelijk in een simulatie op één computerchip, vallen miljoenen keren, en daarna wordt het brein in echte poten gezet. Jaren vallen kost een paar uur.',
         'Hun brein is een neuraal netwerk en de methode heet reinforcement learning: een naaste neef van de evolutie die je zag, niet hetzelfde.',
         'Onze groep stopt ook leren in simulaties, voor de wind in plaats van robots: een klein neuraal netwerk leert een goedkope, grove simulatie van turbulentie te verbeteren, zodat die zich gedraagt als een dure, fijne — en net als deze beestjes wordt het getraind op wat de hele simulatie doet.',
         'Deze vier lichamen zijn allemaal door dezelfde code getraind. Die wist niets van poten, wormen of kikkers.',

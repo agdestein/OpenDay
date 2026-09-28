@@ -78,7 +78,7 @@ const en: Text = {
     frost: { name: 'Frosty morning', emoji: '❄️', when: '18 February 2025, 08:10' },
   },
   guessTag: (m, s) => `≈ ${deg(m)} ± ${deg(s)}`,
-  homeBias: (b) => `Home stations read about 1.5° too warm (a sunny wall, close to the house). The computer worked out +${deg(b)} by itself and subtracts it.`,
+  homeBias: (b) => `In this game, home stations read about 1.5° too warm (a sunny wall, close to the house). The computer worked out +${deg(b)} by itself and subtracts it.`,
   stationsLine: (o, h) => `${o} thermometer${o === 1 ? '' : 's'}${h ? ` · ${h} home stations` : ''}`,
   aboutFree: 'A real KNMI weather map is hidden here. Every thermometer tells the computer the temperature in one spot, and it has to guess everything in between. Where it is unsure, the map turns grey with question marks.',
   caseText: {
@@ -147,7 +147,7 @@ const nl: Text = {
     frost: { name: 'Vriezende ochtend', emoji: '❄️', when: '18 februari 2025, 08:10' },
   },
   guessTag: (m, s) => `≈ ${deg(m)} ± ${deg(s)}`,
-  homeBias: (b) => `Thuisstations meten zo’n 1,5° te warm (een zonnige muur, dicht bij het huis). De computer vond zelf +${deg(b)} en trekt dat eraf.`,
+  homeBias: (b) => `In dit spel meten thuisstations zo’n 1,5° te warm (een zonnige muur, dicht bij het huis). De computer vond zelf +${deg(b)} en trekt dat eraf.`,
   stationsLine: (o, h) => `${o} thermometer${o === 1 ? '' : 's'}${h ? ` · ${h} thuisstations` : ''}`,
   aboutFree: 'Hier ligt een echte weerkaart van het KNMI verstopt. Elke thermometer vertelt de computer de temperatuur op één plek, en de rest moet hij raden. Waar hij het niet zeker weet, wordt de kaart grijs met vraagtekens.',
   caseText: {
@@ -187,7 +187,7 @@ const nl: Text = {
   totalHeading: 'Zaak gesloten!',
   totalLabel: (p) => `${p} punten`,
   playAgain: '🕵️ Nog een keer',
-  backToFree: 'Vrij spel',
+  backToFree: 'Vrij spelen',
   looTag: (r, o) => `meet ${deg(r)} · de anderen zeggen ${deg(o)}`,
   deg,
   delveHeading: '🔬 De wetenschap van Weerdetective',
@@ -216,7 +216,7 @@ const no: Text = {
     frost: { name: 'Frostmorgen', emoji: '❄️', when: '18. februar 2025, 08:10' },
   },
   guessTag: (m, s) => `≈ ${deg(m)} ± ${deg(s)}`,
-  homeBias: (b) => `Hjemmestasjoner måler rundt 1,5° for varmt (en solvegg, nær huset). Datamaskinen fant selv +${deg(b)} og trekker det fra.`,
+  homeBias: (b) => `I dette spillet måler hjemmestasjoner rundt 1,5° for varmt (en solvegg, nær huset). Datamaskinen fant selv +${deg(b)} og trekker det fra.`,
   stationsLine: (o, h) => `${o} termometer${o === 1 ? '' : 'e'}${h ? ` · ${h} hjemmestasjoner` : ''}`,
   aboutFree: 'Her ligger et ekte værkart fra KNMI skjult. Hvert termometer forteller datamaskinen temperaturen på ett sted, og resten må den gjette. Der den er usikker, blir kartet grått med spørsmålstegn.',
   caseText: {

@@ -21,7 +21,7 @@ const en = {
   planHeightHint: 'Higher is safer, but costs more. Choose, then live 100 years.',
   rounds: [
     { title: 'Hold the line!', text: 'A storm is coming. Pile sand where the sea can get in — before it does, or while it does!', science: 'Most dikes fail when water pours over them and washes away the back of the dike.' },
-    { title: 'Weak spots', text: 'This dike looks the same everywhere, but in some places it is rotten inside. You only have sand for a few places. Ask the computer: test a storm first!', science: 'Building dikes is expensive, so you only reinforce where they can fail. Our group worked with Deltares on computing exactly that.' },
+    { title: 'Weak spots', text: 'This dike looks the same everywhere, but in some places it is rotten inside. You only have sand for a few places. Ask the computer: test a storm first!', science: 'Building dikes is expensive, so you only reinforce where they can fail. Our group worked with Deltares on ways to compute exactly that.' },
     { title: 'How high?', text: 'Nobody knows which storms are coming. A higher dike costs more, but a flood costs even more. Choose the height, then live through 100 years.', science: 'After the 1953 flood, David van Dantzig of the Mathematisch Centrum, now CWI, worked out how high Dutch dikes should be by weighing these same costs.' },
     { title: 'Close the gate', text: 'Ships sail in and out of the harbour. When a storm comes, close the gate, but while it is shut the ships must wait. The computer forecasts each storm: 20 possible storms, surer as it comes.', science: 'The Maeslantkering near Rotterdam closes by itself when the computer forecast says the water will rise more than 3 m above NAP. It first closed for a real storm in November 2007.' },
   ] as Round[],
@@ -92,7 +92,7 @@ const en = {
     { title: 'This really happened', paragraphs: [
       'On 1 February 1953 a storm flood broke through the dikes in Zeeland and South Holland. 1 836 people died.',
       'Afterwards the government asked David van Dantzig, a mathematician and one of the founders of the Mathematisch Centrum (today CWI), how high the dikes should be. He weighed the cost of higher dikes against the chance and the cost of floods, just like round 3. His way of calculating is still used for Dutch dike safety.',
-      'Our group at CWI worked with Deltares on computing how likely Dutch dikes are to fail, so that money goes where the risk is.',
+      'Our group at CWI worked with Deltares on methods to compute how likely Dutch dikes are to fail, so that money goes where the risk is.',
       'This game leaves a lot out: wind and short waves, tides, the soil inside the dike, and it is only 640 by 400 metres.' ] },
   ] as Chapter[],
 };
@@ -117,7 +117,7 @@ const T: Localized<typeof en> = {
     planHeightHint: 'Hoger is veiliger, maar kost meer. Kies, en beleef dan 100 jaar.',
     rounds: [
       { title: 'Houd het droog!', text: 'Er komt een storm aan. Stort zand waar de zee binnen kan komen, voordat ze komt of terwijl ze komt!', science: 'De meeste dijken bezwijken als water eroverheen stroomt en de achterkant van de dijk wegspoelt.' },
-      { title: 'Zwakke plekken', text: 'Deze dijk ziet er overal hetzelfde uit, maar op sommige plekken is hij van binnen rot. Je hebt maar zand voor een paar plekken. Vraag het de computer: test eerst een storm!', science: 'Dijken bouwen is duur, dus versterk je alleen waar ze kunnen bezwijken. Onze groep rekende dat samen met Deltares uit.' },
+      { title: 'Zwakke plekken', text: 'Deze dijk ziet er overal hetzelfde uit, maar op sommige plekken is hij van binnen rot. Je hebt maar zand voor een paar plekken. Vraag het de computer: test eerst een storm!', science: 'Dijken bouwen is duur, dus versterk je alleen waar ze kunnen bezwijken. Onze groep werkte met Deltares aan manieren om precies dat te berekenen.' },
       { title: 'Hoe hoog?', text: 'Niemand weet welke stormen er komen. Een hogere dijk kost meer, maar een overstroming kost nog meer. Kies de hoogte en beleef dan 100 jaar.', science: 'Na de watersnood van 1953 berekende David van Dantzig van het Mathematisch Centrum, nu het CWI, hoe hoog Nederlandse dijken moeten zijn, door precies deze kosten af te wegen.' },
       { title: 'Sluit de kering', text: 'Schepen varen de haven in en uit. Komt er een storm, sluit dan de kering, maar zolang die dicht is moeten de schepen wachten. De computer voorspelt elke storm: 20 mogelijke stormen, zekerder naarmate hij dichterbij komt.', science: 'De Maeslantkering bij Rotterdam sluit vanzelf als de computervoorspelling zegt dat het water meer dan 3 meter boven NAP komt. In november 2007 sloot hij voor het eerst voor een echte storm.' },
     ],
@@ -188,7 +188,7 @@ const T: Localized<typeof en> = {
       { title: 'Dit is echt gebeurd', paragraphs: [
         'Op 1 februari 1953 brak een stormvloed door de dijken in Zeeland en Zuid-Holland. 1 836 mensen kwamen om.',
         'Daarna vroeg de regering David van Dantzig, wiskundige en een van de oprichters van het Mathematisch Centrum (nu het CWI), hoe hoog de dijken moesten worden. Hij woog de kosten van hogere dijken af tegen de kans op en de kosten van overstromingen, net als in ronde 3. Zijn manier van rekenen wordt nog steeds gebruikt voor de veiligheid van Nederlandse dijken.',
-        'Onze groep op het CWI rekende samen met Deltares uit hoe groot de kans is dat Nederlandse dijken bezwijken, zodat het geld gaat naar waar het risico zit.',
+        'Onze groep bij het CWI werkte met Deltares aan methoden om te berekenen hoe groot de kans is dat Nederlandse dijken bezwijken, zodat het geld gaat naar waar het risico zit.',
         'Dit spel laat veel weg: wind en korte golven, eb en vloed, de grond in de dijk, en het is maar 640 bij 400 meter.' ] },
     ],
   },
@@ -210,7 +210,7 @@ const T: Localized<typeof en> = {
     planHeightHint: 'Høyere er tryggere, men koster mer. Velg, og lev så 100 år.',
     rounds: [
       { title: 'Hold stand!', text: 'En storm er på vei. Legg sand der havet kan komme inn, før det kommer, eller mens det kommer!', science: 'De fleste diker svikter når vann renner over dem og vasker bort baksiden av diket.' },
-      { title: 'Svake punkter', text: 'Dette diket ser likt ut overalt, men noen steder er det råttent inni. Du har bare sand til noen få steder. Spør datamaskinen: test en storm først!', science: 'Å bygge diker er dyrt, så man forsterker bare der de kan svikte. Gruppen vår regnet ut nettopp det sammen med Deltares.' },
+      { title: 'Svake punkter', text: 'Dette diket ser likt ut overalt, men noen steder er det råttent inni. Du har bare sand til noen få steder. Spør datamaskinen: test en storm først!', science: 'Å bygge diker er dyrt, så man forsterker bare der de kan svikte. Gruppen vår jobbet med Deltares på måter å regne ut nettopp det.' },
       { title: 'Hvor høyt?', text: 'Ingen vet hvilke stormer som kommer. Et høyere dike koster mer, men en flom koster enda mer. Velg høyden, og lev så gjennom 100 år.', science: 'Etter flommen i 1953 regnet David van Dantzig ved Mathematisch Centrum, nå CWI, ut hvor høye nederlandske diker burde være, ved å veie nettopp disse kostnadene.' },
       { title: 'Steng porten', text: 'Skip seiler inn og ut av havna. Når en storm kommer, stenger du porten, men så lenge den er stengt må skipene vente. Datamaskinen varsler hver storm: 20 mulige stormer, sikrere jo nærmere den kommer.', science: 'Maeslantkering ved Rotterdam stenger av seg selv når datamaskinens varsel sier at vannet vil stige mer enn 3 meter over NAP. Den stengte for første gang for en ekte storm i november 2007.' },
     ],
@@ -281,7 +281,7 @@ const T: Localized<typeof en> = {
       { title: 'Dette skjedde virkelig', paragraphs: [
         '1. februar 1953 brøt en stormflo gjennom dikene i Zeeland og Sør-Holland. 1 836 mennesker døde.',
         'Etterpå spurte regjeringen David van Dantzig, matematiker og en av grunnleggerne av Mathematisch Centrum (i dag CWI), hvor høye dikene burde være. Han veide kostnaden ved høyere diker mot sjansen for og kostnaden ved flom, akkurat som i runde 3. Hans måte å regne på brukes fortsatt for sikkerheten til nederlandske diker.',
-        'Gruppen vår ved CWI regnet sammen med Deltares ut hvor sannsynlig det er at nederlandske diker svikter, slik at pengene går dit risikoen er.',
+        'Gruppen vår ved CWI jobbet med Deltares på metoder for å regne ut hvor sannsynlig det er at nederlandske diker svikter, slik at pengene går dit risikoen er.',
         'Dette spillet utelater mye: vind og korte bølger, tidevann, jorda inni diket, og det er bare 640 ganger 400 meter.' ] },
     ],
   },

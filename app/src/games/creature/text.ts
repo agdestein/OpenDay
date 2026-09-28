@@ -190,7 +190,7 @@ export const TEXT: Localized<CreatureText> = {
     park: {
       hint: 'Pak een beestje en gooi het! 👆  Kies er een en leer het lopen 🧠',
       selectedHint: (name) => `⭐ ${name} is gekozen. Leer het lopen, of teken je eigen beestje ✏️`,
-      draw: 'Teken je eigen',
+      draw: 'Teken er zelf een',
       teach: 'Leer het lopen!',
       race: 'Race',
       challenge: 'Uitdaging',
@@ -203,7 +203,7 @@ export const TEXT: Localized<CreatureText> = {
       hint: {
         draw: 'Sleep vanaf een stip om armen, benen en staarten te laten groeien. Druk dan op Klaar ✓',
         move: 'Sleep de stippen om je beestje een nieuwe vorm te geven.',
-        type: 'Klik op een stok om hem om te draaien: grijze botten zijn stijf, rode spieren duwen en trekken.',
+        type: 'Klik op een stok om bot en spier te wisselen: grijze botten zijn stijf, rode spieren duwen en trekken.',
         erase: 'Klik op een stip of stok om hem te verwijderen.',
       },
       draw: 'Tekenen',

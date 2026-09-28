@@ -99,7 +99,7 @@ const TEXT: Localized<{
     },
     kinds: { pebble: 'Steentje', planet: 'Planeet', giant: 'Reus', star: 'Ster' },
     years: (n) => `${n} jaar!`,
-    clear: 'Leeg',
+    clear: 'Wissen',
     presets: { sun: 'Onze Zon', binary: 'Twee zonnen', dance: 'Sterrendans' },
     planetNames: ['Mercurius', 'Venus', 'Aarde', 'Mars'],
     gravity: 'Zwaartekracht',

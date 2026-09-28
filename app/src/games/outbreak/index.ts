@@ -222,7 +222,7 @@ const TEXT: Localized<{
     toolsIsolate: (every, max) =>
       `🏠 zieken isoleren door erop te klikken: elke ${every} dagen een nieuwe test (maximaal ${max} bewaren)`,
     hiddenNote: 'Let op: mensen verspreiden het al voordat ze er ziek uitzien. Je ziet alleen de bekende gevallen.',
-    toolForecast: 'Voorspel',
+    toolForecast: 'Voorspellen',
     forecastTitle: (days) => `🔮 Het model vragen: de komende ${days} dagen`,
     forecastRunning: (done, total) => `💻 ${total} toekomsten simuleren… ${done}/${total}`,
     scenarios: {
@@ -268,7 +268,7 @@ const TEXT: Localized<{
     futuresRunning: (done, total) =>
       `💻 De computer simuleert deze stad ${total} keer zonder jou… ${done}/${total}`,
     futuresReady: (total) => `💻 ${total} toekomsten zonder jou: klaar om te vergelijken.`,
-    go: '▶ START!',
+    go: '▶ Start!',
     hintArrived: 'Er zijn zieke reizigers in de stad aangekomen…',
     hintImported: 'Er is weer een zieke reiziger aangekomen.',
     hintBatch: '💉 Er is een partij vaccin aangekomen — wie krijgt het?',
@@ -1168,7 +1168,7 @@ export const outbreak: ArcadeGame = {
   title: { en: 'Outbreak!', nl: 'Uitbraak!', no: 'Utbrudd!' },
   scienceLine: {
     en: 'Our group has worked on simulating real epidemics — models like this (much bigger) help decide vaccinations and school closures in actual health policy.',
-    nl: 'Onze groep werkt aan het simuleren van echte epidemieën — modellen zoals dit (veel groter) helpen bij besluiten over vaccinaties en schoolsluitingen in het echte gezondheidsbeleid.',
+    nl: 'Onze groep heeft gewerkt aan het simuleren van echte epidemieën — modellen zoals dit (veel groter) helpen bij besluiten over vaccinaties en schoolsluitingen in het echte gezondheidsbeleid.',
     no: 'Gruppen vår har jobbet med å simulere ekte epidemier — modeller som denne (mye større) hjelper med å bestemme vaksinering og skolestenging i ekte helsepolitikk.',
   },
   tileEmoji: '🦠',
