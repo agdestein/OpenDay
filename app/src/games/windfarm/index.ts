@@ -435,6 +435,7 @@ class FluidInstance implements GameInstance {
     this.buttons.stir = add(this.toyBar, '🌀', T.stir, () => this.setMode('stir'));
     this.buttons.blocks = add(this.toyBar, '🪨', T.blocks, () => this.setMode('blocks'));
     this.buttons.wind = add(this.toyBar, '🌬️', T.wind, () => this.setWind(!this.windOn));
+    this.buttons.wind.classList.add('kind-switch');
     add(this.toyBar, '🧹', T.clear, () => {
       this.obstacles = [];
       this.solver!.setObstacles(this.obstacles);

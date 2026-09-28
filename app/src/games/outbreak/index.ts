@@ -73,9 +73,7 @@ const TEXT: Localized<{
   forecastNoClosure: string;
   backToTown: string;
   closeSchool: string;
-  openSchool: string;
   closeMarket: string;
-  openMarket: string;
   reset: string;
   challenge: string;
   stop: string;
@@ -143,9 +141,7 @@ const TEXT: Localized<{
     forecastNoClosure: 'No closing days left, so there is no other plan to compare.',
     backToTown: '▶ Back to the town',
     closeSchool: 'Close school',
-    openSchool: 'Open school',
     closeMarket: 'Close market',
-    openMarket: 'Open market',
     reset: 'Reset',
     challenge: 'Challenge!',
     stop: 'Stop',
@@ -227,9 +223,7 @@ const TEXT: Localized<{
     forecastNoClosure: 'Geen sluitingsdagen meer, dus er is geen ander plan om mee te vergelijken.',
     backToTown: '▶ Terug naar de stad',
     closeSchool: 'School dicht',
-    openSchool: 'School open',
     closeMarket: 'Markt dicht',
-    openMarket: 'Markt open',
     reset: 'Opnieuw',
     challenge: 'Uitdaging!',
     stop: 'Stop',
@@ -311,9 +305,7 @@ const TEXT: Localized<{
     forecastNoClosure: 'Ingen stengedager igjen, så det finnes ingen annen plan å sammenligne med.',
     backToTown: '▶ Tilbake til byen',
     closeSchool: 'Steng skolen',
-    openSchool: 'Åpne skolen',
     closeMarket: 'Steng torget',
-    openMarket: 'Åpne torget',
     reset: 'Nullstill',
     challenge: 'Utfordring!',
     stop: 'Stopp',
@@ -981,8 +973,8 @@ class OutbreakInstance implements GameInstance {
       this.setTool('isolate');
       this.hint.textContent = pick(TEXT).hintIsolate;
     });
-    add(this.toyBar, 'toySchool', '🏫', T.closeSchool, () => this.toggleVenue(0));
-    add(this.toyBar, 'toyMarket', '🛒', T.closeMarket, () => this.toggleVenue(1));
+    add(this.toyBar, 'toySchool', '🏫', T.closeSchool, () => this.toggleVenue(0)).classList.add('kind-switch');
+    add(this.toyBar, 'toyMarket', '🛒', T.closeMarket, () => this.toggleVenue(1)).classList.add('kind-switch');
     add(this.toyBar, 'reset', '🧹', T.reset, () => {
       this.sim.disease = { ...TOY_DISEASE };
       this.sim.reset();
@@ -1004,8 +996,8 @@ class OutbreakInstance implements GameInstance {
     add(this.gameBar, 'gameIsolate', '🏠', T.isolateCount(0), () => {
       this.hint.textContent = pick(TEXT).hintIsolate;
     });
-    add(this.gameBar, 'gameSchool', '🏫', T.closeSchool, () => this.toggleVenue(0));
-    add(this.gameBar, 'gameMarket', '🛒', T.closeMarket, () => this.toggleVenue(1));
+    add(this.gameBar, 'gameSchool', '🏫', T.closeSchool, () => this.toggleVenue(0)).classList.add('kind-switch');
+    add(this.gameBar, 'gameMarket', '🛒', T.closeMarket, () => this.toggleVenue(1)).classList.add('kind-switch');
     add(this.gameBar, 'forecast', '🔮', T.toolForecast, () => this.openForecast());
     add(this.gameBar, 'stop', '⏹', T.stop, () => this.exitToToy());
 
@@ -1031,14 +1023,10 @@ class OutbreakInstance implements GameInstance {
     button.querySelector('.tool-label')!.textContent = text;
   }
 
+  /** The school and market buttons are switches: 'School dicht' stays the label, its lamp shows it's closed. */
   private syncToyVenueButtons(): void {
-    const T = pick(TEXT);
-    const school = this.buttons.toySchool;
-    const market = this.buttons.toyMarket;
-    this.setLabel(school, this.sim.schoolOpen ? T.closeSchool : T.openSchool);
-    school.classList.toggle('active', !this.sim.schoolOpen);
-    this.setLabel(market, this.sim.marketOpen ? T.closeMarket : T.openMarket);
-    market.classList.toggle('active', !this.sim.marketOpen);
+    this.buttons.toySchool.classList.toggle('active', !this.sim.schoolOpen);
+    this.buttons.toyMarket.classList.toggle('active', !this.sim.marketOpen);
   }
 
   private updateGameButtons(): void {
@@ -1058,14 +1046,13 @@ class OutbreakInstance implements GameInstance {
     isolate.disabled = !running;
     this.testsShown = run.testsReady;
     this.buttons.forecast.disabled = !running;
-    const venues: [string, number, string, string][] = [
-      ['gameSchool', 0, T.closeSchool, T.openSchool],
-      ['gameMarket', 1, T.closeMarket, T.openMarket],
+    const venues: [string, number][] = [
+      ['gameSchool', 0],
+      ['gameMarket', 1],
     ];
-    for (const [key, venue, close, open] of venues) {
+    for (const [key, venue] of venues) {
       const b = this.buttons[key];
       const isOpen = this.sim.isOpen(venue);
-      this.setLabel(b, isOpen ? close : open);
       b.classList.toggle('active', !isOpen);
       b.disabled = !running || (isOpen && run.closureLeft <= 0);
     }

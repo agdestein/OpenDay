@@ -801,6 +801,7 @@ class BounceInstance implements GameInstance {
     });
     this.makeButton(this.toyBar, { emoji: '🟡', label: T.bigBall, onClick: () => this.dropGold() });
     this.twinButton = this.makeButton(this.toyBar, { emoji: '👯', label: T.twins, onClick: () => this.toggleTwins() });
+    this.twinButton.classList.add('kind-switch');
 
     // The zoom slider lives in a tool-button-shaped box (a range input can't sit in a button).
     const zoom = document.createElement('label');

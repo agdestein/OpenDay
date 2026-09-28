@@ -865,6 +865,7 @@ class OrbitsInstance implements GameInstance {
     }
     this.setKind('planet');
     this.gravityButton = this.makeButton(this.toyBar, { emoji: '🕸', label: T.gravity, onClick: () => this.setGravityView(!this.gravityView) });
+    this.gravityButton.classList.add('kind-switch');
 
     // The step lens: how big the computer's time steps are, and which recipe.
     // A slider can't sit in a button, so this is a label shaped like one.

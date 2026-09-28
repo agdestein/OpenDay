@@ -197,7 +197,7 @@ class FloodInstance implements GameInstance {
     };
     const bar = () => { const b = document.createElement('div'); b.className = 'game-toolbar delta-toolbar'; return b; };
     for (const key of Object.keys({ toy: 0, storm1: 0, plan2: 0, storm2: 0, plan3: 0, storm4: 0, replay: 0, card: 0 }) as (keyof typeof this.bars)[]) this.bars[key] = bar();
-    const xray = (b: HTMLElement, key: string) => add(b, key, '🔍', t.xray, () => { this.xray = !this.xray; });
+    const xray = (b: HTMLElement, key: string) => add(b, key, '🔍', t.xray, () => { this.xray = !this.xray; }).classList.add('kind-switch');
     add(this.bars.toy, 'storm', '🌊', t.storm, () => { this.stormStart = this.time; });
     xray(this.bars.toy, 'xrayToy');
     add(this.bars.toy, 'reset', '🧹', t.startOver, () => this.enterToy());
@@ -214,7 +214,7 @@ class FloodInstance implements GameInstance {
     add(this.bars.plan3, 'higher', '🔼', t.higher, () => this.setCrest(this.crest + HEIGHT.step));
     add(this.bars.plan3, 'live', '⏩', t.liveCentury, () => this.startCentury());
     add(this.bars.plan3, 'stop4', '⏹', t.stop, () => this.enterToy());
-    add(this.bars.storm4, 'gate', '🚧', t.closeGate, () => { this.gateWant = this.gateWant ? 0 : 1; sound.play('gate'); });
+    add(this.bars.storm4, 'gate', '🚧', t.closeGate, () => { this.gateWant = this.gateWant ? 0 : 1; sound.play('gate'); }).classList.add('kind-switch');
     xray(this.bars.storm4, 'xray4');
     add(this.bars.storm4, 'stop5', '⏹', t.stop, () => this.enterToy());
     this.timeline = document.createElement('input');

@@ -332,6 +332,33 @@ input[type='range'] {
   border-color: #7dd3fc;
 }
 
+/* On/off switches (wind, twins, X-ray, closing the school…) show a lamp
+   instead of the blue fill of a picked tool, so the two kinds don't look alike. */
+.tool-button.kind-switch {
+  position: relative;
+}
+
+.tool-button.kind-switch::after {
+  content: '';
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.tool-button.kind-switch.active {
+  background: rgba(11, 16, 32, 0.6);
+  border-color: #4ade80;
+}
+
+.tool-button.kind-switch.active::after {
+  background: #4ade80;
+  box-shadow: 0 0 0.5rem #4ade80;
+}
+
 /* The challenge button: the same trophy, word and gold in every game, always
    last in its toolbar (and ⏹ Stop takes the last place during a challenge). */
 .tool-button.challenge-button {

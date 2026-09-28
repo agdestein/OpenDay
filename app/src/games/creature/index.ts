@@ -830,8 +830,8 @@ class CreatureInstance implements GameInstance {
     }
     // Brains that feel, and rough practice (phase C).
     this.practiceBar = bar('game-toolbar creature-practice hidden');
-    this.makeButton(this.practiceBar, { emoji: '👁', label: T.teach.senses, onClick: () => this.toggleSenses() }, 'senses');
-    this.makeButton(this.practiceBar, { emoji: '💨', label: T.teach.shoves, onClick: () => this.toggleShoves() }, 'shoves');
+    this.makeButton(this.practiceBar, { emoji: '👁', label: T.teach.senses, onClick: () => this.toggleSenses() }, 'senses').classList.add('kind-switch');
+    this.makeButton(this.practiceBar, { emoji: '💨', label: T.teach.shoves, onClick: () => this.toggleShoves() }, 'shoves').classList.add('kind-switch');
     this.teachBar = bar('game-toolbar hidden');
     this.makeButton(this.teachBar, { emoji: '⏩', label: T.teach.speed('x3'), onClick: () => this.cycleSpeed() }, 'speed');
     this.makeButton(this.teachBar, { emoji: '✅', label: T.teach.done, onClick: () => this.finishTeach() });
