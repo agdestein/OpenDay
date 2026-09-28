@@ -69,6 +69,24 @@ npm run build     # static production build in app/dist
 npm run preview   # serve the production build
 ```
 
+At the stand, after `npm run build`, one command serves the build on the machine
+itself (no network) and keeps Chrome, Chromium or Edge open on it in kiosk mode,
+in Dutch, with the idle reset at 180 s:
+
+```sh
+node tools/kiosk/kiosk.mjs                              # or: cd app && npm run kiosk
+node tools/kiosk/kiosk.mjs --games=windfarm,bounce --reset-scores
+node tools/kiosk/kiosk.mjs --windowed                   # a normal window, to test
+```
+
+On Windows, double-click `tools/kiosk/kiosk.bat` (or drag it into a terminal with
+options). Every `--name=value` other than the launcher's own (`--port`, `--browser`,
+`--windowed`, `--serve-only`, `--dry-run`) becomes one of the URL options below. The
+browser gets its own profile (`~/.cwi-arcade-kiosk`), so the day's scores survive a
+restart. If a visitor closes the browser it reopens after two seconds; staff close it
+twice within ten seconds (Alt+F4, Alt+F4) to quit. Opening `app/dist/index.html`
+straight from disk does not work (browsers block module scripts from `file://`).
+
 Useful at the stand:
 
 - Add `?games=bounce,orbits` (comma-separated game ids) to the URL to limit which

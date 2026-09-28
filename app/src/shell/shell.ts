@@ -74,8 +74,14 @@ export class Shell {
     };
     window.addEventListener('error', onLooseError);
     window.addEventListener('unhandledrejection', onLooseError);
-    // `?reset-scores` in a kiosk URL starts the day with empty boards.
-    if (new URLSearchParams(location.search).has('reset-scores')) clearAllScores();
+    // `?reset-scores` starts the day with empty boards. It is dropped from the
+    // address at once, so an idle reset (a reload) doesn't clear them again.
+    const url = new URL(location.href);
+    if (url.searchParams.has('reset-scores')) {
+      clearAllScores();
+      url.searchParams.delete('reset-scores');
+      history.replaceState(null, '', url);
+    }
   }
 
   showMenu(): void {
