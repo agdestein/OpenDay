@@ -55,7 +55,36 @@ The Monday–Tuesday batch of §9 is built:
   - The menu fits 1366×768 and 1536×864.
   - The QR code opens whatever was last pushed to `main`, so push before Saturday.
 
-Still open: everything from Wednesday on in §9.
+The Wednesday batch is built too:
+
+- **§3, including the optional kind classes.**
+  - The challenge button is a gold 🏆 "Uitdaging!", last in every bar.
+  - ⏹ Stop stays up during round cards and in Weather Detective's cases.
+  - ⌂ asks "Naar het menu?" in a game; on the title card one tap is enough.
+  - Labels are 0.9rem, and toolbars size to their buttons (at 1366 px they used to
+    wrap).
+  - Free-play hints for Swirl Lab and Ball Pit.
+  - Creature Lab's editor has a 🌳 way back; design mode has no ready-made bodies.
+  - The sliders have captions, and Go / Next round / Play again are worded the same
+    everywhere.
+  - On/off switches show a lamp instead of the blue fill.
+- **§4.**
+  - Swirl Lab has a 5 s build phase, and the computer places within it.
+  - Save the Netherlands' height slider starts at 1.5 m.
+  - Weather Detective posts the computer's total (CPU) to its board.
+  - Boards show units (kJ, 💚).
+  - Outbreak runs at 1.5 days a second, its round card has no tool list, and "every
+    1 days" is gone.
+  - Gravity Doodle helps once per Slingshot round.
+  - Not done:
+    - quick mode;
+    - Ball Pit stars;
+    - 6 picks in "Pick the parents";
+    - the Outbreak "Winter flu" line.
+
+Still open: Thursday and Friday in §9 (the dry run on the real machines, cutting the
+delve chapters that scroll there, the stand sheet, passport and QR poster, and the
+freeze).
 
 ## Verdict
 
