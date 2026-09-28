@@ -82,9 +82,45 @@ The Wednesday batch is built too:
     - 6 picks in "Pick the parents";
     - the Outbreak "Winter flu" line.
 
-Still open: Thursday and Friday in §9 (the dry run on the real machines, cutting the
-delve chapters that scroll there, the stand sheet, passport and QR poster, and the
-freeze).
+The Thursday batch is built too, except the dry run on the real machines, which
+needs the machines:
+
+- **Explainer.**
+  - ◀ ▶ and "back to the game" are pinned to the bottom of the card.
+  - The card is tighter on screens 900 px tall or less.
+  - Eight long chapters are cut to about 125–155 words in all three languages.
+  - Chapters that scroll, measured in Dutch *(measured)*:
+
+    | Screen | Before | After |
+    |---|---|---|
+    | 1920×1080 | 8 | 1 |
+    | 1536×864 | 25 | 5 |
+    | 1366×768 | 31 | 10 (the tall live labs) |
+- **Printables.** `tools/print/` renders to `promo/print/*.pdf`:
+  - the stand sheet (A4 landscape, English and Dutch, with a blank per game for who
+    to name);
+  - four stamp cards per A4;
+  - the QR poster.
+- **The live title card:** games run behind a see-through card.
+- **A home game per machine** (`?home=`, kiosk `--home=`): the machine opens and
+  returns there, and resets quietly when nobody touched it.
+- **Swirl Lab's ghost hand:** it stirs itself after 6 s untouched, so the big screen
+  stays alive.
+- **Soak test** *(measured)*, on the production build through the kiosk server:
+  - 538 random visitor actions in 8 minutes, across all games, challenges, Stop, the
+    explainer and `Esc`;
+  - no exceptions;
+  - the page's JS heap stayed small (3–45 MB), and DOM nodes and listeners tracked
+    the current screen without growing.
+
+Still open:
+
+- **The dry run on the real machines.** Check the resolution and scaling,
+  `chrome://gpu`, and each game's frame rate (Save the Netherlands is the heaviest).
+  Play every challenge to its board, and leave a machine running for an hour.
+- **Friday's freeze.**
+- **Confirmations.** The group claims, and the names on the stand sheet.
+- **Push `main`**, so the QR code opens this version.
 
 ## Verdict
 
