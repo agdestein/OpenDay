@@ -7,7 +7,7 @@
 @page { size: A4 landscape; margin: 9mm 10mm; }
 * { box-sizing: border-box; margin: 0; }
 body { font-family: 'Noto Sans', system-ui, sans-serif; color: #111827; font-size: 7.7pt; line-height: 1.24; }
-.page { page-break-after: always; height: 191mm; overflow: hidden; display: flex; flex-direction: column; gap: 1.8mm; }
+.page { page-break-after: always; width: 277mm; height: 191mm; overflow: hidden; display: flex; flex-direction: column; gap: 1.8mm; }
 .page:last-child { page-break-after: auto; }
 header { display: flex; align-items: baseline; justify-content: space-between; gap: 6mm; }
 h1 { font-size: 15pt; font-weight: 900; color: #6d28d9; } /* no gradient text: it prints with hairline box edges */
@@ -23,12 +23,12 @@ td.game span { display: block; font-size: 12pt; line-height: 1.1; }
 td .who { display: block; margin-top: .6mm; color: #64748b; }
 ul { padding-left: 3.2mm; }
 .cols { display: grid; grid-template-columns: 1.9fr 1fr; gap: 3mm; margin-top: auto; }
-.box { border: .35mm solid #cbd5e1; border-radius: 2mm; padding: 1.4mm 2.6mm; font-size: 7.4pt; }
+.box { border: .35mm solid #cbd5e1; border-radius: 2mm; padding: 1.4mm 2.6mm; font-size: .96em; }
 .box h2 { font-size: 8.6pt; margin-bottom: .6mm; }
 .box li { margin-bottom: .3mm; break-inside: avoid; }
 .ops ul { columns: 2; column-gap: 5mm; }
 .avoid { border-color: #fca5a5; background: #fff7f7; }
-kbd { white-space: nowrap; font-family: 'Noto Sans Mono', ui-monospace, monospace; font-size: 7pt; font-weight: 700; padding: 0 1mm; border: .25mm solid #94a3b8; border-radius: 1mm; background: #f8fafc; }
+kbd { white-space: nowrap; font-family: 'Noto Sans Mono', ui-monospace, monospace; font-size: .95em; font-weight: 700; padding: 0 1mm; border: .25mm solid #94a3b8; border-radius: 1mm; background: #f8fafc; }
 </style>
 <body>
 <div id="root"></div>
@@ -122,5 +122,11 @@ document.getElementById('root').innerHTML = ['en', 'nl'].map((k) => {
     </div>
   </section>`;
 }).join('');
+// Dutch runs longer than English: shrink a page's text until it fits its sheet.
+document.fonts.ready.then(() => {
+  for (const page of document.querySelectorAll('.page')) {
+    for (let pt = 7.7; page.scrollHeight > page.clientHeight && pt > 6; pt -= 0.1) page.style.fontSize = `${pt.toFixed(1)}pt`;
+  }
+});
 </script>
 </body>
