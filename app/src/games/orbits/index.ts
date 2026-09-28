@@ -969,6 +969,7 @@ export const orbits: ArcadeGame = {
     nl: 'De zwaartekrachtwet van Newton is 340 jaar oud, maar voor drie planeten bestaat er geen formule: hun toekomst zie je alleen door hem uit te rekenen. Zo worden ruimtemissies gepland, en zo controleren we dat planetoïden ons missen.',
     no: 'Newtons gravitasjonslov er 340 år gammel, men for tre planeter finnes det ingen formel: den eneste måten å se fremtiden deres på er å regne den ut. Slik planlegges romferder, og slik sjekker vi at asteroider bommer på oss.',
   },
+  tileHook: { en: 'Fling planets around the Sun', nl: 'Gooi planeten rond de zon', no: 'Kast planeter rundt sola' },
   tileEmoji: '🪐',
   create: (host) => new OrbitsInstance(host),
 };

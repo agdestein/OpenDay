@@ -32,8 +32,12 @@ export interface GameInstance {
 export interface ArcadeGame {
   id: string;
   title: Localized<string>;
-  /** One sentence for parents, shown on the menu tile and title card. */
+  /** One sentence for parents, shown on the title card. */
   scienceLine: Localized<string>;
+  /** What you do, in a few words a child reads from two metres (the menu tile). */
+  tileHook: Localized<string>;
+  /** Unit after a score on the menu's record line (default: points). */
+  scoreUnit?: Localized<string>;
   /** Menu tile art (for now: an emoji). */
   tileEmoji: string;
   create(host: GameHost): GameInstance;

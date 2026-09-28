@@ -4,28 +4,66 @@ import { soundButton } from './hud';
 import { renderAbout } from './about';
 import { fullscreenSupported, toggleFullscreen } from '../lib/fullscreen';
 import { cappedDpr, randRange } from '../lib/util';
-import { LANGS, getLang, setLang, pick, type Localized } from '../lib/i18n';
+import { LANGS, fmtNumber, getLang, setLang, pick, type Localized } from '../lib/i18n';
+import { topScores } from './scores';
+import qrPlayUrl from './qr-play.svg';
 
 /** Drifting glow-dots behind the menu, so the stand looks alive from a distance. */
 const PARTICLE_COUNT = 70;
 
-const TEXT: Localized<{ subtitle: string; footer: string; fullscreen: string }> = {
+// The title matches the programme booklet ("De simulatie-arcade – kun jij de
+// wereld nabootsen?"), so visitors find what they circled.
+const TEXT: Localized<{
+  title: string;
+  subtitle: string;
+  message: string;
+  footer: string;
+  fullscreen: string;
+  points: string;
+  noRecord: string;
+  playAtHome: string;
+}> = {
   en: {
-    subtitle: 'Pick a world to simulate!',
+    title: 'The Simulation Arcade',
+    subtitle: 'Can you recreate the world? Pick one to simulate!',
+    message: 'With maths and computers you can simulate anything. That is our job.',
     footer: 'Scientific Computing group · CWI Science Day',
     fullscreen: 'Fullscreen (F)',
+    points: 'points',
+    noRecord: 'No record yet',
+    playAtHome: 'Play again at home',
   },
   nl: {
-    subtitle: 'Kies een wereld om te simuleren!',
+    title: 'De Simulatie-arcade',
+    subtitle: 'Kun jij de wereld nabootsen? Kies er een om te simuleren!',
+    message: 'Met wiskunde en computers kun je alles simuleren. Dat is ons vak.',
     footer: 'Scientific Computing-groep · Wetenschapsdag CWI',
     fullscreen: 'Volledig scherm (F)',
+    points: 'punten',
+    noRecord: 'Nog geen record',
+    playAtHome: 'Speel thuis verder',
   },
   no: {
-    subtitle: 'Velg en verden å simulere!',
+    title: 'Simuleringsarkaden',
+    subtitle: 'Klarer du å gjenskape verden? Velg en å simulere!',
+    message: 'Med matematikk og datamaskiner kan man simulere alt. Det er jobben vår.',
     footer: 'Scientific Computing-gruppen · CWIs vitenskapsdag',
     fullscreen: 'Fullskjerm (F)',
+    points: 'poeng',
+    noRecord: 'Ingen rekord ennå',
+    playAtHome: 'Spill videre hjemme',
   },
 };
+
+/** Today's best on this machine, e.g. "👑 EMA · 4 250 kJ", or "🤖 4 250 kJ" for the computer. */
+function recordLine(game: ArcadeGame): string {
+  const T = pick(TEXT);
+  const best = topScores(game.id, 1)[0];
+  if (!best) return `👑 ${T.noRecord}`;
+  const unit = game.scoreUnit ? pick(game.scoreUnit) : T.points;
+  const who = best.initials === 'CPU' ? '🤖' : `👑 ${best.initials} ·`;
+  return `${who} ${fmtNumber(Math.round(best.score))} ${unit}`;
+}
 
 const FLAGS: Localized<string> = { en: '🇬🇧', nl: '🇳🇱', no: '🇳🇴' };
 
@@ -47,7 +85,7 @@ export function renderMenu(
   element.appendChild(content);
 
   const title = document.createElement('h1');
-  title.textContent = 'CWI Science Arcade';
+  title.textContent = T.title;
   const subtitle = document.createElement('p');
   subtitle.className = 'menu-subtitle';
   subtitle.textContent = T.subtitle;
@@ -65,18 +103,40 @@ export function renderMenu(
     const name = document.createElement('span');
     name.className = 'tile-title';
     name.textContent = pick(game.title);
-    const science = document.createElement('span');
-    science.className = 'tile-science';
-    science.textContent = pick(game.scienceLine);
-    tile.append(emoji, name, science);
+    const hook = document.createElement('span');
+    hook.className = 'tile-hook';
+    hook.textContent = pick(game.tileHook);
+    const record = document.createElement('span');
+    record.className = 'tile-record';
+    record.textContent = recordLine(game);
+    tile.append(emoji, name, hook, record);
     grid.appendChild(tile);
   }
   content.appendChild(grid);
 
-  const footer = document.createElement('p');
+  const footer = document.createElement('div');
   footer.className = 'menu-footer';
-  footer.textContent = T.footer;
+  const message = document.createElement('p');
+  message.className = 'menu-message';
+  message.textContent = T.message;
+  const group = document.createElement('p');
+  group.textContent = T.footer;
+  footer.append(message, group);
   element.appendChild(footer);
+
+  // The parents' take-home: the same arcade on the web (GitHub Pages). Made with
+  //   qrencode -t SVG --svg-path -l M -m 2 -s 1 -o qr-play.svg 'https://agdestein.github.io/OpenDay/?lang=nl'
+  // then the fixed width/height swapped for shape-rendering="crispEdges".
+  const qr = document.createElement('div');
+  qr.className = 'menu-qr';
+  const qrImage = document.createElement('img');
+  qrImage.src = qrPlayUrl;
+  qrImage.alt = '';
+  qrImage.draggable = false;
+  const qrLabel = document.createElement('span');
+  qrLabel.textContent = `📱 ${T.playAtHome}`;
+  qr.append(qrImage, qrLabel);
+  element.appendChild(qr);
 
   const mute = soundButton(fullscreenSupported ? 'menu-sound' : 'menu-sound alone');
   element.appendChild(mute.element);

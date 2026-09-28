@@ -445,6 +445,8 @@ export const windfarm: ArcadeGame = {
     nl: 'Echte stromingsleer: het zog van windturbines steelt wind en kost windmolenparken echt geld — het simuleren van zulke stromingen is het dagelijkse werk van onze groep.',
     no: 'Ekte strømningsmekanikk: kjølvannet fra turbiner stjeler vind og koster vindparker ekte penger — å simulere slike strømninger er gruppas daglige arbeid.',
   },
+  tileHook: { en: 'Stir the wind, build a wind farm', nl: 'Roer in de wind, bouw een windpark', no: 'Rør i vinden, bygg en vindpark' },
+  scoreUnit: { en: 'kJ', nl: 'kJ', no: 'kJ' },
   tileEmoji: '🌀',
   create: (host) => new FluidInstance(host),
 };

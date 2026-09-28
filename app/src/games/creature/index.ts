@@ -870,6 +870,7 @@ export const creature: ArcadeGame = {
     nl: 'Niemand kan lopen programmeren. Daarom oefenen deze beestjes in een gesimuleerde wereld — een uur vallen per minuut — en houden ze wat werkt. Echte robots leren ook eerst lopen in een simulatie.',
     no: 'Ingen kan programmere det å gå. Derfor øver disse skapningene i en simulert verden — en time med fall hvert minutt — og beholder det som virker. Ekte roboter lærer også å gå i simuleringer først.',
   },
+  tileHook: { en: 'Teach a creature to walk', nl: 'Leer een beestje lopen', no: 'Lær en skapning å gå' },
   tileEmoji: '🦿',
   create: (host) => new CreatureInstance(host),
 };

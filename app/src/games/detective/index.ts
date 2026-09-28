@@ -11,6 +11,7 @@ export const detective: ArcadeGame = {
     nl: 'Samen met het KNMI maken we van duizenden officiële en thuisweerstations één weerkaart van Europa, en de wiskunde vertelt hoe zeker we zijn.',
     no: 'Sammen med KNMI gjør vi tusenvis av offisielle værstasjoner og hjemmestasjoner om til ett værkart over Europa, og matematikken forteller hvor sikre vi er.',
   },
+  tileHook: { en: 'Find the hottest place in the country', nl: 'Vind de warmste plek van Nederland', no: 'Finn det varmeste stedet i Nederland' },
   tileEmoji: '🌡️',
   create(host: GameHost): GameInstance {
     let game: GameInstance | null = null;

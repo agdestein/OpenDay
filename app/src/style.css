@@ -63,6 +63,7 @@ input[type='range'] {
   height: 100%;
 }
 
+/* Sized by the screen's height too, so both rows of tiles fit a 1366×768 laptop. */
 .menu-content {
   position: relative;
   height: 100%;
@@ -70,13 +71,13 @@ input[type='range'] {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 1.25rem;
-  padding: 2rem;
+  gap: clamp(0.5rem, 1.8vh, 1.25rem);
+  padding: 2rem 2rem 5.5rem;
   text-align: center;
 }
 
 .menu-content h1 {
-  font-size: clamp(2.5rem, 6vw, 4.5rem);
+  font-size: clamp(2.2rem, min(6vw, 7.5vh), 4.5rem);
   font-weight: 900;
   letter-spacing: 0.02em;
   background: linear-gradient(90deg, #7dd3fc, #c084fc, #fb7185);
@@ -86,22 +87,22 @@ input[type='range'] {
 }
 
 .menu-subtitle {
-  font-size: clamp(1.1rem, 2.5vw, 1.6rem);
+  font-size: clamp(1.05rem, min(2.5vw, 3.2vh), 1.6rem);
   opacity: 0.85;
 }
 
 .tile-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 1.5rem;
+  gap: clamp(1rem, 2.5vh, 1.5rem) 1.5rem;
   justify-content: center;
-  margin-top: 1rem;
+  margin-top: clamp(0.25rem, 1.5vh, 1rem);
   max-width: 70rem;
 }
 
 .tile {
   width: 15rem;
-  padding: 1.5rem 1rem;
+  padding: clamp(0.8rem, 2.2vh, 1.5rem) 1rem;
   border-radius: 1.25rem;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.14);
@@ -111,7 +112,7 @@ input[type='range'] {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.45rem;
   transition:
     transform 0.15s ease,
     background 0.15s ease;
@@ -130,7 +131,7 @@ input[type='range'] {
 }
 
 .tile-emoji {
-  font-size: 3.5rem;
+  font-size: clamp(2.4rem, 6vh, 3.5rem);
   line-height: 1;
 }
 
@@ -139,10 +140,18 @@ input[type='range'] {
   font-weight: 800;
 }
 
-.tile-science {
-  font-size: 0.8rem;
-  line-height: 1.35;
-  opacity: 0.65;
+/* What you do there: the line a child reads from two metres. */
+.tile-hook {
+  font-size: 1.05rem;
+  line-height: 1.25;
+  opacity: 0.92;
+}
+
+/* Today's best on this machine: something to beat. */
+.tile-record {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #fcd34d;
 }
 
 .menu-footer {
@@ -151,8 +160,42 @@ input[type='range'] {
   width: 100%;
   text-align: center;
   font-size: 0.85rem;
-  opacity: 0.55;
   pointer-events: none;
+}
+
+.menu-footer p {
+  opacity: 0.55;
+}
+
+/* The stand's one-line message, readable from a distance. */
+.menu-footer .menu-message {
+  font-size: 1.15rem;
+  font-weight: 700;
+  opacity: 0.9;
+  margin-bottom: 0.2rem;
+}
+
+/* "Play again at home": the web version, top-left of the menu. */
+.menu-qr {
+  position: absolute;
+  z-index: 30;
+  top: 1rem;
+  left: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+.menu-qr img {
+  width: clamp(5.5rem, 13vh, 8rem);
+  aspect-ratio: 1;
+  padding: 0.3rem;
+  border-radius: 0.6rem;
+  background: #fff;
 }
 
 /* ---------- "How does this work?" layer on the menu ---------- */
@@ -1297,9 +1340,24 @@ input[type='range'] {
     font-size: 1.05rem;
   }
 
+  .tile-hook,
+  .tile-record {
+    font-size: 0.85rem;
+  }
+
   .menu-footer {
     font-size: 0.7rem;
     padding: 0 1rem;
+  }
+
+  /* The tiles scroll under the footer here: keep it to one small line. */
+  .menu-footer .menu-message {
+    display: none;
+  }
+
+  /* Already on a phone: no code to scan. */
+  .menu-qr {
+    display: none;
   }
 
   /* Game chrome: tighter, and let the tool bar wrap instead of overflowing. */

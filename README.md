@@ -34,11 +34,17 @@ Games are independent modules sharing a small common shell (fullscreen kiosk mod
 optional idle-reset back to the menu, local high scores). Runs offline in a browser on any
 laptop — nothing to break on the day.
 
+The menu carries the booklet's title (*De simulatie-arcade – kun jij de wereld
+nabootsen?*) and the stand's one-line message. Each tile says in a few words what you
+do there and shows today's record on that machine (or the computer's, 🤖, to beat); the
+science sentence for parents is on each game's title card. A QR code at the top left
+opens the same arcade on GitHub Pages, for playing again at home.
+
 The menu's "🔬 How does this work?" button opens a card layer with the big picture —
 how nature becomes equations, what scientific computing is, why computers were built
-in the first place (the Mathematisch Centrum built the Netherlands' first), and who
-CWI and our group are. The same button inside each game opens that game's own
-science explainer.
+(the Mathematisch Centrum built the Netherlands' first), who CWI and our group are, and
+the one recipe every game follows. The same button inside each game opens that game's
+own science explainer.
 
 Planned first games (see [docs/plan.md](docs/plan.md) for the full implementation plan):
 

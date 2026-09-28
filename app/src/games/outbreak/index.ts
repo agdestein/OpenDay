@@ -1171,6 +1171,8 @@ export const outbreak: ArcadeGame = {
     nl: 'Onze groep heeft gewerkt aan het simuleren van echte epidemieën — modellen zoals dit (veel groter) helpen bij besluiten over vaccinaties en schoolsluitingen in het echte gezondheidsbeleid.',
     no: 'Gruppen vår har jobbet med å simulere ekte epidemier — modeller som denne (mye større) hjelper med å bestemme vaksinering og skolestenging i ekte helsepolitikk.',
   },
+  tileHook: { en: 'Stop an epidemic in a tiny town', nl: 'Stop een epidemie in een mini-stad', no: 'Stopp en epidemi i en miniby' },
+  scoreUnit: { en: 'lives saved', nl: 'levens gered', no: 'liv reddet' },
   tileEmoji: '🦠',
   create: (host) => new OutbreakInstance(host),
 };

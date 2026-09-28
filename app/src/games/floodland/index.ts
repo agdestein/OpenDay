@@ -1172,6 +1172,7 @@ export const floodland: ArcadeGame = {
     nl: 'Na de watersnood van 1953 berekende een wiskundige van de voorloper van het CWI hoe hoog Nederlandse dijken moeten zijn. Hier laat de computer echt water stromen, vakje voor vakje.',
     no: 'Etter flommen i 1953 regnet en matematiker ved CWIs forgjenger ut hvor høye nederlandske diker burde være. Her flytter datamaskinen ekte vann, rute for rute.',
   },
+  tileHook: { en: 'Hold back the sea with sand', nl: 'Houd de zee tegen met zand', no: 'Hold havet unna med sand' },
   tileEmoji: '🌊',
   create: host => new FloodInstance(host),
 };

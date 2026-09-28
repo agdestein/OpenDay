@@ -869,6 +869,7 @@ export const bounce: ArcadeGame = {
     nl: 'Elke bal volgt één simpele regel, maar samen stromen ze als zand en koken ze als een gas. Een paar van de allereerste computersimulaties van moleculen, in de jaren vijftig, waren ballen zoals deze.',
     no: 'Hver ball følger én enkel regel, men sammen renner de som sand og koker som en gass. Noen av de aller første datasimuleringene av molekyler, på 1950-tallet, var baller akkurat som disse.',
   },
+  tileHook: { en: 'Boil a pit full of balls', nl: 'Kook een bak vol ballen', no: 'Kok en binge full av baller' },
   tileEmoji: '🏀',
   create: (host) => new BounceInstance(host),
 };
