@@ -96,9 +96,9 @@ const CHAPTERS: Localized<ChapterText[]> = {
     {
       title: 'Where does the bounce go?',
       paragraphs: [
-        'A dropped ball never bounces back quite as high. The motion is not lost: the floor is made of atoms, held together like balls on springs. Every landing sets them shaking, and shaking atoms are what heat is.',
-        'On the left the floor is drawn atom by atom. The bars keep the books: the ball’s energy flows into the floor’s jiggle, and the total stays the same. Nature’s accounts always balance.',
-        'The pit cannot afford to simulate the floor’s atoms. It takes a shortcut: every bounce keeps 82 % of the speed, like the ball on the right, and it bounces much like the real one. A rule that stands in for everything too small to simulate is called a closure model. Switch the bounce loss off below: that ball bounces forever, and so does the pit.',
+        'A dropped ball never bounces back quite as high. The motion is not lost: the floor is made of atoms, held together like balls on springs, and every landing sets them shaking. Shaking atoms are heat.',
+        'On the left the floor is drawn atom by atom. The bars keep the books: the ball’s energy flows into the floor’s jiggle, and the total stays the same.',
+        'The pit cannot afford to simulate the floor’s atoms, so it takes a shortcut: every bounce keeps 82 % of the speed, like the ball on the right. A rule that stands in for everything too small to simulate is called a closure model — finding good ones for turbulence is part of our group’s research. Switch the bounce loss off below: that ball bounces forever.',
       ],
       formula: 'bounce speed ← 0.82 × landing speed\n(the floor’s atoms, in one number)',
     },
@@ -152,9 +152,9 @@ const CHAPTERS: Localized<ChapterText[]> = {
     {
       title: 'Waar blijft de stuiter?',
       paragraphs: [
-        'Een bal die je laat vallen, stuitert nooit helemaal even hoog terug. De beweging is niet weg: de vloer bestaat uit atomen, aan elkaar vast als balletjes aan veertjes. Elke landing zet ze aan het trillen, en trillende atomen, dat is warmte.',
-        'Links is de vloer atoom voor atoom getekend. De balken houden de boekhouding bij: de energie van de bal stroomt naar het trillen van de vloer, en het totaal blijft gelijk. De boekhouding van de natuur klopt altijd.',
-        'De bak kan het niet betalen om de atomen van de vloer te simuleren. Hij neemt een kortere weg: elke stuiter houdt 82 % van de snelheid over, zoals de bal rechts, en die stuitert bijna net als de echte. Een regel die in de plaats komt van alles wat te klein is om te simuleren, heet een sluitingsmodel. Zet hieronder het stuiterverlies uit: die bal stuitert eeuwig door, en de bak ook.',
+        'Een bal die je laat vallen, stuitert nooit helemaal even hoog terug. De beweging is niet weg: de vloer bestaat uit atomen, aan elkaar vast als balletjes aan veertjes, en elke landing zet ze aan het trillen. Trillende atomen, dat is warmte.',
+        'Links is de vloer atoom voor atoom getekend. De balken houden de boekhouding bij: de energie van de bal stroomt naar het trillen van de vloer, en het totaal blijft gelijk.',
+        'De bak kan het niet betalen om de atomen van de vloer te simuleren, dus neemt hij een kortere weg: elke stuiter houdt 82 % van de snelheid over, zoals de bal rechts. Een regel die in de plaats komt van alles wat te klein is om te simuleren, heet een sluitingsmodel — goede vinden voor turbulentie is deel van het onderzoek van onze groep. Zet hieronder het stuiterverlies uit: die bal stuitert eeuwig door.',
       ],
       formula: 'stuitersnelheid ← 0,82 × landingssnelheid\n(de atomen van de vloer, in één getal)',
     },
@@ -208,9 +208,9 @@ const CHAPTERS: Localized<ChapterText[]> = {
     {
       title: 'Hvor blir det av spretten?',
       paragraphs: [
-        'En ball du slipper, spretter aldri helt like høyt tilbake. Bevegelsen er ikke borte: gulvet er laget av atomer, holdt sammen som kuler på fjærer. Hver landing får dem til å riste, og ristende atomer, det er varme.',
-        'Til venstre er gulvet tegnet atom for atom. Søylene fører regnskapet: ballens energi strømmer over i gulvets risting, og summen holder seg lik. Naturens regnskap går alltid opp.',
-        'Binga har ikke råd til å simulere gulvets atomer. Den tar en snarvei: hvert sprett beholder 82 % av farten, som ballen til høyre, og den spretter nesten som den ekte. En regel som står i stedet for alt som er for lite til å simulere, kalles en lukningsmodell. Slå av sprett-tapet her under: den ballen spretter for alltid, og binga også.',
+        'En ball du slipper, spretter aldri helt like høyt tilbake. Bevegelsen er ikke borte: gulvet er laget av atomer, holdt sammen som kuler på fjærer, og hver landing får dem til å riste. Ristende atomer, det er varme.',
+        'Til venstre er gulvet tegnet atom for atom. Søylene fører regnskapet: ballens energi strømmer over i gulvets risting, og summen holder seg lik.',
+        'Binga har ikke råd til å simulere gulvets atomer, så den tar en snarvei: hvert sprett beholder 82 % av farten, som ballen til høyre. En regel som står i stedet for alt som er for lite til å simulere, kalles en lukningsmodell — å finne gode for turbulens er en del av forskningen i gruppen vår. Slå av sprett-tapet her under: den ballen spretter for alltid.',
       ],
       formula: 'sprettfart ← 0,82 × landingsfart\n(gulvets atomer, i ett tall)',
     },

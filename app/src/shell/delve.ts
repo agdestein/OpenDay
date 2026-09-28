@@ -120,13 +120,19 @@ export function delvePanel(opts: {
       body.appendChild(host);
       chapter.extras(host);
     }
+    element.scrollTop = 0;
     prev.disabled = index === 0;
     next.disabled = index === opts.chapters.length - 1;
     dotEls.forEach((dot, k) => dot.classList.toggle('active', k === index));
     opts.onChapter(index);
   };
 
-  element.append(heading, title, body, nav, exit);
+  // The way on and the way out stay pinned to the bottom of the card; only the
+  // chapter scrolls when it is taller than a laptop screen.
+  const foot = document.createElement('div');
+  foot.className = 'delve-foot';
+  foot.append(nav, exit);
+  element.append(heading, title, body, foot);
   show(0);
 
   return {

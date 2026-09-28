@@ -1300,8 +1300,8 @@ input[type='range'] {
   left: 1.5rem;
   top: 50%;
   transform: translateY(-50%);
-  width: min(440px, 42vw);
-  max-height: 88vh;
+  width: min(500px, 42vw);
+  max-height: 92vh;
   overflow-y: auto;
   padding: 1.4rem 1.6rem;
   border-radius: 1.2rem;
@@ -1377,9 +1377,44 @@ input[type='range'] {
 
 .delve-exit {
   display: block;
-  margin: 1rem auto 0;
+  margin: 0.7rem auto 0;
   font-size: 0.95rem;
   padding: 0.55rem 1.3rem;
+}
+
+/* Pinned to the card's bottom edge (the negative margin covers its padding), so
+   ◀ ▶ and "back to the game" never scroll out of reach. */
+.delve-foot {
+  position: sticky;
+  z-index: 2;
+  bottom: -1.4rem;
+  margin: 0.4rem -1.6rem -1.4rem;
+  padding: 0.3rem 1.6rem 1.1rem;
+  background: linear-gradient(to bottom, rgba(8, 12, 26, 0), rgb(8, 12, 26) 1rem);
+}
+
+/* Laptops (768–900 px tall): a tighter card, so more chapters fit unscrolled. */
+@media (max-height: 900px) and (min-width: 641px) {
+  .delve-card {
+    width: min(480px, 44vw);
+    max-height: 94vh;
+    padding: 1rem 1.3rem 1.4rem;
+  }
+
+  .delve-card h2 {
+    font-size: 1.25rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .delve-body p {
+    font-size: 0.92rem;
+    line-height: 1.45;
+  }
+
+  .delve-foot {
+    margin: 0.3rem -1.3rem -1.4rem;
+    padding: 0.25rem 1.3rem 0.9rem;
+  }
 }
 
 /* ---------- Narrow screens (phones) ----------
@@ -1535,5 +1570,11 @@ input[type='range'] {
     width: auto;
     max-height: 55vh;
     padding: 1.1rem 1.2rem;
+  }
+
+  .delve-foot {
+    bottom: -1.1rem;
+    margin: 0.3rem -1.2rem -1.1rem;
+    padding: 0.25rem 1.2rem 0.9rem;
   }
 }

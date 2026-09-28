@@ -64,19 +64,18 @@ const CHAPTERS: Localized<ChapterText[]> = {
     {
       title: 'It finds every flaw in the world',
       paragraphs: [
-        'The first version of this game had a flaw: muscles could move as fast as they liked. Evolution found it within minutes. Stick-men learned to cartwheel and a worm learned to leap five metres, its head at 100 km/h. Real muscles have a speed limit, so now ours do too.',
-        'A learner is the toughest tester a simulation can have: if the physics is wrong, the robot learns the wrong thing. And a Doggo that only ever practised on a flat floor trips over the first bump, while one that practised on ever-changing bumps crosses them.',
-        'So the simulation has to be right, and varied. Getting it right is our craft: the same kind of flaw makes energy out of nothing in Gravity Doodle.',
-        'The body matters too. With flat practice only, a Doggo trips over the bumps, but a worm or a caterpillar crosses them. Try ⛰️ Design in the park: build a body that doesn’t trip.',
+        'The first version of this game had a flaw: muscles could move as fast as they liked. Evolution found it within minutes — stick-men cartwheeled and a worm leapt five metres high. Real muscles have a speed limit, so now ours do too.',
+        'A learner is the toughest tester a simulation can have: if the physics is wrong, the robot learns the wrong thing. And a Doggo that only practised on a flat floor trips over the first bump; one that practised on ever-changing bumps crosses them. So the simulation must be right, and varied — that is our craft (the same kind of flaw invents energy in Gravity Doodle).',
+        'The body matters too: with flat practice only, a worm or a caterpillar crosses the bumps where a Doggo trips. Try ⛰️ Design in the park.',
       ],
     },
     {
       title: 'Brains that feel',
       paragraphs: [
-        'A rhythm brain is blind: it keeps its beat whatever happens, so a shove can tip it over. Real robots feel. They sense how they tilt, how fast they go and which feet touch the ground, and turn that into corrections.',
-        'So give the Doggo senses — seven numbers about its body, plus its feet — and a tiny neural network of four neurons between the senses and the muscles, added to the beat. It starts silent; practice teaches it when to push.',
-        'All three Doggos get the same shoves. In a test of 20 shoved runs, the one that practised on calm ground ends up on its back 13 times, the one that practised with shoves 4 times, and the one with senses too only twice. Rough practice matters most; senses help on top. Every walking robot works like this: a rhythm, corrected by what it feels.',
-        'A brain that feels can’t save a body that can’t stand. Our stick-man has no feet and weak knees: in our tests, with or without senses, it falls within a second. Real robots have feet and strong, fast motors.',
+        'A rhythm brain is blind: it keeps its beat whatever happens, so a shove can tip it over. Real robots feel how they tilt, how fast they go and which feet touch the ground, and correct.',
+        'So the Doggo gets senses, and a tiny neural network of four neurons between senses and muscles, added to the beat. It starts silent; practice teaches it when to push.',
+        'All three Doggos get the same shoves. In 20 shoved runs, the one that practised on calm ground ends on its back 13 times, the one that practised with shoves 4 times, the one with senses too only twice: rough practice matters most, senses help on top.',
+        'Every walking robot works like this: a rhythm, corrected by what it feels. But feeling can’t save a body that can’t stand: our stick-man, with no feet and weak knees, falls within a second either way.',
       ],
     },
     {
@@ -124,19 +123,18 @@ const CHAPTERS: Localized<ChapterText[]> = {
     {
       title: 'Hij vindt elke fout in de wereld',
       paragraphs: [
-        'De eerste versie van dit spel had een fout: spieren konden zo snel bewegen als ze wilden. Evolutie vond dat binnen een paar minuten. Stokmannetjes leerden radslagen maken en een worm leerde vijf meter hoog springen, met zijn kop op 100 km/u. Echte spieren hebben een snelheidslimiet, dus die van ons nu ook.',
-        'Wie leert, is de strengste tester die een simulatie kan hebben: klopt de natuurkunde niet, dan leert de robot het verkeerde. En een hondje dat alleen op een vlakke vloer oefende, struikelt over de eerste hobbel, terwijl een hondje dat op steeds andere hobbels oefende er gewoon overheen loopt.',
-        'De simulatie moet dus kloppen, en gevarieerd zijn. Dat goed krijgen is ons vak: hetzelfde soort fout maakt energie uit het niets in Zwaartekracht-doodle.',
-        'Het lijf telt ook. Met alleen vlak oefenen struikelt een hondje over de hobbels, maar een worm of een rups komt eroverheen. Probeer ⛰️ Ontwerpen in het park: bouw een lijf dat niet struikelt.',
+        'De eerste versie van dit spel had een fout: spieren konden zo snel bewegen als ze wilden. Evolutie vond dat binnen een paar minuten — stokmannetjes maakten radslagen en een worm sprong vijf meter hoog. Echte spieren hebben een snelheidslimiet, dus die van ons nu ook.',
+        'Wie leert, is de strengste tester die een simulatie kan hebben: klopt de natuurkunde niet, dan leert de robot het verkeerde. En een hondje dat alleen op een vlakke vloer oefende, struikelt over de eerste hobbel; een hondje dat op steeds andere hobbels oefende, loopt eroverheen. De simulatie moet dus kloppen, en gevarieerd zijn — dat is ons vak (hetzelfde soort fout verzint energie in Zwaartekracht-doodle).',
+        'Het lijf telt ook: met alleen vlak oefenen komt een worm of een rups over de hobbels waar een hondje struikelt. Probeer ⛰️ Ontwerpen in het park.',
       ],
     },
     {
       title: 'Breinen die voelen',
       paragraphs: [
-        'Een ritmebrein is blind: het houdt zijn ritme wat er ook gebeurt, dus een duw kan het omgooien. Echte robots voelen. Ze merken hoe scheef ze staan, hoe snel ze gaan en welke voeten de grond raken, en maken daar correcties van.',
-        'Geef het hondje dus zintuigen — zeven getallen over zijn lijf, plus zijn voeten — en een piepklein neuraal netwerk van vier neuronen tussen de zintuigen en de spieren, bovenop het ritme. Het begint stil; oefenen leert het wanneer het moet duwen.',
-        'Alle drie de hondjes krijgen dezelfde duwen. In een test van 20 keer duwen belandt het hondje dat op rustige grond oefende 13 keer op zijn rug, het hondje dat met duwtjes oefende 4 keer, en het hondje met zintuigen maar twee keer. Ruw oefenen helpt het meest; zintuigen helpen daarbovenop. Elke lopende robot werkt zo: een ritme, bijgestuurd door wat hij voelt.',
-        'Een brein dat voelt kan een lijf dat niet kan staan niet redden. Ons stokmannetje heeft geen voeten en slappe knieën: in onze tests valt het, met of zonder zintuigen, binnen een seconde om. Echte robots hebben voeten en sterke, snelle motoren.',
+        'Een ritmebrein is blind: het houdt zijn ritme wat er ook gebeurt, dus een duw kan het omgooien. Echte robots voelen hoe scheef ze staan, hoe snel ze gaan en welke voeten de grond raken, en sturen bij.',
+        'Het hondje krijgt dus zintuigen, en een piepklein neuraal netwerk van vier neuronen tussen zintuigen en spieren, bovenop het ritme. Het begint stil; oefenen leert het wanneer het moet duwen.',
+        'Alle drie de hondjes krijgen dezelfde duwen. Bij 20 keer duwen belandt het hondje dat op rustige grond oefende 13 keer op zijn rug, het hondje dat met duwtjes oefende 4 keer, en het hondje met zintuigen maar twee keer: ruw oefenen helpt het meest, zintuigen helpen daarbovenop.',
+        'Elke lopende robot werkt zo: een ritme, bijgestuurd door wat hij voelt. Maar voelen kan een lijf dat niet kan staan niet redden: ons stokmannetje, zonder voeten en met slappe knieën, valt hoe dan ook binnen een seconde om.',
       ],
     },
     {
@@ -184,19 +182,18 @@ const CHAPTERS: Localized<ChapterText[]> = {
     {
       title: 'Den finner hver feil i verden',
       paragraphs: [
-        'Den første versjonen av dette spillet hadde en feil: musklene kunne bevege seg så fort de ville. Evolusjonen fant den i løpet av minutter. Pinnemenn lærte å hjule og en mark lærte å hoppe fem meter, med hodet i 100 km/t. Ekte muskler har en fartsgrense, så nå har våre det også.',
-        'Den som lærer, er den strengeste testeren en simulering kan få: er fysikken feil, lærer roboten feil. Og en vovse som bare har øvd på flatt gulv, snubler i første hump, mens en som øvde på humper som stadig skiftet, går rett over.',
-        'Simuleringen må altså være riktig, og variert. Å få den riktig er faget vårt: samme slags feil lager energi av ingenting i Tyngdekraft-doodle.',
-        'Kroppen betyr også noe. Med bare flat øving snubler vovsen i humpene, men en mark eller en larve kommer over. Prøv ⛰️ Design i parken: bygg en kropp som ikke snubler.',
+        'Den første versjonen av dette spillet hadde en feil: musklene kunne bevege seg så fort de ville. Evolusjonen fant den i løpet av minutter — pinnemenn hjulet og en mark hoppet fem meter høyt. Ekte muskler har en fartsgrense, så nå har våre det også.',
+        'Den som lærer, er den strengeste testeren en simulering kan få: er fysikken feil, lærer roboten feil. Og en vovse som bare har øvd på flatt gulv, snubler i første hump; en som øvde på humper som stadig skiftet, går rett over. Simuleringen må altså være riktig, og variert — det er faget vårt (samme slags feil finner opp energi i Tyngdekraft-doodle).',
+        'Kroppen betyr også noe: med bare flat øving kommer en mark eller en larve over humpene der vovsen snubler. Prøv ⛰️ Design i parken.',
       ],
     },
     {
       title: 'Hjerner som kjenner',
       paragraphs: [
-        'En rytmehjerne er blind: den holder takten uansett hva som skjer, så et dytt kan velte den. Ekte roboter kjenner. De merker hvor skjeve de står, hvor fort de går og hvilke føtter som er i bakken, og gjør det om til korreksjoner.',
-        'Gi derfor vovsen sanser — sju tall om kroppen, pluss føttene — og et bitte lite nevralt nettverk med fire nevroner mellom sansene og musklene, lagt oppå takten. Det starter stille; øving lærer det når det skal dytte.',
-        'Alle tre vovsene får de samme dyttene. I en test med 20 dyttede løp havner vovsen som øvde på rolig bakke på ryggen 13 ganger, den som øvde med dytt 4 ganger, og den med sanser bare to ganger. Røff øving betyr mest; sansene hjelper i tillegg. Alle gående roboter virker slik: en rytme, justert av det den kjenner.',
-        'En hjerne som kjenner kan ikke redde en kropp som ikke kan stå. Pinnemannen vår har ingen føtter og svake knær: i testene våre faller den, med eller uten sanser, innen et sekund. Ekte roboter har føtter og sterke, raske motorer.',
+        'En rytmehjerne er blind: den holder takten uansett hva som skjer, så et dytt kan velte den. Ekte roboter kjenner hvor skjeve de står, hvor fort de går og hvilke føtter som er i bakken, og retter opp.',
+        'Vovsen får derfor sanser, og et bitte lite nevralt nettverk med fire nevroner mellom sanser og muskler, lagt oppå takten. Det starter stille; øving lærer det når det skal dytte.',
+        'Alle tre vovsene får de samme dyttene. I 20 dyttede løp havner vovsen som øvde på rolig bakke på ryggen 13 ganger, den som øvde med dytt 4 ganger, og den med sanser også bare to ganger: røff øving betyr mest, sansene hjelper i tillegg.',
+        'Alle gående roboter virker slik: en rytme, justert av det den kjenner. Men å kjenne kan ikke redde en kropp som ikke kan stå: pinnemannen vår, uten føtter og med svake knær, faller innen et sekund uansett.',
       ],
     },
     {

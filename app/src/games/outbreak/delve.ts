@@ -108,17 +108,17 @@ const TEXT: Localized<{
       ],
       [
         'R₀ (“R-nought”) is how many people one sick person infects, on average, in a town where nobody is immune yet. Above 1, every case causes more cases and the epidemic explodes; below 1, it fizzles out. Seasonal flu is around 1.3; measles a terrifying 12–18.',
-        'You cannot read R₀ off the model’s settings: it depends on how people live and meet. So we measure it, like a scientist would — by running an experiment many times: one sick person in a healthy town, counting how many they infect. Move a slider and the computer runs the experiment again.',
-        'The dashboard shows R live, measured from who infected whom: how many people each recent case has infected, counting those still sick in proportion to how long they have been ill. It lags a few days behind the epidemic — so does every real R estimate. Isolating the sick, closing places and vaccinating all push it down.',
+        'You cannot read R₀ off the model’s settings: it depends on how people live and meet. So we measure it like a scientist: one sick person in a healthy town, many times over, counting how many they infect. Move a slider and the computer runs the experiment again.',
+        'The dashboard shows R live, measured from who infected whom. Like every real R estimate it lags a few days behind. Isolating, closing and vaccinating all push it down.',
       ],
       [
         'For a whole country you can skip the individuals and track just the sizes of the groups with calculus:',
       ],
       [
         'Run the same town again and you get a different epidemic: who meets whom, and who catches it, is partly chance. So one simulation proves little.',
-        'Scientists therefore run a model many times — an ensemble — and look at the spread of outcomes, just like a weather forecast. Right now the computer is running your town 8 times: from this moment if an epidemic is going on, otherwise from a fresh start with three sick travellers. The spread of the lines is the uncertainty.',
+        'Scientists therefore run a model many times — an ensemble — and look at the spread, just like a weather forecast. Right now the computer is running your town 8 times; the spread of the lines is the uncertainty.',
         'The challenge uses exactly this trick: while you read a round’s card, the computer simulates your town 8 times without you. Afterwards you see how many lives your choices saved compared with those futures.',
-        'During the challenge you can also ask the model yourself: 🔮 runs your town 8 times for the next 30 days as things are, and 8 times with the school and market closed (or reopened) — the kind of scenario comparison modellers give to governments. For the unknown virus every future also guesses the virus’s numbers differently: uncertainty in the inputs becomes uncertainty in the forecast, and it shrinks as more cases come in.',
+        '🔮 in the challenge does the same for the next 30 days, with and without closing the school and market: the kind of comparison modellers give to governments.',
       ],
       [
         'Models like this — with millions of agents, real travel data and real hospital numbers — advised governments through COVID-19 (in Britain, for example, the CovidSim model), guide vaccination campaigns, and are used against measles, malaria and animal diseases.',
@@ -192,17 +192,17 @@ const TEXT: Localized<{
       ],
       [
         'R₀ (“R-nul”) is hoeveel mensen één ziek persoon gemiddeld besmet, in een stad waar nog niemand immuun is. Boven de 1 zorgt elk geval voor nog meer gevallen en explodeert de epidemie; onder de 1 dooft hij uit. Seizoensgriep zit rond de 1,3; mazelen op een angstaanjagende 12–18.',
-        'Je kunt R₀ niet zomaar aflezen uit de instellingen van het model: het hangt af van hoe mensen leven en elkaar ontmoeten. Dus meten we het, zoals een wetenschapper dat doet — door een experiment vaak te herhalen: één ziek persoon in een gezonde stad, en tellen hoeveel mensen die besmet. Verschuif een schuifje en de computer doet het experiment opnieuw.',
-        'Het dashboard laat R live zien, gemeten uit wie wie besmette: hoeveel mensen elk recent geval heeft besmet, waarbij wie nog ziek is meetelt naar hoe lang die al ziek is. Het loopt een paar dagen achter op de epidemie — net als elke echte schatting van R. Zieken isoleren, plekken sluiten en vaccineren duwen hem allemaal omlaag.',
+        'Je kunt R₀ niet zomaar aflezen uit de instellingen van het model: het hangt af van hoe mensen leven en elkaar ontmoeten. Dus meten we het zoals een wetenschapper: één ziek persoon in een gezonde stad, heel vaak opnieuw, en tellen hoeveel mensen die besmet. Verschuif een schuifje en de computer doet het experiment opnieuw.',
+        'Het dashboard laat R live zien, gemeten uit wie wie besmette. Net als elke echte schatting van R loopt het een paar dagen achter. Isoleren, sluiten en vaccineren duwen hem allemaal omlaag.',
       ],
       [
         'Voor een heel land kun je de individuen overslaan en met een paar vergelijkingen alleen de grootte van de groepen bijhouden:',
       ],
       [
         'Speel dezelfde stad nog een keer en je krijgt een andere epidemie: wie wie ontmoet, en wie de ziekte krijgt, is deels toeval. Eén simulatie bewijst dus weinig.',
-        'Daarom draaien wetenschappers een model vaak — een ensemble — en kijken ze naar de spreiding van de uitkomsten, net als bij een weersverwachting. Nu draait de computer jouw stad 8 keer: vanaf dit moment als er een epidemie bezig is, en anders vanaf het begin met drie zieke reizigers. De spreiding van de lijnen is de onzekerheid.',
+        'Daarom draaien wetenschappers een model vaak — een ensemble — en kijken ze naar de spreiding, net als bij een weersverwachting. Nu draait de computer jouw stad 8 keer; de spreiding van de lijnen is de onzekerheid.',
         'De uitdaging gebruikt precies deze truc: terwijl jij de kaart van een ronde leest, simuleert de computer je stad 8 keer zonder jou. Daarna zie je hoeveel levens jouw keuzes hebben gered vergeleken met die toekomsten.',
-        'Tijdens de uitdaging kun je het model ook zelf vragen: 🔮 draait je stad 8 keer voor de komende 30 dagen zoals het nu gaat, en 8 keer met de school en de markt dicht (of weer open) — het soort scenariovergelijking dat modelleurs aan overheden geven. Bij het onbekende virus schat elke toekomst ook de getallen van het virus anders: onzekerheid in de invoer wordt onzekerheid in de voorspelling, en die krimpt naarmate er meer gevallen binnenkomen.',
+        '🔮 doet in de uitdaging hetzelfde voor de komende 30 dagen, met en zonder school en markt dicht: het soort vergelijking dat modelleurs aan overheden geven.',
       ],
       [
         'Modellen zoals dit — met miljoenen agents, echte reisgegevens en echte ziekenhuiscijfers — adviseerden overheden tijdens COVID-19 (in Groot-Brittannië bijvoorbeeld het model CovidSim), sturen vaccinatiecampagnes, en worden gebruikt tegen mazelen, malaria en dierziekten.',
@@ -276,17 +276,17 @@ const TEXT: Localized<{
       ],
       [
         'R₀ (“R-null”) er hvor mange én syk person smitter i gjennomsnitt, i en by der ingen er immune ennå. Over 1 fører hvert tilfelle til enda flere, og epidemien eksploderer; under 1 dør den ut. Sesonginfluensa ligger rundt 1,3; meslinger på skremmende 12–18.',
-        'Du kan ikke lese R₀ rett ut av modellens innstillinger: den avhenger av hvordan folk lever og møtes. Så vi måler den, slik en forsker ville gjort — ved å kjøre et eksperiment mange ganger: én syk person i en frisk by, og telle hvor mange den smitter. Flytt en glidebryter, og datamaskinen kjører eksperimentet på nytt.',
-        'Dashbordet viser R live, målt fra hvem som smittet hvem: hvor mange hvert nytt tilfelle har smittet, der de som fortsatt er syke teller etter hvor lenge de har vært syke. Den henger noen dager etter epidemien — det gjør alle ekte R-anslag. Å isolere syke, stenge steder og vaksinere presser den ned.',
+        'Du kan ikke lese R₀ rett ut av modellens innstillinger: den avhenger av hvordan folk lever og møtes. Så vi måler den slik en forsker gjør: én syk person i en frisk by, mange ganger, og teller hvor mange den smitter. Flytt en glidebryter, og datamaskinen kjører eksperimentet på nytt.',
+        'Dashbordet viser R live, målt fra hvem som smittet hvem. Som alle ekte R-anslag henger den noen dager etter. Å isolere, stenge og vaksinere presser den ned.',
       ],
       [
         'For et helt land kan du hoppe over enkeltpersonene og bare følge størrelsen på gruppene med matematisk analyse:',
       ],
       [
         'Kjør den samme byen en gang til, og du får en annen epidemi: hvem som møter hvem, og hvem som blir smittet, er delvis tilfeldig. Én simulering beviser derfor lite.',
-        'Derfor kjører forskere en modell mange ganger — et ensemble — og ser på spredningen i utfallene, akkurat som en værmelding. Akkurat nå kjører datamaskinen byen din 8 ganger: fra dette øyeblikket hvis en epidemi pågår, ellers fra start med tre syke reisende. Spredningen i linjene er usikkerheten.',
+        'Derfor kjører forskere en modell mange ganger — et ensemble — og ser på spredningen, akkurat som en værmelding. Akkurat nå kjører datamaskinen byen din 8 ganger; spredningen i linjene er usikkerheten.',
         'Utfordringen bruker nettopp dette trikset: mens du leser kortet for en runde, simulerer datamaskinen byen din 8 ganger uten deg. Etterpå ser du hvor mange liv valgene dine reddet sammenlignet med de fremtidene.',
-        'Under utfordringen kan du også spørre modellen selv: 🔮 kjører byen din 8 ganger de neste 30 dagene slik det går nå, og 8 ganger med skolen og torget stengt (eller åpnet igjen) — den typen scenariosammenligning modellerere gir myndighetene. For det ukjente viruset gjetter hver fremtid også virusets tall forskjellig: usikkerhet i inndataene blir usikkerhet i prognosen, og den krymper etter hvert som flere tilfeller kommer inn.',
+        '🔮 gjør det samme i utfordringen for de neste 30 dagene, med og uten stengt skole og torg: den typen sammenligning modellerere gir myndighetene.',
       ],
       [
         'Modeller som denne — med millioner av agenter, ekte reisedata og ekte sykehustall — ga myndighetene råd gjennom covid-19 (i Storbritannia for eksempel modellen CovidSim), styrer vaksinasjonskampanjer, og brukes mot meslinger, malaria og dyresykdommer.',
