@@ -8,7 +8,7 @@ export const detective: ArcadeGame = {
   title: { en: 'Weather Detective', nl: 'Weerdetective', no: 'Værdetektiv' },
   scienceLine: {
     en: 'Together with KNMI we turn thousands of official and home weather stations into one weather map of Europe, and the maths tells us how sure we are.',
-    nl: 'Samen met het KNMI maken we van duizenden officiële en thuisweerstations één weerkaart van Europa, en de wiskunde vertelt hoe zeker we zijn.',
+    nl: 'Samen met het KNMI maken we van duizenden officiële en thuis weerstations één weerkaart van Europa, en de wiskunde vertelt hoe zeker we zijn.',
     no: 'Sammen med KNMI gjør vi tusenvis av offisielle værstasjoner og hjemmestasjoner om til ett værkart over Europa, og matematikken forteller hvor sikre vi er.',
   },
   tileHook: { en: 'Find the hottest place in the country', nl: 'Vind de warmste plek van Nederland', no: 'Finn det varmeste stedet i Nederland' },

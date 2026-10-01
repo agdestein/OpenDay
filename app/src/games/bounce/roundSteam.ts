@@ -36,7 +36,7 @@ const TEXT: Localized<{
     hudFuel: (p) => `⛽ ${p} %`,
     empty: 'Brandstof op!',
     summary: (s) =>
-      `Het deksel bleef ${s} seconden boven de vlag. Hete ballen bewegen sneller en botsen harder tegen het deksel: meer is temperatuur en druk niet. Een stoommachine werkt precies zo.`,
+      `Het deksel bleef ${s} seconden boven de vlag. Hete ballen bewegen sneller en botsen harder tegen het deksel: dat is temperatuur en druk. Een stoommachine werkt precies zo.`,
     weight: '100 kg',
   },
   no: {

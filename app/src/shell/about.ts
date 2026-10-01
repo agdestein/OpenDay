@@ -90,7 +90,7 @@ const CARDS: Localized<AboutCard[]> = {
       emoji: '🖥️',
       title: 'Waarom computers zijn gebouwd',
       paragraphs: [
-        "Wetenschappelijk rekenwerk was een van de belangrijkste redenen om überhaupt computers te bouwen — vóór de machines was 'computer' een beroep: iemand die met de hand rekende.",
+        "Wetenschappelijk rekenwerk was een van de belangrijkste redenen om computers te bouwen — vóór de machines was 'computer' een beroep: iemand die met de hand rekende.",
         'De voorloper van het CWI, het Mathematisch Centrum, bouwde de eerste computer van Nederland (de ARRA, 1952). Na de watersnoodramp van 1953 berekende een van de oprichters, David van Dantzig, hoe hoog de dijken moeten zijn — zijn manier van rekenen wordt nog steeds gebruikt.',
       ],
     },

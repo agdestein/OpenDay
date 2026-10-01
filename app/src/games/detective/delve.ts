@@ -119,9 +119,9 @@ const CHAPTERS: Localized<ChapterText[]> = {
       ],
     },
     {
-      title: 'Thuisweerstations: goedkoop maar wiebelig',
+      title: 'Thuis weerstations: goedkoop maar wiebelig',
       paragraphs: [
-        'Officiële KNMI-stations zijn er weinig (zo’n 30 in Nederland), maar ze zijn heel precies: in een open veld, op gras, in de schaduw. Thuisweerstations zijn er veel, maar hangen aan een zonnige muur of dicht bij een warm huis. Ze meten te warm en wiebelen.',
+        'Officiële KNMI-stations zijn er weinig (zo’n 30 in Nederland), maar ze zijn heel precies: in een open veld, op gras, in de schaduw. Thuis weerstations zijn er veel, maar hangen aan een zonnige muur of dicht bij een warm huis. Ze meten te warm en wiebelen.',
         'Zet de thuisstations aan: de kaart krijgt veel meer detail. Zet de correctie uit, en de kaart wordt te warm. Met de correctie rekent de computer zelf uit hoeveel te warm thuisstations meten, en trekt dat eraf.',
         'Een paar precieze metingen combineren met veel ruwe heet multi-fidelity. De echte kaart in dit spel maakte het KNMI van 31 officiële en 729 thuisstations.',
       ],

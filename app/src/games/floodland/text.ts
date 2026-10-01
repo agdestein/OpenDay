@@ -105,7 +105,7 @@ const T: Localized<typeof en> = {
     playAgain: 'Nog een keer', freePlay: 'Vrij spelen',
     testStorm: (left: number) => `Test een storm (${left})`, startStorm: 'Start de storm',
     lower: 'Lager', higher: 'Hoger', liveCentury: 'Beleef 100 jaar',
-    scrub: 'Sleep om de storm terug te zien',
+    scrub: 'Sleep om de storm terug te kijken',
     toyHint: 'Houd ingedrukt op het land voor zand · klik op de zee voor golven',
     toyStormHint: 'Storm! Houd de zee weg bij de huizen',
     warning: (s: number) => `De storm komt over ${s}…`,

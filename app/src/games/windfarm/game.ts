@@ -50,7 +50,7 @@ const TEXT: Localized<{
     hintComputer:
       '🤖 De computer plant zijn park voor alle drie de windrichtingen tegelijk — kijk waar het zog heen gaat als de wind draait…',
     hintHuman:
-      'Klik om turbines te plaatsen — oranje zog steelt wind van turbines erachter! De wind draait twee keer, dus denk vooruit. Klik op een turbine om hem terug te pakken.',
+      'Klik om turbines te plaatsen — oranje zog steelt wind van turbines erachter! De wind draait twee keer, dus denk vooruit. Klik op een turbine om hem terug te nemen.',
     windTurning: (n) => `🌬️ De wind draait over ${n}…`,
     windTurned: '🌬️ De wind is gedraaid! Staan je turbines nu in elkaars zog?',
     legendFull: 'volle wind',

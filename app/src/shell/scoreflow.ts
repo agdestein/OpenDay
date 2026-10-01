@@ -14,7 +14,7 @@ const TEXT: Localized<{ todaysBest: string; initialsPrompt: string; otherLetters
   nl: {
     todaysBest: 'De beste van vandaag',
     initialsPrompt: 'Jouw naam op het scorebord — kies drie letters!',
-    otherLetters: 'Kies eens andere letters 🙂',
+    otherLetters: 'Kies andere letters 🙂',
   },
   no: {
     todaysBest: 'Dagens beste',

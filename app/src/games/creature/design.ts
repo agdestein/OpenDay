@@ -55,7 +55,7 @@ export const DESIGN_TEXT: Localized<{
     test: 'Testen!',
     hud: (best) => `⛰️ Ontwerpuitdaging   🏆 ${best}`,
     training: '🧠 30 generaties oefenen — alleen op een vlakke vloer.',
-    testing: '⛰️ Nu de hobbels die het nooit zag: 12 seconden!',
+    testing: '⛰️ Nu de hobbels die het nog nooit heeft gezien: 12 seconden!',
     caption: (d) => `⛰️ ${d} over het parcours`,
     tripped: 'Het struikelde. Kun jij een lijf bouwen dat niet struikelt — lager? langer? meer poten?',
     crossed: 'Het kwam erover zonder ooit een hobbel te zien! Een goed lijf heeft minder oefening nodig.',

@@ -97,7 +97,7 @@ const TEXT: Localized<{
     twins: 'Tweeling',
     onePit: 'Eén bak',
     twinsCaption: 'Tweelingbakken: rechts begon één bal 0,001 px opzij. Roer erin!',
-    twinsDiff: (px) => `Grootste verschil: ${px} px. Blauw: nog tweeling. Rood: uit elkaar.`,
+    twinsDiff: (px) => `Grootste verschil: ${px} px. Blauw: nog steeds tweeling. Rood: uit elkaar.`,
     reset: 'Opnieuw',
     challenge: 'Uitdaging!',
     full: 'Vol!',

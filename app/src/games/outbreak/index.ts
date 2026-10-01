@@ -1121,7 +1121,7 @@ export const outbreak: ArcadeGame = {
   title: { en: 'Outbreak!', nl: 'Uitbraak!', no: 'Utbrudd!' },
   scienceLine: {
     en: 'Our group has worked on simulating real epidemics — models like this (much bigger) help decide vaccinations and school closures in actual health policy.',
-    nl: 'Onze groep heeft gewerkt aan het simuleren van echte epidemieën — modellen zoals dit (veel groter) helpen bij besluiten over vaccinaties en schoolsluitingen in het echte gezondheidsbeleid.',
+    nl: 'Onze groep heeft gewerkt aan het simuleren van echte epidemieën — modellen zoals dit (maar dan veel groter) helpen bij besluiten over vaccinaties en schoolsluitingen in het echte gezondheidsbeleid.',
     no: 'Gruppen vår har jobbet med å simulere ekte epidemier — modeller som denne (mye større) hjelper med å bestemme vaksinering og skolestenging i ekte helsepolitikk.',
   },
   tileHook: { en: 'Stop an epidemic in a tiny town', nl: 'Stop een epidemie in een mini-stad', no: 'Stopp en epidemi i en miniby' },
