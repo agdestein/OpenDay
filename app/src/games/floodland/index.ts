@@ -2,7 +2,7 @@ import type { ArcadeGame, GameHost, GameInstance } from '../../shell/types';
 import { pick } from '../../lib/i18n';
 import { scoreFlow, type ScoreFlowHandle } from '../../shell/scoreflow';
 import { delvePanel, delveToggle, type DelveHandle, type DelveToggleHandle } from '../../shell/delve';
-import { FloodSim, GRID_W as W, GRID_H as H } from './water';
+import { FloodSim, GRID_W as W, GRID_H as H, DX } from './water';
 import {
   BUDGET, CALM_SEA, DIKE_X, HOMES, PUMP, ROUND, SAND_RATE, STORM, STORM_LENGTH, TIME_SCALE,
   countBits, floodedHomes, holdTheLine, homeSpillLevels, makeScene, placeSand, resetWater, sandPlan,
@@ -15,6 +15,11 @@ import {
   dikeCost, fragilityRun, heightScore, random, stormRun, uniformDike, weakDike, type Fragility, type StormReport,
 } from './rounds';
 import { LiveRecording } from './recording';
+import {
+  BRUSH, Ground, LIGHTHOUSE, MAX_DUCKS, MILL, PLAY_TIME_SCALE, SPRING, SPRING_DUCKS, TREES, WAVE_REST,
+  groundKinds, makePlayground, moveDucks, moveFlecks, newDuck, playSeaLevel, pour, push, resetPlayWater, shapeGround, soak, wash, averageFlow, currents,
+  type Currents, type Duck, type Fleck,
+} from './playground';
 import { drawCentury, drawCostCurve, drawForecast, drawMiniMap } from './charts';
 import { sound } from '../../lib/sound';
 import { FloodDelve, returnYears, shareFragility, type Rect } from './delve';
@@ -24,7 +29,22 @@ import './style.css';
 /** toy: free play · card: a round's intro or result · plan: build or choose before
  * the storm · storm: the storm runs · century: round 3's hundred years · replay. */
 type Mode = 'toy' | 'card' | 'plan' | 'storm' | 'century' | 'replay';
-interface Puff { x: number; y: number; vx: number; vy: number; life: number }
+interface Puff { x: number; y: number; vx: number; vy: number; life: number; color: string }
+/** Free play's tools: pour and push water, pile up sand, dig, drop ducks. */
+type Tool = 'water' | 'sand' | 'dig' | 'duck';
+/** A drop of poured water, falling (grid x, y; height z in m). */
+interface Drop { x: number; y: number; z: number; vz: number }
+/** Left alone this long, free play sends a big wave now and then (displayed s). */
+const GHOST = { after: 20, every: 24 };
+const FLECKS = 320;
+/**
+ * Stand override for free play's solver: ?quality=low runs the cheaper first-order
+ * scheme from the start, ?quality=high keeps the second-order one; otherwise free
+ * play drops to first order by itself if the solver takes too long per frame.
+ */
+const QUALITY = new URLSearchParams(location.search).get('quality');
+/** Solver time per frame (ms, averaged) above which free play drops to first order. */
+const SLOW_SOLVER_MS = 6;
 /** A foam ring from a splash, spreading at the shallow-water wave speed. */
 interface Ring { x: number; y: number; age: number }
 /** A ship in the harbour channel (x in cells), sailing in (+1) or out (−1). */
@@ -33,6 +53,19 @@ const SHIP = { every: 2.2, speed: 5, gap: 3.2, stopIn: GATE.x0 - 2.5, stopOut: G
 /** Solver time per frame for background runs (test storms, the century's storms). */
 const COMPUTE_MS = 6;
 const LENS_RADIUS = 130, LENS_ZOOM = 3.4;
+const SAND_PUFF = 'rgba(232,205,140,', EARTH_PUFF = 'rgba(150,112,72,';
+/** Ground colours: the two visible sides of a column, per kind of ground. */
+const SIDES = {
+  sand: ['#a48b50', '#b29858'], scar: ['#6d5236', '#7a5c3d'], grass: ['#667d49', '#819358'],
+  beach: ['#bba574', '#c9b483'], rock: ['#76716a', '#86817a'], dune: ['#a9a26e', '#b8b07b'],
+} as const;
+/** Dry to wet (five steps): beach sand and the player's sand darken when wet. */
+const shades = (dry: number[], wet: number[]) => [0, 1, 2, 3, 4].map(k => `rgb(${dry.map((v, j) => Math.round(v + (wet[j] - v) * k / 4)).join(',')})`);
+const DAMP_BEACH = shades([228, 211, 160], [178, 158, 112]);
+const DAMP_SAND = shades([226, 190, 112], [176, 140, 80]);
+const GRASS = ['#86a25e', '#7c9a57', '#91aa67'], HILL = ['#7d9259', '#748a53', '#87995f'];
+/** Dunes: pale sand with marram grass. */
+const DUNE = ['#d4cc96', '#cbc48a', '#d9d29f'];
 
 class FloodInstance implements GameInstance {
   private mode: Mode = 'toy';
@@ -82,7 +115,6 @@ class FloodInstance implements GameInstance {
   private past: { t: number; level: number }[] = [];
   // Pointer, lens and feedback.
   private holding = false;
-  private splashTimer = 0;
   private pointer: Point | null = null;
   private mouse: Point | null = null;
   private xray = false;
@@ -96,6 +128,30 @@ class FloodInstance implements GameInstance {
   private stepsPerSecond = 0;
   private stepClock = 0;
   private stepMark = 0;
+  // Free play: the water table.
+  private tool: Tool = 'water';
+  private ducks: Duck[] = [];
+  private flecks: Fleck[] = [];
+  private drops: Drop[] = [];
+  private waveStart: number | null = null;
+  private springClock = 0;
+  private duckClock = 0;
+  /** When the player last touched the water table (for the ghost waves). */
+  private lastTouch = 0;
+  private dragFrom: Point | null = null;
+  /** Sand that was wet lately looks darker, as on a beach after a wave. */
+  private damp = new Float32Array(W * H);
+  /** What the water table's ground is (beach, dune, grass…), for its colour. */
+  private kinds: Uint8Array = new Uint8Array(W * H);
+  /** The water's mean current, which carries the player's sand. */
+  private mean: Currents = currents();
+  private surface: Float64Array = new Float64Array(W * H);
+  /** A slow machine falls back to the first-order scheme (or ?quality=low). */
+  private lowQuality = QUALITY === 'low';
+  private solverMs = 0;
+  private playClock = 0;
+  /** The water table, kept while the explainer shows the polder. */
+  private saved: { sim: FloodSim; base: Float64Array<ArrayBuffer>; ducks: Duck[]; time: number } | null = null;
   // Layout and DOM.
   private ctx!: CanvasRenderingContext2D;
   private transform = { scale: 1, ox: 0, oy: 0 };
@@ -128,9 +184,9 @@ class FloodInstance implements GameInstance {
     this.pointer = p;
     this.host.canvas.setPointerCapture(e.pointerId);
     this.holding = true;
-    this.splashTimer = 0;
-    // A quick tap acts at once: a splash, or a thin first layer of sand.
-    this.interact(1 / 30, p);
+    this.dragFrom = null;
+    // A quick tap acts at once: a splash, a duck, or a thin first layer of sand.
+    this.interact(1 / 30, p, true);
   };
   private move = (e: PointerEvent) => {
     if (!e.isPrimary) return;
@@ -138,7 +194,7 @@ class FloodInstance implements GameInstance {
     this.mouse = { x: e.clientX - r.left, y: e.clientY - r.top };
     this.pointer = this.hit(e);
   };
-  private release = () => { this.holding = false; };
+  private release = () => { this.holding = false; this.dragFrom = null; };
   private leave = () => { if (!this.holding) { this.pointer = null; this.mouse = null; } };
   private key = (e: KeyboardEvent) => {
     if (e.code !== 'Space' || (e.target as HTMLElement)?.tagName === 'INPUT') return;
@@ -198,7 +254,9 @@ class FloodInstance implements GameInstance {
     const bar = () => { const b = document.createElement('div'); b.className = 'game-toolbar delta-toolbar'; return b; };
     for (const key of Object.keys({ toy: 0, storm1: 0, plan2: 0, storm2: 0, plan3: 0, storm4: 0, replay: 0, card: 0 }) as (keyof typeof this.bars)[]) this.bars[key] = bar();
     const xray = (b: HTMLElement, key: string) => add(b, key, '🔍', t.xray, () => { this.xray = !this.xray; }).classList.add('kind-switch');
-    add(this.bars.toy, 'storm', '🌊', t.storm, () => { this.stormStart = this.time; });
+    const tool = (key: Tool, emoji: string) => add(this.bars.toy, `tool-${key}`, emoji, t.tools[key], () => { this.tool = key; this.lastTouch = this.time; });
+    tool('water', '💧'); tool('sand', '🏖️'); tool('dig', '⛏️'); tool('duck', '🦆');
+    add(this.bars.toy, 'wave', '🌊', t.bigWave, () => this.sendWave());
     xray(this.bars.toy, 'xrayToy');
     add(this.bars.toy, 'reset', '🧹', t.startOver, () => this.enterToy());
     add(this.bars.toy, 'challenge', '🏆', t.challenge, () => this.enterChallenge()).classList.add('challenge-button');
@@ -266,7 +324,8 @@ class FloodInstance implements GameInstance {
     const bar = this.currentBar();
     for (const [key, el] of Object.entries(this.bars)) el.hidden = key !== bar;
     this.toggle.element.classList.toggle('hidden', this.mode !== 'toy');
-    this.buttons.storm.disabled = this.stormStart !== null;
+    this.buttons.wave.disabled = this.waveStart !== null && this.time - this.waveStart < WAVE_REST;
+    for (const key of ['water', 'sand', 'dig', 'duck'] as const) this.buttons[`tool-${key}`].classList.toggle('active', this.tool === key);
     for (const key of ['xrayToy', 'xray1', 'xray2', 'xray3', 'xray4']) this.buttons[key].classList.toggle('active', this.xray);
     this.buttons.gate.querySelector('.tool-emoji')!.textContent = this.gateWant ? '🚢' : '🚧';
     this.buttons.gate.querySelector('.tool-label')!.textContent = this.gateWant ? t.openGate : t.closeGate;
@@ -288,7 +347,7 @@ class FloodInstance implements GameInstance {
     }
     this.updateHud();
     let hint = '';
-    if (this.mode === 'toy' && !this.delve) hint = this.stormStart === null ? t.toyHint : t.toyStormHint;
+    if (this.inPlayground()) hint = t.toolHints[this.tool];
     if (this.mode === 'storm') {
       const s = this.stormStart ?? 0;
       hint = this.time < s ? t.warning(Math.ceil(s - this.time))
@@ -371,10 +430,25 @@ class FloodInstance implements GameInstance {
     this.time = 0; this.stormStart = null; this.roundEnd = Infinity; this.flooded = 0;
     this.holding = false; this.plan.clear(); this.puffs = []; this.rings = []; this.banner = 0; this.breachRows.clear();
   }
+  /** Free play's water table, with the river running and a few ducks on it. */
+  private freshPlayground(): void {
+    this.freshScene(holdTheLine, makePlayground());
+    this.kinds = groundKinds(this.base);
+    this.mean = currents();
+    this.sim.secondOrder = !this.lowQuality;
+    this.ducks = [newDuck(46, 13.5, true), newDuck(38.5, 17.5, true), newDuck(23.5, 22.5, true)];
+    this.flecks = []; this.drops = []; this.waveStart = null; this.damp.fill(0);
+    this.springClock = 0; this.lastTouch = 0; this.playClock = 0;
+  }
+  private inPlayground(): boolean { return this.mode === 'toy' && !this.saved; }
+  private sendWave(): void {
+    this.waveStart = this.time;
+    sound.play('whoosh', { pitch: .45, volume: 1.6 });
+  }
   private enterToy(): void {
     this.clearCards();
     this.round = -1; this.scores = [];
-    this.freshScene(holdTheLine);
+    this.freshPlayground();
     this.budget = Infinity; this.stormPeak = STORM.peak;
     this.recording = null; this.testRun = null; this.fragRun = null; this.tests = [];
     this.mode = 'toy';
@@ -643,6 +717,9 @@ class FloodInstance implements GameInstance {
   private openDelve(): void {
     if (this.delve || this.mode !== 'toy') return;
     this.holding = false;
+    // The explainer is about dikes, so it shows the polder; the water table waits.
+    this.saved = { sim: this.sim, base: this.base, ducks: this.ducks, time: this.time };
+    this.freshScene(holdTheLine);
     this.delveContent = new FloodDelve({
       sim: () => this.sim,
       base: () => this.base,
@@ -666,6 +743,10 @@ class FloodInstance implements GameInstance {
     this.delve.dispose(); this.delve = null;
     this.delveContent?.dispose(); this.delveContent = null;
     this.lensAt = null;
+    if (this.saved) {
+      ({ sim: this.sim, base: this.base, ducks: this.ducks, time: this.time } = this.saved);
+      this.saved = null; this.stormStart = null; this.flecks = []; this.rings = [];
+    }
     this.toggle.setOpen(false);
     this.updateUi();
   }
@@ -676,6 +757,8 @@ class FloodInstance implements GameInstance {
     const dt = Math.min(rawDt, .05);
     this.banner = Math.max(0, this.banner - dt);
     for (const p of this.puffs) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 60 * dt; p.life -= dt * 2; }
+    for (const d of this.drops) { d.z += d.vz * dt; d.vz -= 40 * dt; }
+    this.drops = this.drops.filter(d => d.z > this.levelAt(d.x, d.y));
     this.puffs = this.puffs.filter(p => p.life > 0);
     for (const r of this.rings) r.age += dt;
     this.rings = this.rings.filter(r => r.age < 1.2);
@@ -703,7 +786,8 @@ class FloodInstance implements GameInstance {
 
   private live(dt: number): void {
     this.time += dt;
-    if (this.holding && this.pointer && this.canBuild()) this.interact(dt, this.pointer);
+    if (this.holding && this.pointer && this.canBuild()) this.interact(dt, this.pointer, false);
+    if (this.inPlayground()) { this.play(dt); return; }
     if (this.mode === 'toy' && this.stormStart !== null && this.time - this.stormStart > STORM_LENGTH) this.stormStart = null;
     const barrier = this.round === 3 && this.mode === 'storm';
     this.sim.seaLevel = barrier ? barrierSeaLevel(this.time, this.threats)
@@ -735,6 +819,89 @@ class FloodInstance implements GameInstance {
       this.recording?.capture(this.time, this.sim, this.flooded);
       if (this.time >= this.roundEnd) this.finishStorm();
     }
+  }
+
+  /** One frame of the water table. */
+  private play(dt: number): void {
+    // Left alone, the sea sends a big wave now and then, so an idle screen stays alive.
+    if (this.time - this.lastTouch > GHOST.after && (this.waveStart === null || this.time - this.waveStart > GHOST.every)) this.sendWave();
+    this.sim.seaLevel = playSeaLevel(this.time, this.waveStart);
+    const start = performance.now();
+    try {
+      this.sim.advance(dt * PLAY_TIME_SCALE);
+    } catch (error) {
+      // Kiosk safety: never freeze on a numerical failure; keep the sand and the holes.
+      console.error(error);
+      resetPlayWater(this.sim);
+    }
+    this.solverMs += .05 * (performance.now() - start - this.solverMs);
+    soak(this.sim, dt * PLAY_TIME_SCALE);
+    averageFlow(this.sim, this.mean, dt);
+    wash(this.sim, this.mean, dt * PLAY_TIME_SCALE);
+    this.springClock += dt;
+    if (this.springClock >= SPRING_DUCKS.every) {
+      this.springClock = 0;
+      if (this.ducks.filter(d => d.fromSpring && d.x > 22).length < SPRING_DUCKS.upTo) this.ducks.push(newDuck(SPRING.x + 1, SPRING.y + 1, true));
+    }
+    this.ducks = moveDucks(this.sim, this.ducks, dt);
+    while (this.ducks.length > MAX_DUCKS) this.ducks.shift();
+    moveFlecks(this.sim, this.flecks, FLECKS, dt, Math.random);
+    const water = this.sim.water, damp = this.damp;
+    for (let i = 0; i < water.length; i++) damp[i] = water[i] > .02 ? 1 : Math.max(0, damp[i] - dt / 12);
+    // A machine where the solver cannot keep up switches to the cheaper first-order scheme.
+    this.playClock += dt;
+    if (!this.lowQuality && !QUALITY && this.playClock > 3 && this.solverMs > SLOW_SOLVER_MS) {
+      this.lowQuality = true;
+      this.sim.secondOrder = false;
+    }
+  }
+  /** Free play's tools at the pointer; `first` on the press itself. */
+  private playTool(dt: number, p: Point, first: boolean): void {
+    this.lastTouch = this.time;
+    const i = Math.floor(p.y) * W + Math.floor(p.x), wet = this.sim.water[i] > .1;
+    if (this.tool === 'water') {
+      const from = this.dragFrom;
+      this.dragFrom = { x: p.x, y: p.y };
+      if (first && wet) {
+        this.sim.splash(p.x, p.y, 1.2, 1.6);
+        this.rings.push({ x: p.x, y: p.y, age: 0 });
+        sound.play('splash');
+      }
+      // Dragging pushes the water along at the pointer's speed (cells/s → m/s).
+      const vx = from ? (p.x - from.x) / dt : 0, vy = from ? (p.y - from.y) / dt : 0;
+      if (Math.hypot(vx, vy) > .5) push(this.sim, p.x, p.y, vx * DX / PLAY_TIME_SCALE, vy * DX / PLAY_TIME_SCALE, dt);
+      pour(this.sim, p.x, p.y, BRUSH.pour * dt);
+      const level = this.levelAt(p.x, p.y);
+      for (let k = 0; k < 3; k++) {
+        const a = Math.random() * Math.PI * 2, r = Math.random() * 1.1;
+        this.drops.push({ x: p.x + Math.cos(a) * r, y: p.y + Math.sin(a) * r, z: level + 2.2 + Math.random() * 1.5, vz: -4 });
+      }
+      return;
+    }
+    if (this.tool === 'duck') {
+      this.duckClock -= dt;
+      if (!first && this.duckClock > 0) return;
+      this.duckClock = .3;
+      this.ducks.push(newDuck(p.x, p.y));
+      while (this.ducks.length > MAX_DUCKS) this.ducks.shift();
+      sound.play('squeak', { pitch: .8 + Math.random() * .4 });
+      return;
+    }
+    const dig = this.tool === 'dig';
+    const moved = shapeGround(this.sim, p.x, p.y, (dig ? -BRUSH.dig : BRUSH.sand) * dt);
+    if (moved > 0) {
+      sound.play('thud');
+      const s = this.project(p.x, p.y, this.levelAt(p.x, p.y));
+      for (let k = 0; k < 2; k++) {
+        this.puffs.push({ x: s.x + (Math.random() - .5) * 14, y: s.y, vx: (Math.random() - .5) * 50, vy: -30 - Math.random() * 40, life: 1, color: dig ? EARTH_PUFF : SAND_PUFF });
+      }
+    }
+  }
+  /** The surface at a point: the water where it is wet, else the ground. */
+  private levelAt(x: number, y: number): number {
+    const i = Math.min(H - 1, Math.max(0, Math.floor(y))) * W + Math.min(W - 1, Math.max(0, Math.floor(x)));
+    const h = this.sim.water[i];
+    return this.sim.terrain[i] + (h > .02 ? h : 0);
   }
 
   /** The gate swings shut or open in GATE.seconds. */
@@ -769,25 +936,16 @@ class FloodInstance implements GameInstance {
     this.ships = this.ships.filter(s => s.x > 0 && s.x < HARBOUR.x1);
   }
 
-  private interact(dt: number, p: Point): void {
+  private interact(dt: number, p: Point, first: boolean): void {
+    if (this.inPlayground()) { this.playTool(dt, p, first); return; }
     const i = Math.floor(p.y) * W + Math.floor(p.x);
-    if (this.mode === 'toy' && p.x < DIKE_X[0] && this.sim.water[i] > .3) {
-      this.splashTimer -= dt;
-      if (this.splashTimer <= 0) {
-        this.sim.splash(p.x, p.y, 1.4, 2);
-        sound.play('splash');
-        this.rings.push({ x: p.x, y: p.y, age: 0 });
-        this.splashTimer = .25;
-      }
-      return;
-    }
     const used = placeSand(this.sim, [p], SAND_RATE * dt, this.budget);
     if (this.mode !== 'toy') this.budget = Math.max(0, this.budget - used);
     if (used > 0) {
       sound.play('thud');
       const s = this.project(p.x, p.y, this.sim.terrain[i]);
       for (let k = 0; k < 2; k++) {
-        this.puffs.push({ x: s.x + (Math.random() - .5) * 14, y: s.y, vx: (Math.random() - .5) * 50, vy: -30 - Math.random() * 40, life: 1 });
+        this.puffs.push({ x: s.x + (Math.random() - .5) * 14, y: s.y, vx: (Math.random() - .5) * 50, vy: -30 - Math.random() * 40, life: 1, color: SAND_PUFF });
       }
     }
   }
@@ -809,11 +967,8 @@ class FloodInstance implements GameInstance {
   }
 
   private preview(): void {
-    if (!this.canBuild() || !this.pointer || this.holding) { this.plan = new Map(); return; }
-    const p = this.pointer;
-    const i = Math.floor(p.y) * W + Math.floor(p.x);
-    const splash = this.mode === 'toy' && p.x < DIKE_X[0] && this.sim.water[i] > .3;
-    this.plan = splash ? new Map() : sandPlan(this.sim, [p], .2);
+    if (!this.canBuild() || !this.pointer || this.holding || this.inPlayground()) { this.plan = new Map(); return; }
+    this.plan = sandPlan(this.sim, [this.pointer], .2);
   }
 
   // ---- drawing ----
@@ -828,10 +983,17 @@ class FloodInstance implements GameInstance {
   private hit(e: PointerEvent): Point | null {
     const r = this.host.canvas.getBoundingClientRect(), { scale, ox, oy } = this.transform;
     const px = (e.clientX - r.left - ox) / scale, py = (e.clientY - r.top - oy) / scale;
-    const snap = (wx: number) => wx >= DIKE_X[0] + .5 && wx <= DIKE_X[1] + .5 ? (DIKE_X[0] + DIKE_X[1] + 1) / 2 : wx;
+    const play = this.inPlayground();
+    const snap = (wx: number) => !play && wx >= DIKE_X[0] + .5 && wx <= DIKE_X[1] + .5 ? (DIKE_X[0] + DIKE_X[1] + 1) / 2 : wx;
     // Match the visible faces in reverse draw order: the top of each column, then
     // its front and right walls (the sides of a dike or a sand pile are clickable too).
-    const t = this.sim.terrain;
+    // On the water table the top is the water surface, where there is water.
+    let t = this.sim.terrain;
+    if (play) {
+      const { terrain, water } = this.sim;
+      for (let i = 0; i < t.length; i++) this.surface[i] = terrain[i] + (water[i] > .02 ? water[i] : 0);
+      t = this.surface;
+    }
     for (let y = H - 1; y >= 0; y--) for (let x = W - 1; x >= 0; x--) {
       const i = y * W + x, z = t[i];
       const yy = py + z * 11;
@@ -881,9 +1043,10 @@ class FloodInstance implements GameInstance {
       if (r.width < width * .6) return { x: r.right - c.left + 20, y: 70, w: width - (r.right - c.left) - 40, h: height - 100, gauge: false };
       return { x: 12, y: 70, w: width - 24, h: r.top - c.top - 90, gauge: false };
     }
-    const gauge = narrow ? 0 : 110;
+    // The tide gauge is for the dike rounds; the water table uses the whole width.
+    const gauge = narrow || this.inPlayground() ? 0 : 110;
     const top = narrow ? 70 : 78, bottom = height - (narrow ? 120 : 150);
-    return { x: gauge, y: top, w: width - gauge - 40, h: bottom - top, gauge: !narrow };
+    return { x: gauge, y: top, w: width - gauge - 40, h: bottom - top, gauge: gauge > 0 };
   }
 
   private draw(): void {
@@ -902,7 +1065,7 @@ class FloodInstance implements GameInstance {
     c.setTransform(dpr, 0, 0, dpr, 0, 0);
     for (const p of this.puffs) {
       const s = this.toScreen(p);
-      c.fillStyle = `rgba(232,205,140,${Math.max(0, p.life) * .8})`;
+      c.fillStyle = `${p.color}${Math.max(0, p.life) * .8})`;
       c.beginPath(); c.arc(s.x, s.y, 2.5 + (1 - p.life) * 4, 0, Math.PI * 2); c.fill();
     }
     const lens = this.lensAt ? { screen: this.toScreen(this.project(this.lensAt.x, this.lensAt.y, 0)), grid: this.lensAt }
@@ -917,6 +1080,7 @@ class FloodInstance implements GameInstance {
     const { terrain, water } = this.sim;
     const hardTop = this.sim.erosion!.hardTop;
     const pulse = .5 + .5 * Math.sin(performance.now() / 90);
+    const play = this.inPlayground();
     // The exposed earth makes the below-sea-level polder legible.
     for (let x = 0; x < W; x++) this.poly([this.project(x, H, terrain[(H - 1) * W + x]), this.project(x + 1, H, terrain[(H - 1) * W + x]), this.project(x + 1, H, -5), this.project(x, H, -5)], x % 3 ? '#80694d' : '#8d7555');
     for (let y = 0; y < H; y++) this.poly([this.project(W, y, terrain[y * W + W - 1]), this.project(W, y + 1, terrain[y * W + W - 1]), this.project(W, y + 1, -5), this.project(W, y, -5)], '#554e3b');
@@ -926,15 +1090,17 @@ class FloodInstance implements GameInstance {
       const scar = z < this.base[i] - .05;
       const field = (Math.floor(x / 6) + Math.floor(y / 5)) % 3;
       let land = z < -1 ? '#b8b18a' : z > 1 ? '#91aa67' : ['#78935d', '#889f65', '#718c58'][field];
+      let sides: readonly string[] = sand ? SIDES.sand : scar ? SIDES.scar : SIDES.grass;
+      if (play) [land, sides] = this.playGround(i, x, y, z, sand, scar);
       if (scar) land = '#8a6a45';
-      if (sand) land = '#d9b86e';
+      if (sand) land = play ? land : '#d9b86e';
       const harbourPart = this.round === 3 ? this.harbourPart(x, y) : '';
       if (harbourPart === 'quay') land = '#a39f8c';
       if (harbourPart === 'gate') land = '#c7cdd4';
       const front = y < H - 1 ? terrain[i + W] : z;
       const right = x < W - 1 ? terrain[i + 1] : z;
-      if (z > front) this.poly([this.project(x, y + 1, z), this.project(x + 1, y + 1, z), this.project(x + 1, y + 1, front), this.project(x, y + 1, front)], sand ? '#a48b50' : scar ? '#6d5236' : '#667d49');
-      if (z > right) this.poly([this.project(x + 1, y, z), this.project(x + 1, y + 1, z), this.project(x + 1, y + 1, right), this.project(x + 1, y, right)], sand ? '#b29858' : scar ? '#7a5c3d' : '#819358');
+      if (z > front) this.poly([this.project(x, y + 1, z), this.project(x + 1, y + 1, z), this.project(x + 1, y + 1, front), this.project(x, y + 1, front)], sides[0]);
+      if (z > right) this.poly([this.project(x + 1, y, z), this.project(x + 1, y + 1, z), this.project(x + 1, y + 1, right), this.project(x + 1, y, right)], sides[1]);
       this.tile(x, y, z, land);
       if (h > .012) {
         const deep = Math.min(1, h / 3);
@@ -956,19 +1122,27 @@ class FloodInstance implements GameInstance {
           const p = this.project(x + .2, y + .5, z + h); c.strokeStyle = '#b9eeef60'; c.lineWidth = .7; c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(p.x + 7, p.y + 1); c.stroke();
         }
       }
+      if (play) {
+        // White water where it runs faster than its own waves (Froude number over 1):
+        // breaking waves, a river shooting over a ledge, a dam bursting.
+        if (h > .05) {
+          const froude = Math.hypot(this.sim.mx[i], this.sim.my[i]) / h / Math.sqrt(9.81 * h);
+          if (froude > .85) this.tile(x, y, z + h, `rgba(255,255,255,${Math.min(.5, (froude - .85) * .8).toFixed(2)})`);
+          // Sand washing away clouds the water.
+          if (this.sim.wear[i] > 1e-4) this.tile(x, y, z + h, 'rgba(165,120,62,.4)');
+        }
+        continue;
+      }
       // The ground is washing away here: a pulsing red outline.
       if (this.sim.wear[i] > 2e-4) this.tile(x, y, z + h, `rgba(255,90,70,${.15 + .25 * pulse})`, `rgba(255,120,90,${.6 + .4 * pulse})`);
     }
+    if (play) { this.drawPlayExtras(); return; }
     // Small lanes and trees give the polder a human scale without hiding flow.
     c.strokeStyle = '#c4bfa18a'; c.lineWidth = 2;
     c.beginPath();
     for (let x = 30; x <= 51; x++) { const p = this.project(x, 20, terrain[20 * W + x] + .03); if (x === 30) c.moveTo(p.x, p.y); else c.lineTo(p.x, p.y); }
     c.stroke();
-    for (const [x, y] of [[30, 12], [47, 12], [52, 36], [31, 29], [55, 8], [54, 34]]) {
-      const i = y * W + x; if (water[i] > .1) continue;
-      const p = this.project(x, y, terrain[i]); c.fillStyle = '#6c6347'; c.fillRect(p.x - 1, p.y - 8, 2, 9);
-      c.fillStyle = '#416952'; c.beginPath(); c.ellipse(p.x, p.y - 13, 5, 8, 0, 0, Math.PI * 2); c.fill();
-    }
+    for (const [x, y] of [[30, 12], [47, 12], [52, 36], [31, 29], [55, 8], [54, 34]]) this.drawTree(x, y);
     this.drawTestMarks();
     this.drawPlaceNames();
     if (this.round === 3 && this.mode !== 'replay') for (const ship of this.ships) this.drawShip(ship);
@@ -976,9 +1150,7 @@ class FloodInstance implements GameInstance {
     HOMES.forEach(([x, y], k) => { const wet = (this.flooded & (1 << k)) !== 0; this.house(x, y, wet, k === 6, calm && !wet); });
     this.drawPump();
     this.drawLevelPosts();
-    const p = this.project(58, 10, 1), a0 = (this.mode === 'replay' ? this.replayTime : this.time) * 1.2;
-    c.fillStyle = '#e2d6b8'; c.fillRect(p.x - 4, p.y - 23, 8, 25); c.strokeStyle = '#eee6cd'; c.lineWidth = 3;
-    for (let k = 0; k < 4; k++) { const a = a0 + k * Math.PI / 2; c.beginPath(); c.moveTo(p.x, p.y - 20); c.lineTo(p.x + Math.cos(a) * 17, p.y - 20 + Math.sin(a) * 17); c.stroke(); }
+    this.drawMill(58, 10, 1);
     let cost = 0; for (const d of this.plan.values()) cost += d;
     const ghostColor = this.mode === 'toy' || cost <= this.budget ? '#ffdc8480' : '#ff736eaa';
     for (const [i, rise] of this.plan) {
@@ -1012,6 +1184,127 @@ class FloodInstance implements GameInstance {
       }
       c.stroke();
     }
+  }
+
+  private drawMill(x: number, y: number, z: number): void {
+    const c = this.ctx, p = this.project(x, y, z), a0 = (this.mode === 'replay' ? this.replayTime : this.time) * 1.2;
+    c.fillStyle = '#e2d6b8'; c.fillRect(p.x - 4, p.y - 23, 8, 25); c.strokeStyle = '#eee6cd'; c.lineWidth = 3;
+    for (let k = 0; k < 4; k++) { const a = a0 + k * Math.PI / 2; c.beginPath(); c.moveTo(p.x, p.y - 20); c.lineTo(p.x + Math.cos(a) * 17, p.y - 20 + Math.sin(a) * 17); c.stroke(); }
+  }
+  private drawTree(x: number, y: number): void {
+    const i = y * W + x, c = this.ctx;
+    if (this.sim.water[i] > .1) return;
+    const p = this.project(x, y, this.sim.terrain[i]); c.fillStyle = '#6c6347'; c.fillRect(p.x - 1, p.y - 8, 2, 9);
+    c.fillStyle = '#416952'; c.beginPath(); c.ellipse(p.x, p.y - 13, 5, 8, 0, 0, Math.PI * 2); c.fill();
+  }
+
+  /** The water table's ground: colour of the top and of the two visible sides. */
+  private playGround(i: number, x: number, y: number, z: number, sand: boolean, scar: boolean): [string, readonly string[]] {
+    const wet = Math.round(this.damp[i] * 4);
+    if (sand) return [DAMP_SAND[wet], SIDES.sand];
+    if (scar) return ['#8a6a45', SIDES.scar];
+    const kind = this.kinds[i];
+    if (kind === Ground.Rock) return ['#a39d90', SIDES.rock];
+    if (kind === Ground.Floor || kind === Ground.Beach) return [DAMP_BEACH[wet], SIDES.beach];
+    if (kind === Ground.Dune) return [DUNE[(x + y) % 3], SIDES.dune];
+    const field = (Math.floor(x / 6) + Math.floor(y / 5)) % 3;
+    return [z > 3 ? HILL[field] : GRASS[field], SIDES.grass];
+  }
+
+  /** The water table's scenery and life, after the ground and water. */
+  private drawPlayExtras(): void {
+    const c = this.ctx, { terrain, water } = this.sim;
+    for (const [x, y] of TREES) this.drawTree(x, y);
+    this.drawMill(MILL.x, MILL.y, terrain[MILL.y * W + MILL.x]);
+    // The lighthouse on the island, its lamp turning.
+    const l = this.project(LIGHTHOUSE.x + .5, LIGHTHOUSE.y + .5, terrain[LIGHTHOUSE.y * W + LIGHTHOUSE.x]);
+    for (let k = 0; k < 4; k++) { c.fillStyle = k % 2 ? '#f4efe4' : '#c8453a'; c.fillRect(l.x - 4 + k * .4, l.y - 7 * (k + 1), 8 - k * .8, 7.5); }
+    c.fillStyle = '#3b4950'; c.fillRect(l.x - 3, l.y - 34, 6, 6);
+    const beam = Math.sin(this.time * 1.6);
+    const glow = c.createRadialGradient(l.x, l.y - 31, 1, l.x, l.y - 31, 14);
+    glow.addColorStop(0, `rgba(255,236,150,${.55 + .4 * beam})`); glow.addColorStop(1, 'rgba(255,236,150,0)');
+    c.fillStyle = glow; c.fillRect(l.x - 14, l.y - 45, 28, 28);
+    // The spring: stones round a pool that wells up.
+    const sx = SPRING.x + 1, sy = SPRING.y + 1, sp = this.project(sx, sy, this.levelAt(sx, sy));
+    c.fillStyle = '#8e8a80';
+    for (const [dx, dy, r] of [[-11, 2, 4], [9, 3, 3.5], [-2, 7, 3], [12, -3, 3]]) { c.beginPath(); c.ellipse(sp.x + dx, sp.y + dy, r * 1.3, r, 0, 0, Math.PI * 2); c.fill(); }
+    c.strokeStyle = 'rgba(235,252,255,.8)'; c.lineWidth = 1.3;
+    for (let k = 0; k < 3; k++) {
+      const a = (this.time * .9 + k / 3) % 1;
+      c.globalAlpha = 1 - a; c.beginPath(); c.ellipse(sp.x, sp.y, 2 + a * 9, (2 + a * 9) * .45, 0, 0, Math.PI * 2); c.stroke();
+    }
+    c.globalAlpha = 1;
+    this.drawFlecks();
+    for (const d of this.ducks) this.drawDuck(d, 1);
+    // Poured water falling.
+    c.strokeStyle = 'rgba(150,220,245,.85)'; c.lineWidth = 1.4; c.beginPath();
+    for (const d of this.drops) { const a = this.project(d.x, d.y, d.z), b = this.project(d.x, d.y, d.z + .35); c.moveTo(a.x, a.y); c.lineTo(b.x, b.y); }
+    c.stroke();
+    // Splash rings, spreading at the wave speed √(g·depth) of the water they start in.
+    for (const r of this.rings) {
+      const i = Math.floor(r.y) * W + Math.floor(r.x), depth = Math.max(.3, water[i]);
+      const radius = .5 + r.age * Math.sqrt(9.81 * depth) * PLAY_TIME_SCALE / DX, fade = 1 - r.age / 1.2;
+      c.strokeStyle = `rgba(235,252,255,${.85 * fade})`; c.lineWidth = 2.5 * fade + .5;
+      c.beginPath();
+      let pen = false;
+      for (let k = 0; k <= 48; k++) {
+        const a = k / 48 * Math.PI * 2, gx = r.x + Math.cos(a) * radius, gy = r.y + Math.sin(a) * radius;
+        const j = Math.floor(gy) * W + Math.floor(gx);
+        if (gx < 0 || gx >= W || gy < 0 || gy >= H || water[j] < .05) { pen = false; continue; }
+        const q = this.project(gx, gy, terrain[j] + water[j] + .05);
+        if (pen) c.lineTo(q.x, q.y); else c.moveTo(q.x, q.y);
+        pen = true;
+      }
+      c.stroke();
+    }
+    this.drawCursor();
+  }
+  /** Foam flecks drifting with the water, with a short tail along the flow. */
+  private drawFlecks(): void {
+    const c = this.ctx;
+    c.lineWidth = 1.2; c.lineCap = 'round';
+    for (const alpha of [.3, .6, .9]) {
+      c.strokeStyle = `rgba(240,252,255,${alpha})`; c.beginPath();
+      for (const f of this.flecks) {
+        const fade = Math.min(1, f.age / .4, (f.life - f.age) / .6);
+        if (Math.abs(fade - alpha) > .15 && !(alpha === .9 && fade > .9)) continue;
+        const z = this.levelAt(f.x, f.y) + .03, a = this.project(f.x, f.y, z), b = this.project(f.x - f.vx * .12, f.y - f.vy * .12, z);
+        if (Math.abs(a.x - b.x) + Math.abs(a.y - b.y) < 1.2) { c.moveTo(a.x - .7, a.y); c.lineTo(a.x + .7, a.y); } else { c.moveTo(b.x, b.y); c.lineTo(a.x, a.y); }
+      }
+      c.stroke();
+    }
+    c.lineCap = 'butt';
+  }
+  /** A rubber duck, bobbing on the surface (or falling in). */
+  private drawDuck(d: Duck, alpha: number): void {
+    const c = this.ctx, f = d.facing;
+    const z = this.levelAt(d.x, d.y) + d.fall + .05 * Math.sin(d.age * 4 + d.x);
+    const p = this.project(d.x, d.y, z);
+    c.globalAlpha = alpha;
+    if (d.afloat && d.fall === 0) { c.strokeStyle = 'rgba(255,255,255,.5)'; c.lineWidth = 1; c.beginPath(); c.ellipse(p.x, p.y + 1, 10, 3.6, 0, 0, Math.PI * 2); c.stroke(); }
+    c.fillStyle = '#ffd43b'; c.strokeStyle = '#c9971a'; c.lineWidth = .8;
+    c.beginPath(); c.moveTo(p.x - f * 6.5, p.y - 5); c.lineTo(p.x - f * 10, p.y - 10); c.lineTo(p.x - f * 4, p.y - 7); c.closePath(); c.fill(); c.stroke();
+    c.beginPath(); c.ellipse(p.x, p.y - 3.5, 8, 4.8, 0, 0, Math.PI * 2); c.fill(); c.stroke();
+    c.beginPath(); c.arc(p.x + f * 4.5, p.y - 10, 3.8, 0, Math.PI * 2); c.fill(); c.stroke();
+    c.fillStyle = '#f2b81f'; c.beginPath(); c.ellipse(p.x - f * 1.2, p.y - 4, 4, 2.3, 0, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#ff8a1f'; c.beginPath(); c.moveTo(p.x + f * 7.6, p.y - 10.6); c.lineTo(p.x + f * 11.2, p.y - 9.4); c.lineTo(p.x + f * 7.6, p.y - 8.4); c.closePath(); c.fill();
+    c.fillStyle = '#1d1d1d'; c.beginPath(); c.arc(p.x + f * 5.4, p.y - 11, .95, 0, Math.PI * 2); c.fill();
+    c.globalAlpha = 1;
+  }
+  /** Where the tool will act: the brush ring, or a duck ready to drop. */
+  private drawCursor(): void {
+    const p = this.pointer, c = this.ctx;
+    if (!p || this.delve) return;
+    if (this.tool === 'duck') { if (!this.holding) this.drawDuck({ ...newDuck(p.x, p.y), fall: .8, age: this.time }, .5); return; }
+    const r = this.tool === 'water' ? 1.1 : BRUSH.radius;
+    c.strokeStyle = this.tool === 'water' ? '#bdf0ff' : this.tool === 'dig' ? '#e0a46e' : '#ffe08a';
+    c.lineWidth = 2; c.setLineDash([4, 3]); c.beginPath();
+    for (let k = 0; k <= 32; k++) {
+      const a = k / 32 * Math.PI * 2, gx = p.x + Math.cos(a) * r, gy = p.y + Math.sin(a) * r;
+      const q = this.project(gx, gy, this.levelAt(gx, gy) + .05);
+      if (k) c.lineTo(q.x, q.y); else c.moveTo(q.x, q.y);
+    }
+    c.stroke(); c.setLineDash([]);
   }
 
   private harbourPart(x: number, y: number): '' | 'quay' | 'gate' {
@@ -1175,7 +1468,7 @@ export const floodland: ArcadeGame = {
     nl: 'Na de watersnood van 1953 berekende een wiskundige van de voorloper van het CWI hoe hoog Nederlandse dijken moeten zijn. Hier laat de computer echt water stromen, vakje voor vakje.',
     no: 'Etter flommen i 1953 regnet en matematiker ved CWIs forgjenger ut hvor høye nederlandske diker burde være. Her flytter datamaskinen ekte vann, rute for rute.',
   },
-  tileHook: { en: 'Hold back the sea with sand', nl: 'Houd de zee tegen met zand', no: 'Hold havet unna med sand' },
+  tileHook: { en: 'Play with water, hold back the sea', nl: 'Speel met water, houd de zee tegen', no: 'Lek med vann, hold havet unna' },
   tileEmoji: '🌊',
   create: host => new FloodInstance(host),
 };

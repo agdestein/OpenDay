@@ -244,3 +244,136 @@ import { harbourScene, setGate, barrierSeaLevel, barrierThreats, ensemble, forec
   assert.ok(HARBOUR.quay < 1.6);
   console.log(`PASS: round 4. Flooded: gate open ${open}, closed for both ${both}, big only ${bigOnly}, late ${late}.`);
 }
+
+// ---- Free play: the water table, on the second-order scheme ----
+import {
+  BRUSH, Ground, MAX_DUCKS, PLAY_TIME_SCALE, SPRING, averageFlow, currents, groundKinds, makePlayground, moveDucks,
+  moveFlecks, newDuck, playSeaLevel, pour, push, resetPlayWater, shapeGround, soak, wash, type Duck, type Fleck,
+} from '../src/games/floodland/playground.ts';
+{
+  // Second order is still well balanced (also round a dry island) and conservative.
+  const lake2 = new FloodSim(16, 12); lake2.ocean = false; lake2.secondOrder = true;
+  for (let i = 0; i < lake2.water.length; i++) { lake2.terrain[i] = Math.sin(i) * .4; lake2.water[i] = 2 - lake2.terrain[i]; }
+  const v2 = lake2.volume(), o2 = lake2.water.slice(); lake2.advance(60);
+  assert.ok(Math.abs(lake2.volume() - v2) < 1e-6);
+  assert.ok(lake2.water.every((h, i) => Math.abs(h - o2[i]) < 1e-10) && lake2.mx.every(q => Math.abs(q) < 1e-10));
+  const isle = new FloodSim(20, 20); isle.ocean = false; isle.secondOrder = true;
+  for (let y = 0; y < 20; y++) for (let x = 0; x < 20; x++) {
+    const i = y * 20 + x; isle.terrain[i] = 1.5 * Math.exp(-((x - 10) ** 2 + (y - 10) ** 2) / 12) + .3 * Math.sin(x) - 1;
+    isle.water[i] = Math.max(0, -isle.terrain[i]);
+  }
+  const o3 = isle.water.slice(); isle.advance(100);
+  assert.ok(isle.water.every((h, i) => Math.abs(h - o3[i]) < 1e-10), 'Lake at rest round a dry island');
+  const dam2 = new FloodSim(32, 12); dam2.ocean = false; dam2.secondOrder = true;
+  for (let y = 0; y < 12; y++) for (let x = 0; x < 8; x++) dam2.water[y * 32 + x] = 2;
+  const v3 = dam2.volume(); dam2.advance(40);
+  assert.ok(dam2.water.every(h => Number.isFinite(h) && h >= 0) && dam2.water[6 * 32 + 18] > .01);
+  assert.ok(Math.abs(dam2.volume() - v3) < 1e-6, 'Second-order dam break conserves water');
+  // Short waves from the sea edge travel much further before the scheme smears them out.
+  const reach = (second: boolean) => {
+    const c = new FloodSim(200, 1); c.waveBoundary = true; c.friction = .004; c.secondOrder = second;
+    for (let x = 0; x < 200; x++) { c.terrain[x] = -2; c.water[x] = 2; }
+    let amp = 0;
+    for (let t = 0; t < 12; t += 1 / 60) { c.seaLevel = .25 * Math.sin(2 * Math.PI * t / 1.2); c.advance(24 / 60); if (t > 8) amp = Math.max(amp, Math.abs(c.water[24] - 2)); }
+    return amp;
+  };
+  const first = reach(false), second = reach(true);
+  assert.ok(second > 3 * first, `A 13-cell wave keeps its height (${second.toFixed(3)} vs ${first.toFixed(3)} m after 24 cells)`);
+  console.log(`PASS: second order: lake at rest, dry island, dam break; wave after 24 cells ${second.toFixed(3)} m (first order ${first.toFixed(3)} m).`);
+}
+{
+  const frame = 1 / 60, physical = PLAY_TIME_SCALE / 60;
+  const play = (s: FloodSim, mean: ReturnType<typeof currents>, t: number, wave: number | null = null) => {
+    s.seaLevel = playSeaLevel(t, wave); s.advance(physical); soak(s, physical); averageFlow(s, mean, frame); wash(s, mean, physical);
+  };
+  // The river runs from the spring to the sea, and carries ducks there.
+  const s = makePlayground(), mean = currents(), kinds = groundKinds(s.terrain), start = s.water.slice();
+  assert.ok(s.secondOrder && s.sources.length > 0);
+  let ducks: Duck[] = [0, 1, 2, 3].map(k => newDuck(SPRING.x + .5 + k * .3, SPRING.y + .8, true));
+  const arrived = new Set<Duck>();
+  for (let t = 0; t < 40; t += frame) {
+    play(s, mean, t);
+    ducks = moveDucks(s, ducks, frame);
+    for (const d of ducks) if (d.x < 18) arrived.add(d);
+  }
+  assert.equal(arrived.size, 4, 'Ducks from the spring float down to the sea within 40 s');
+  // The calm sea stays on the beach: the fields (three squares or more from any water
+  // at the start) stay dry.
+  let near = Uint8Array.from(start, h => (h > .01 ? 1 : 0));
+  for (let k = 0; k < 3; k++) near = near.map((v, i) => v || near[i - 1] || near[i + 1] || near[i - W] || near[i + W] ? 1 : 0);
+  const inland = [...kinds.keys()].filter(i => kinds[i] === Ground.Grass && !near[i]);
+  assert.ok(inland.every(i => s.water[i] < .02), 'The swell and the river stay out of the fields');
+  // A big wave runs up the beach and over low dunes, then soaks away.
+  const beach = [...kinds.keys()].filter(i => kinds[i] === Ground.Beach && start[i] < .01);
+  let wetBeach = 0, wetLand = 0;
+  for (let t = 40; t < 70; t += frame) {
+    play(s, mean, t, 40);
+    if (t < 46) { wetBeach = Math.max(wetBeach, beach.filter(i => s.water[i] > .05).length); wetLand = Math.max(wetLand, inland.filter(i => s.water[i] > .02).length); }
+  }
+  const stillWet = inland.filter(i => s.water[i] > .02).length;
+  assert.ok(wetBeach > beach.length / 3, `The big wave runs up the beach (${wetBeach} of ${beach.length} cells)`);
+  assert.ok(wetLand < inland.length / 4, 'The dunes keep most of it off the fields');
+  assert.ok(stillWet <= wetLand / 4, `Its wash soaks away (${stillWet} of ${wetLand} field cells still wet)`);
+  console.log(`PASS: water table: ducks reach the sea, the swell stays on the beach, the big wave wets ${wetBeach} beach and ${wetLand} field cells, ${stillWet} still wet after 24 s.`);
+}
+{
+  const frame = 1 / 60, physical = PLAY_TIME_SCALE / 60;
+  const sandOf = (s: FloodSim) => { let v = 0; for (let i = 0; i < W * H; i++) v += Math.max(0, s.terrain[i] - s.erosion!.hardTop[i]); return v; };
+  const run = (s: FloodSim, mean: ReturnType<typeof currents>, from: number, to: number, wave: number | null = null) => {
+    for (let t = from; t < to; t += frame) { s.seaLevel = playSeaLevel(t, wave); s.advance(physical); soak(s, physical); averageFlow(s, mean, frame); wash(s, mean, physical); }
+  };
+  // A dam of sand across the river valley fills a lake, overtops, bursts and widens;
+  // its sand is carried on, never lost.
+  const s = makePlayground(), mean = currents();
+  run(s, mean, 0, 5);
+  for (let y = 12; y <= 34; y++) for (let k = 0; k < 4; k++) shapeGround(s, 29.5, y + .5, .12 + .02 * Math.sin(y * 3));
+  const dam = Array.from({ length: 23 }, (_, k) => (12 + k) * W + 29), crest = Math.min(...dam.map(i => s.terrain[i])), sand = sandOf(s);
+  run(s, mean, 5, 60);
+  const low = Math.min(...dam.map(i => s.terrain[i])), breach = dam.filter(i => s.terrain[i] < crest - .3).length;
+  assert.ok(low < crest - .7, `The overtopped dam bursts (lowest crest ${crest.toFixed(2)} → ${low.toFixed(2)} m)`);
+  assert.ok(breach >= 3, 'and the breach widens');
+  assert.ok(Math.abs(sandOf(s) - sand) < 1e-6, 'Washing moves sand, it does not lose it');
+  // An island built well above the sea stays in the swell; the big wave takes a bite.
+  const isle = makePlayground(), m2 = currents();
+  for (let k = 0; k < 25; k++) shapeGround(isle, 8, 20, .2);
+  const top = () => Math.max(...[-1, 0, 1].flatMap(dy => [-1, 0, 1].map(dx => isle.terrain[(20 + dy) * W + 8 + dx])));
+  const built = top();
+  run(isle, m2, 0, 30);
+  const calm = top();
+  run(isle, m2, 30, 45, 30);
+  assert.ok(built - calm < .4, `An island stays in the swell (${built.toFixed(2)} → ${calm.toFixed(2)} m)`);
+  assert.ok(top() < calm - .3, 'and the big wave washes part of it away');
+  console.log(`PASS: sand: the dam bursts (${crest.toFixed(2)} → ${low.toFixed(2)} m, ${breach} cells wide), sand conserved; island ${built.toFixed(2)} → ${calm.toFixed(2)} → ${top().toFixed(2)} m.`);
+}
+{
+  // Kiosk safety: two minutes of a wild child — sand, holes, pouring, pushing and
+  // splashing anywhere, ducks, and a big wave every 15 s — never breaks the water.
+  const frame = 1 / 60, physical = PLAY_TIME_SCALE / 60, rng = random(11);
+  const s = makePlayground(), mean = currents();
+  let ducks: Duck[] = [], failures = 0, worst = 0, total = 0;
+  const flecks: Fleck[] = [];
+  for (let f = 0; f < 120 * 60; f++) {
+    const t = f * frame, x = rng() * W, y = rng() * H, tool = Math.floor(t / 3) % 5;
+    if (tool === 0) shapeGround(s, x, y, BRUSH.sand * frame * 6);
+    if (tool === 1) shapeGround(s, x, y, -BRUSH.dig * frame * 6);
+    if (tool === 2) pour(s, x, y, BRUSH.pour * frame * 3);
+    if (tool === 3) push(s, x, y, (rng() - .5) * 20, (rng() - .5) * 20, frame);
+    if (tool === 4 && f % 20 === 0) { s.splash(x, y, 1.2, 1.6); ducks.push(newDuck(x, y)); }
+    s.seaLevel = playSeaLevel(t, Math.floor(t / 15) * 15);
+    const a = performance.now();
+    try { s.advance(physical); } catch { failures++; resetPlayWater(s); }
+    const c = performance.now() - a; worst = Math.max(worst, c); total += c;
+    soak(s, physical); averageFlow(s, mean, frame); wash(s, mean, physical);
+    ducks = moveDucks(s, ducks, frame).slice(-MAX_DUCKS);
+    moveFlecks(s, flecks, 300, frame, rng);
+  }
+  assert.equal(failures, 0, 'No numerical failures');
+  assert.ok(s.water.every(h => Number.isFinite(h) && h >= 0) && s.mx.every(Number.isFinite) && s.my.every(Number.isFinite));
+  assert.ok(s.terrain.every(z => z >= BRUSH.bottom - 1e-9 && z <= BRUSH.top + 1e-9), 'Sand and holes stay within their limits');
+  assert.ok(ducks.every(d => d.x >= 0 && d.x <= W && d.y >= 0 && d.y <= H && Number.isFinite(d.vx)));
+  assert.ok(flecks.every(p => Number.isFinite(p.x)) && flecks.length > 100);
+  // After a numerical failure the water comes back, over the ground as it is now.
+  s.water.fill(NaN); resetPlayWater(s);
+  assert.ok(s.water.every(h => Number.isFinite(h) && h >= 0) && s.water[20 * W + 2] > 1);
+  console.log(`PASS: two wild minutes: no failures; solver ${(total / 7200).toFixed(2)} ms per frame on average, worst ${worst.toFixed(1)} ms.`);
+}

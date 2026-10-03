@@ -7,6 +7,26 @@ export const GRID_H = 40;
 export const DX = 10;
 const G = 9.81;
 const EPS = 1e-7;
+/** Second order: a face's mass flux, normal momentum flux on each side (with the
+ * hydrostatic correction) and tangential flux, written into FLUX. */
+const FLUX = new Float64Array(4);
+function rusanov(out: Float64Array, hL: number, zL: number, uL: number, vL: number, hR: number, zR: number, uR: number, vR: number): void {
+  const z = Math.max(zL, zR);
+  const l = Math.max(0, hL + zL - z), r = Math.max(0, hR + zR - z);
+  const speed = Math.max(Math.abs(uL) + Math.sqrt(G * l), Math.abs(uR) + Math.sqrt(G * r));
+  const mom = (l * uL * uL + r * uR * uR + G * (l * l + r * r) / 2 - speed * (r * uR - l * uL)) / 2;
+  out[0] = (l * uL + r * uR - speed * (r - l)) / 2;
+  out[1] = mom + G * (hL * hL - l * l) / 2;
+  out[2] = mom + G * (hR * hR - r * r) / 2;
+  out[3] = (l * uL * vL + r * uR * vR - speed * (r * vR - l * vL)) / 2;
+}
+/** Monotonized central slopes: sharper than minmod, and a face value never passes
+ * a neighbour's, so depths stay positive. */
+function limit(a: number, b: number): number {
+  if (a > 0 && b > 0) { const m = 2 * (a < b ? a : b), c = (a + b) / 2; return m < c ? m : c; }
+  if (a < 0 && b < 0) { const m = 2 * (a > b ? a : b), c = (a + b) / 2; return m > c ? m : c; }
+  return 0;
+}
 
 /** How the ground wears away under fast water. Two layers per cell: loose sand
  * above `hardTop`, the old ground below it (with its own resistance per cell),
@@ -43,8 +63,20 @@ export class FloodSim {
   pumpedVolume = 0;
   pumpConfig: { intakes: readonly number[]; outlet: number; capacity: number; minLevel?: number } | null = null;
   erosion: Erosion | null = null;
+  /** Second order in space and time (minmod slopes, Heun's method): short waves
+   * travel much further before the scheme smears them out. Off by default; the
+   * challenge is calibrated on the first-order scheme. */
+  secondOrder = false;
+  /** Manning's roughness n (s/m^⅓): extra friction that grows in shallow water. */
+  manning = 0;
+  /** Springs: water added to a cell, in m³/s. */
+  sources: { index: number; rate: number }[] = [];
   /** Time steps taken so far (the explainer counts them). */
   steps = 0;
+  /** Second order: the state at the start of a step, velocities and slopes. */
+  private start: Float64Array[] = [];
+  private vel: Float64Array[] = [];
+  private slope: Float64Array[] = [];
   constructor(readonly width = GRID_W, readonly height = GRID_H) {
     const n = width * height;
     this.terrain = new Float64Array(n);
@@ -98,8 +130,9 @@ export class FloodSim {
         const h = this.water[i];
         if (h > EPS) speed = Math.max(speed, Math.abs(this.mx[i] / h) + Math.abs(this.my[i] / h) + 2 * Math.sqrt(G * h));
       }
-      const dt = Math.min(duration, 0.38 * DX / speed);
-      this.step(dt);
+      const dt = Math.min(duration, (this.secondOrder ? .45 : .38) * DX / speed);
+      if (this.secondOrder) this.step2(dt); else this.step(dt);
+      for (const { index, rate } of this.sources) this.water[index] += rate * dt / (DX * DX);
       this.steps++;
       if (this.erosion) this.erode(dt);
       if (this.pumpConfig) {
@@ -157,6 +190,116 @@ export class FloodSim {
       this.mx[i] = (this.mx[i] + this.du[i]) * friction;
       this.my[i] = (this.my[i] + this.dv[i]) * friction;
       if (this.water[i] < EPS) this.mx[i] = this.my[i] = 0;
+    }
+  }
+  /** One Heun step of the second-order scheme: two first-order-like stages on
+   * reconstructed face values, averaged. */
+  private step2(dt: number): void {
+    const n = this.water.length;
+    if (!this.start.length) {
+      this.start = [0, 1, 2].map(() => new Float64Array(n));
+      this.vel = [0, 1].map(() => new Float64Array(n));
+      this.slope = Array.from({ length: 8 }, () => new Float64Array(n));
+    }
+    const h0 = this.start[0], mx0 = this.start[1], my0 = this.start[2];
+    const water = this.water, mx = this.mx, my = this.my, dh = this.dh, du = this.du, dv = this.dv;
+    h0.set(water); mx0.set(mx); my0.set(my);
+    for (let stage = 0; stage < 2; stage++) {
+      this.rhs2(dt, .5);
+      for (let i = 0; i < n; i++) {
+        let h = water[i] + dh[i], u = mx[i] + du[i], v = my[i] + dv[i];
+        if (stage === 1) { h = (h0[i] + h) / 2; u = (mx0[i] + u) / 2; v = (my0[i] + v) / 2; }
+        if (!(h >= -1e-3)) throw new Error('Negative shallow-water depth');
+        if (h < EPS) { h = Math.max(0, h); u = v = 0; }
+        water[i] = h; mx[i] = u; my[i] = v;
+      }
+    }
+    const gn2 = G * this.manning * this.manning;
+    for (let i = 0; i < n; i++) {
+      const h = water[i];
+      if (h <= 0) continue;
+      let k = this.friction;
+      if (gn2 > 0 && h > EPS) k += gn2 * Math.hypot(mx[i], my[i]) / (h * h * Math.cbrt(h));
+      const friction = 1 / (1 + k * dt);
+      mx[i] *= friction; my[i] *= friction;
+    }
+  }
+  /** Increments for one stage: limited slopes of depth, surface and velocity (none
+   * next to dry ground), hydrostatic reconstruction at every face, and the centred
+   * bed term that keeps a lake at rest (Audusse et al. 2004, second order). */
+  private rhs2(dt: number, boundaryWeight: number): void {
+    const { width: w, height: hh, water, terrain, mx, my, dh, du, dv } = this;
+    const u = this.vel[0], v = this.vel[1], s = this.slope;
+    const shx = s[0], sex = s[1], sux = s[2], svx = s[3], shy = s[4], sey = s[5], suy = s[6], svy = s[7];
+    const n = water.length, DRY = 1e-3;
+    for (let i = 0; i < n; i++) {
+      const h = water[i];
+      u[i] = h > EPS ? mx[i] / h : 0; v[i] = h > EPS ? my[i] / h : 0;
+    }
+    shx.fill(0); sex.fill(0); sux.fill(0); svx.fill(0); shy.fill(0); sey.fill(0); suy.fill(0); svy.fill(0);
+    for (let y = 0; y < hh; y++) for (let x = 0; x < w; x++) {
+      const i = y * w + x, h = water[i];
+      if (h <= DRY) continue;
+      const eta = h + terrain[i];
+      if (x > 0 && x < w - 1 && water[i - 1] > DRY && water[i + 1] > DRY) {
+        const a = i - 1, b = i + 1;
+        shx[i] = limit(h - water[a], water[b] - h);
+        sex[i] = limit(eta - water[a] - terrain[a], water[b] + terrain[b] - eta);
+        sux[i] = limit(u[i] - u[a], u[b] - u[i]);
+        svx[i] = limit(v[i] - v[a], v[b] - v[i]);
+      }
+      if (y > 0 && y < hh - 1 && water[i - w] > DRY && water[i + w] > DRY) {
+        const a = i - w, b = i + w;
+        shy[i] = limit(h - water[a], water[b] - h);
+        sey[i] = limit(eta - water[a] - terrain[a], water[b] + terrain[b] - eta);
+        suy[i] = limit(u[i] - u[a], u[b] - u[i]);
+        svy[i] = limit(v[i] - v[a], v[b] - v[i]);
+      }
+    }
+    dh.fill(0); du.fill(0); dv.fill(0);
+    const f = dt / DX, out = FLUX;
+    // Faces between columns (x-direction); the sea is the western edge.
+    for (let y = 0; y < hh; y++) for (let x = 0; x <= w; x++) {
+      const a = x > 0 ? y * w + x - 1 : -1, b = x < w ? y * w + x : -1;
+      const sea = x === 0 && this.ocean;
+      if ((a < 0 || water[a] <= 0) && (b < 0 || water[b] <= 0) && !sea) continue;
+      let hL = 0, zL = 0, uL = 0, vL = 0, hR = 0, zR = 0, uR = 0, vR = 0;
+      if (a >= 0) { hL = water[a] + shx[a] / 2; zL = terrain[a] + (sex[a] - shx[a]) / 2; uL = u[a] + sux[a] / 2; vL = v[a] + svx[a] / 2; }
+      if (b >= 0) { hR = water[b] - shx[b] / 2; zR = terrain[b] - (sex[b] - shx[b]) / 2; uR = u[b] - sux[b] / 2; vR = v[b] - svx[b] / 2; }
+      if (a < 0) {
+        zL = zR; vL = vR;
+        if (sea) {
+          hL = Math.max(0, this.seaLevel - zL); uL = uR;
+          if (this.waveBoundary) {
+            const incoming = 2 * Math.sqrt(G * hL), outgoing = uR - 2 * Math.sqrt(G * hR);
+            uL = (incoming + outgoing) / 2;
+            hL = Math.max(0, (incoming - outgoing) / 4) ** 2 / G;
+          }
+        } else { hL = hR; uL = -uR; }
+      }
+      if (b < 0) { hR = hL; zR = zL; uR = -uL; vR = vL; }
+      rusanov(out, hL, zL, uL, vL, hR, zR, uR, vR);
+      if (a >= 0) { dh[a] -= f * out[0]; du[a] -= f * out[1]; dv[a] -= f * out[3]; }
+      if (b >= 0) { dh[b] += f * out[0]; du[b] += f * out[2]; dv[b] += f * out[3]; }
+      if (sea) this.boundaryVolume += out[0] * dt * boundaryWeight * DX;
+    }
+    // Faces between rows (y-direction): walls at both ends.
+    for (let y = 0; y <= hh; y++) for (let x = 0; x < w; x++) {
+      const a = y > 0 ? (y - 1) * w + x : -1, b = y < hh ? y * w + x : -1;
+      if ((a < 0 || water[a] <= 0) && (b < 0 || water[b] <= 0)) continue;
+      let hL = 0, zL = 0, uL = 0, vL = 0, hR = 0, zR = 0, uR = 0, vR = 0;
+      if (a >= 0) { hL = water[a] + shy[a] / 2; zL = terrain[a] + (sey[a] - shy[a]) / 2; uL = v[a] + svy[a] / 2; vL = u[a] + suy[a] / 2; }
+      if (b >= 0) { hR = water[b] - shy[b] / 2; zR = terrain[b] - (sey[b] - shy[b]) / 2; uR = v[b] - svy[b] / 2; vR = u[b] - suy[b] / 2; }
+      if (a < 0) { hL = hR; zL = zR; uL = -uR; vL = vR; }
+      if (b < 0) { hR = hL; zR = zL; uR = -uL; vR = vL; }
+      rusanov(out, hL, zL, uL, vL, hR, zR, uR, vR);
+      if (a >= 0) { dh[a] -= f * out[0]; dv[a] -= f * out[1]; du[a] -= f * out[3]; }
+      if (b >= 0) { dh[b] += f * out[0]; dv[b] += f * out[2]; du[b] += f * out[3]; }
+    }
+    // The centred bed term: zero for a flat cell, balances the face pressures at rest.
+    for (let i = 0; i < n; i++) {
+      if (shx[i] !== 0 || sex[i] !== 0) du[i] -= f * G * water[i] * (sex[i] - shx[i]);
+      if (shy[i] !== 0 || sey[i] !== 0) dv[i] -= f * G * water[i] * (sey[i] - shy[i]);
     }
   }
   private face(a: number, b: number, horizontal: boolean, dt: number, sea: boolean): void {
