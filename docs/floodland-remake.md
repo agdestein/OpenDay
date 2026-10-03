@@ -249,8 +249,8 @@ physical seconds. A frame costs ~0.2 ms of solver time (worst 0.7 ms headless).
   dry island) and conservative. A 13-square wave keeps about 60 % of its height over
   30 squares, against 9 % in first order, so waves, wakes and splash rings travel. A
   step costs about six first-order steps; at 24 physical seconds per displayed second
-  free play needs about one step per frame (~1.4 ms on a laptop, 3 ms with a wild
-  child). If the solver averages more than 6 ms per frame, free play drops to first
+  free play needs about one step per frame (~0.7 ms on a laptop on mains power,
+  1.4 ms on battery saving; ~2 ms with a wild child). If the solver averages more than 6 ms per frame, free play drops to first
   order by itself; `?quality=low` starts there, `?quality=high` stays second order.
   The challenge runs the first-order scheme, so its calibration is unchanged.
 - **Free play's water.** Manning friction (n = 0.025) on top of a small linear one,
