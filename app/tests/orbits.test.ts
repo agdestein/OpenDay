@@ -1,4 +1,4 @@
-import { World, forecast, KINDS, SUN_R, TICK, type Kind } from '../src/games/orbits/physics.ts';
+import { World, forecast, KINDS, MAX_STAR_MASS, SUN_R, TICK, type Kind } from '../src/games/orbits/physics.ts';
 import { Defense, DEFENSE } from '../src/games/orbits/defense.ts';
 import { ZoneSim, ZONE, CPU_ZONE } from '../src/games/orbits/zone.ts';
 import { SlingSim, SLING, candidates, bestRoute, CPU_SLING } from '../src/games/orbits/sling.ts';
@@ -89,7 +89,20 @@ const run = (w: World, seconds: number) => { for (let i = 0; i < Math.round(seco
   q.add({ kind: 'pebble', x: 104, y: 100, vx: -10, vy: 0, gm: 0, r: 3, hue: 0 });
   q.step();
   assert.ok(q.bodies.length === 1 && q.bodies.every((p) => Number.isFinite(p.x + p.y + p.vx + p.vy)), 'massless merge stays finite');
-  console.log(`PASS: a giant wobbles the Sun by ${wobble.toFixed(1)} px; touching planets merge with mass and momentum kept.`);
+  // Stars flung into the Sun one after another: its mass stops at MAX_STAR_MASS, speed still averaged by mass.
+  const s = new World(W / 2, H / 2, u, GM);
+  s.reach = -1;
+  const star = s.add({ kind: 'star', sun: true, x: 100, y: 100, vx: 0, vy: 0, gm: GM, r: 28, hue: 0 });
+  for (let i = 0; i < 5; i++) {
+    const before = star.gm;
+    s.add({ kind: 'star', x: star.x + 30, y: star.y, vx: 0, vy: 10, gm: 0.6 * GM, r: 22, hue: 0 });
+    const vy = (before * star.vy + 0.6 * GM * 10) / (before + 0.6 * GM);
+    s.step();
+    assert.equal(s.bodies.length, 1, 'touching stars merge');
+    assert.ok(Math.abs(star.vy - vy) < 1e-6, 'merged star moves at the mass-weighted speed');
+  }
+  assert.ok(Math.abs(star.gm - MAX_STAR_MASS * GM) < 1e-9, `a star stops growing at ${MAX_STAR_MASS} Suns (${(star.gm / GM).toFixed(2)})`);
+  console.log(`PASS: a giant wobbles the Sun by ${wobble.toFixed(1)} px; touching planets merge with mass and momentum kept; stars stop at ${MAX_STAR_MASS} Suns.`);
 }
 
 // A second star turns the system wild but the guards keep it finite.

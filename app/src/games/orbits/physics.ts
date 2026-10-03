@@ -65,6 +65,12 @@ export const SUN_R = 28;
 /** Largest planet radius after merging (units); stars barely grow. */
 const MAX_PLANET_R = 26;
 const MAX_STAR_R = 36;
+/**
+ * Heaviest a star can get by merging (as a fraction of the Sun's mass).
+ * Colliding stars throw much of their gas off into space; without this, a
+ * few stars flung into the Sun make a well nothing can escape.
+ */
+export const MAX_STAR_MASS = 2;
 
 export interface Merge {
   /** The body that survives (already updated) and the one swallowed. */
@@ -279,7 +285,7 @@ export class World {
     }
   }
 
-  /** a and b become one body: mass and momentum kept, at their centre of mass. */
+  /** a and b become one body: mass and momentum kept (stars shed mass above MAX_STAR_MASS), at their centre of mass. */
   private merge(a: Body, b: Body): void {
     // The heavier one (or the Sun) survives and keeps its identity and colour.
     const keepA = a.sun || (!b.sun && a.gm >= b.gm);
@@ -300,12 +306,14 @@ export class World {
       into.kind = 'star';
       const big = Math.max(a.r, b.r);
       into.r = Math.max(big, Math.min(big + 0.15 * Math.min(a.r, b.r), MAX_STAR_R * u));
+      // The shed gas flies off evenly, so the speed above is unchanged; a star already heavier keeps its mass.
+      into.gm = Math.max(a.gm, b.gm, Math.min(m, MAX_STAR_MASS * this.refGm));
     } else {
       const big = Math.max(a.r, b.r);
       into.r = Math.max(big, Math.min(Math.cbrt(a.r ** 3 + b.r ** 3), MAX_PLANET_R * u));
       if (into.kind !== 'giant' && m >= 0.8 * KINDS.giant.mass * this.refGm) into.kind = 'giant';
+      into.gm = m;
     }
-    into.gm = m;
     this.remove(gone);
     this.merges.push({ into, gone, x, y });
   }

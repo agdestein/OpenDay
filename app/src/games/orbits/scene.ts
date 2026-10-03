@@ -1,7 +1,7 @@
 // Drawing and throwing for an N-body sky, shared by Gravity Doodle's toy and
 // its challenge rounds: trails, lit bodies, merge flashes, the dashed 🔮
 // forecast, the rubber-sheet gravity view, and drag → launch velocity.
-import type { Body, Outcome, World } from './physics';
+import { MAX_STAR_MASS, type Body, type Outcome, type World } from './physics';
 import { drawPlanet, drawStar } from './draw';
 
 /**
@@ -248,7 +248,7 @@ export function gravitySheet(world: World, u: number): (x: number, y: number) =>
   const wells = world.bodies
     .filter((b) => b.gm > 0 && Number.isFinite(b.x + b.y))
     .map((b) => {
-      const m = Math.cbrt(Math.min(1.5, b.gm / world.refGm));
+      const m = Math.cbrt(Math.min(MAX_STAR_MASS, b.gm / world.refGm));
       const s = (40 + 90 * m) * u + b.r;
       return { x: b.x, y: b.y, k: 0.78 * m, s, s2: s * s, s3: s * s * s, far2: (8 * s) ** 2 };
     });
