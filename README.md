@@ -117,6 +117,8 @@ Useful at the stand:
 - Add `?quality=low` on a slow machine to run Swirl Lab's fluid solver on its
   coarse grid from the start (`?quality=high` pins the fine grid). By default
   it starts fine and drops to coarse by itself if the first seconds stutter.
+  The same switch runs Save the Netherlands' free play on the cheaper
+  first-order scheme (it also drops to it by itself when the solver is slow).
 - Outbreak!'s free play has nobody dying by default; add `?deaths` to use the
   full model there too (the challenge always has it). See
   [the remake notes](docs/outbreak-remake.md).
@@ -178,8 +180,10 @@ the physics changes. See [the proposal](docs/creature-proposal.md)
 
 Save the Netherlands (`app/src/games/floodland/`) runs a finite-volume shallow-water model
 (hydrostatic reconstruction, Rusanov fluxes, wetting and drying) live every frame, with
-erosion so overtopped dikes breach. Free play has sand, splashes, a storm button and an
-X-ray lens; the challenge has four rounds (hold the line, find the weak spots with test
+erosion so overtopped dikes breach. Free play is a water table instead of a dike: a
+spring feeds a river through a pond to a beach where waves roll in, and you push and pour
+water, pile up sand (dams burst, the big wave takes islands), dig new rivers and drop
+rubber ducks, on a second-order version of the same solver; the challenge has four rounds (hold the line, find the weak spots with test
 storms, choose a dike height against a century of random storms after van Dantzig's
 1956 analysis, and close a storm-surge gate on an ensemble forecast). See [the notes](docs/floodland-remake.md).
 

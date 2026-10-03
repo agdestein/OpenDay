@@ -6,20 +6,61 @@ overtopped dikes wear away and breach, and a breach can be plugged if you are
 quick. [floodland-proposal.md](floodland-proposal.md) explains why the game was
 rebuilt this way (phases A, B and C of that proposal are what is described here).
 
-## Free play
+## Free play: the water table
 
-The game opens live, with a gentle swell on the sea.
+Free play used to be the challenge's first landscape with a storm button: kids closed
+the low sill in seconds and then nothing happened, and round 1 was the same thing
+again. Since 3 October 2026 free play is a different place, a sand-and-water table
+that keeps moving by itself (`playground.ts`). Nothing is scored.
 
-- **Hold on land** to pile up sand (1.4 m per second of holding, up to 4 m). A tap
-  adds a thin layer; dragging builds a ridge. Pointing near the old dike snaps to
-  its crest. The sides of the dike and of sand piles are clickable too.
-- **Click the sea** to drop a splash: a bump of water that spreads as a ring (with
-  a foam ring drawn at the shallow-water wave speed √(g·depth)).
-- **🌊 Storm!** sends one storm (below). Sand is unlimited; nothing is scored.
-- **🔍 X-ray** (or hold Space) turns the pointer into a magnifying glass (3.4×)
-  that shows what the computer keeps for each square: water depth (or ground
-  height where it is dry) and a flow arrow. It works in every round.
-- **🧹 Start over** restores the landscape.
+A spring on a hill feeds a river that winds through a pond and between the dunes to
+a beach, where a swell rolls in from the sea in sets (and a slow tide moves the
+waterline); a rocky island with a lighthouse stands off the coast. Rubber ducks come
+down from the spring every 5.5 s (while fewer than eight are on the way) and ride the
+river to the sea in about 20 s; out at sea a land breeze takes them off the map. Left
+alone for 20 s, the sea sends a big wave every 24 s, so an idle home screen stays alive.
+
+Tools (one is picked; the hint line says what it does):
+
+- **💧 Water** (the default, so a wiggle anywhere does something): a tap on water
+  splashes (a ring spreading at √(g·depth)); dragging through water pushes it
+  towards the pointer's speed (at most 3.2 m/s): a bow wave in front, a wake behind,
+  ducks swept along, a stirred pond. Holding pours water (0.9 m per second at the
+  centre, with falling drops), which runs downhill into a puddle, a stream or the river.
+- **🏖️ Sand**: hold to pile up a round mound (1.8 m per second at the centre, up to
+  5.5 m), also under water: islands, dams, sandcastles.
+- **⛏️ Dig**: hold to dig (down to −3 m): a new river, a lake, a harbour. Water only
+  follows a channel that runs downhill.
+- **🦆 Ducks**: a tap drops a duck (holding drops one every 0.3 s; at most 36).
+- **🌊 Big wave** (then rests 3.5 s): a 1.7 m pulse at the sea's edge. It runs up the
+  beach, over the low dunes and up the river as a bore, takes a bite out of islands,
+  and its wash soaks away.
+- **🔍 X-ray**, **🧹 Start over** and **🏆 Challenge!** as before.
+
+What makes it lively:
+
+- **Sand moves with the mean current.** The player's sand responds to the water's
+  current averaged over about a displayed second, so waves, which slosh back and
+  forth, leave an island alone, while a river or an overtopping flow carries sand one
+  square downstream (faster than 0.45 m/s), and wet sand standing more than 0.35 m
+  above a wet square downstream, or beside fast water, slides onto it. Sand is
+  conserved and settles where the current slows. A dam across the river fills a lake
+  (the river first looks for a way round it), overtops at its lowest point, bursts
+  and widens; sand thrown in the river travels on to the sea. The natural ground never
+  erodes. (The challenge keeps its own erosion; this is free play only.)
+- **Soaking.** Water standing on land that is not river, pond or sea soaks away:
+  a thin film fast (4·10⁻⁴ m per physical second), so puddles and a big wave's wash
+  dry up, standing water ten times slower, so a lake behind a dam still fills.
+- **Looks.** 320 foam flecks drift with the water (more where it runs fast) and show
+  every current; water running faster than its own waves (Froude number over 0.85)
+  turns white: breaking waves, the river over a ledge, a bursting dam; sand washing
+  away clouds the water; beach and sand darken when wet and dry out over 12 s.
+- **Ground.** Beach, dunes, fields and hills, with natural levees along the river and
+  a rim round the pond so the river stays in its bed until someone changes that.
+
+The explainer is about dikes, so opening it puts the polder (the challenge's first
+landscape) on screen; the water table waits and comes back as it was when the
+explainer closes.
 
 ## Challenge: four rounds
 
@@ -126,7 +167,7 @@ button (games have no free corner); it is remembered on the machine.
 
 ## Explainer
 
-The shared 🔬 panel, in free play only, with the landscape (or a picture) beside it:
+The shared 🔬 panel, in free play only, with the polder (or a picture) beside it:
 
 1. **The land is a grid of numbers** — the X-ray lens drifts over the polder.
 2. **Two rules for every square** — a one-row tank you can pour into, with the
@@ -200,6 +241,23 @@ physical seconds. A frame costs ~0.2 ms of solver time (worst 0.7 ms headless).
 - **Kiosk safety.** A numerical failure (negative or NaN depth) resets the water,
   keeping the landscape.
 
+- **Second order (free play).** `FloodSim.secondOrder` reconstructs depth, surface
+  and velocity linearly in each square with monotonized-central slopes (none next to
+  dry ground), applies the same hydrostatic reconstruction and Rusanov flux at the
+  face values, adds the centred bed term of Audusse et al.'s second-order scheme, and
+  steps with Heun's method at CFL 0.45. It stays exactly well balanced (also round a
+  dry island) and conservative. A 13-square wave keeps about 60 % of its height over
+  30 squares, against 9 % in first order, so waves, wakes and splash rings travel. A
+  step costs about six first-order steps; at 24 physical seconds per displayed second
+  free play needs about one step per frame (~1.4 ms on a laptop, 3 ms with a wild
+  child). If the solver averages more than 6 ms per frame, free play drops to first
+  order by itself; `?quality=low` starts there, `?quality=high` stays second order.
+  The challenge runs the first-order scheme, so its calibration is unchanged.
+- **Free play's water.** Manning friction (n = 0.025) on top of a small linear one,
+  so shallow streams are slowed but the sea's waves are not; springs as volume
+  sources; the warm-up runs the river for 240 physical seconds (first order, ~0.15 s,
+  once per page load).
+
 This is a depth-averaged long-wave model, not a resolved surf or soil-mechanics
 simulation. The homes and landscape are fictional.
 
@@ -214,7 +272,13 @@ independence, cap, budget, protected pond), round 2 (varied weak spots, what
 test storms reveal, right versus wrong reinforcement, budget), round 3
 (fragility monotone and exactly shifting, U-shaped score, repeatable century) and
 round 4 (open, well-timed, partial and late gates; forecasts narrowing onto the
-real storm).
+real storm), and free play: the second-order scheme (lake at rest, dry island,
+conservative dam break, short waves keeping over 3× the height of first order), the
+water table (spring ducks reach the sea within 40 s, the swell and the river stay out
+of the fields, the big wave runs up a third of the beach and its wash soaks away), the
+sand (an overtopped dam across the valley bursts and widens with its sand conserved,
+an island stays in the swell and loses a bite to the big wave) and two minutes of
+random sand, holes, pouring, pushing, splashes, ducks and big waves without a failure.
 
 Hardware frame rate on the stand machines and child playtests remain to be done.
 
